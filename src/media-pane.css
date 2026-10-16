@@ -1,0 +1,317 @@
+html,
+body,
+#media-root {
+  height: 100%;
+  margin: 0;
+}
+
+.prints-gallery-pending-actions {
+  position: absolute;
+  inset-block-start: var(--spacing-sm);
+  inset-inline-end: var(--spacing-sm);
+  display: flex;
+  gap: var(--spacing-sm);
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-media-grid] > div {
+    transition:
+      top 280ms ease,
+      left 280ms ease,
+      width 280ms ease;
+  }
+  [data-media-tile] {
+    transition:
+      height 280ms ease,
+      width 280ms ease;
+  }
+}
+
+/* Product layout around Caps controls; shared controls keep their own finish. */
+[data-app-pane="media"] {
+  /* App-local overlays stay inside this surface. */
+  contain: layout;
+  container-type: inline-size;
+  font-family: var(--font-sans);
+  background: var(--color-base-200);
+  color: var(--color-base-content);
+  padding: var(--spacing-xs);
+  gap: var(--spacing-xs);
+}
+.prints-composer-dock {
+  flex: none;
+  max-height: 55%;
+  overflow-y: auto;
+  padding-bottom: var(--spacing-xs);
+}
+.prints-composer {
+  flex: 0 0 auto;
+  padding: var(--spacing-sm);
+}
+
+.prints-prompt {
+  position: relative;
+  min-width: 0;
+  padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-md);
+}
+.prints-prompt textarea {
+  min-height: 64px;
+  padding: var(--spacing-xs);
+  font-size: var(--text-base);
+  line-height: 1.6;
+}
+.prints-model {
+  flex: 0 1 220px;
+  min-width: 0;
+}
+.prints-size {
+  flex: 0 1 150px;
+  min-width: 0;
+}
+.prints-generate {
+  margin-left: auto;
+  flex: none;
+  width: auto;
+  min-width: var(--caps-status-tray-key-height);
+}
+.prints-gallery-tile {
+  position: relative;
+  height: 100%;
+}
+.prints-gallery-tools {
+  position: absolute;
+  display: flex;
+  gap: var(--spacing-xs);
+  background: var(--color-base-100);
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  opacity: 0;
+}
+.prints-gallery-tile:hover .prints-gallery-tools,
+.prints-gallery-tile:focus-within .prints-gallery-tools,
+.prints-gallery-tile[data-referenced] .prints-gallery-tools {
+  opacity: 1;
+}
+.prints-reference-tray {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  overflow-x: auto;
+  padding: var(--spacing-sm);
+  border-bottom: var(--border) solid var(--stipe-hairline);
+}
+.prints-reference-tile {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+}
+.prints-reference-face {
+  width: 100%;
+  height: 100%;
+  background: var(--color-base-100);
+}
+.prints-reference-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.prints-reference-face > span {
+  font-size: var(--text-xs);
+}
+.prints-reference-remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--color-base-100);
+  opacity: 0;
+}
+.prints-reference-tile:hover .prints-reference-remove,
+.prints-reference-tile:focus-within .prints-reference-remove {
+  opacity: 1;
+}
+@media (hover: none) {
+  .prints-reference-remove,
+  .prints-gallery-reference {
+    opacity: 1;
+  }
+}
+.prints-custom-size {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex: 1 1 100%;
+  order: 1;
+}
+.prints-custom-size > label {
+  flex: 1;
+  min-width: 0;
+}
+.prints-reference-count {
+  font-size: var(--text-xs);
+  color: var(--stipe-fg-muted);
+}
+.prints-advanced {
+  position: relative;
+}
+.prints-advanced-panel {
+  width: 11.25rem;
+  left: auto;
+}
+.prints-uploads {
+  flex-shrink: 0;
+}
+
+/* Product layout; shared StatusTray owns every chip and panel surface. */
+.prints-composer-anchor {
+  display: block;
+}
+.prints-composer-guidance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding-inline: var(--spacing-md);
+  font-size: var(--text-sm);
+  color: var(--stipe-fg-muted);
+}
+.prints-composer-dock:has([data-status-tray-panel]) {
+  overflow: visible;
+}
+.prints-footer {
+  padding: var(--spacing-xs);
+  --caps-status-tray-row-wrap: wrap;
+  --caps-status-tray-chips-display: contents;
+  --caps-status-tray-key-height: calc(var(--size-field) * 8);
+  --caps-status-tray-chip-height: var(--caps-status-tray-key-height);
+  --caps-status-tray-width: 28rem;
+}
+.prints-footer [data-status-tray-chip="activity"] {
+  margin-inline-start: auto;
+}
+.prints-footer:has([data-status-tray-chip="activity"]) .prints-generate {
+  margin-left: 0;
+}
+.prints-footer-note {
+  color: var(--stipe-fg-muted);
+  font-size: var(--text-xs);
+}
+.prints-instrument {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: var(--spacing-md);
+}
+.prints-notice-group {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+.prints-notice-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-2xs);
+}
+.prints-panel-footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+.prints-panel-footer {
+  border-top: var(--border) solid var(--stipe-hairline);
+  padding-top: var(--spacing-sm);
+  padding-bottom: var(--spacing-xs);
+  padding-inline-end: var(--spacing-xs);
+}
+.prints-panel-footer > span {
+  flex: 1 1 10rem;
+  overflow-wrap: anywhere;
+}
+.prints-upload-bank {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+.prints-tile-failed {
+  display: inline-flex;
+  position: absolute;
+  bottom: var(--spacing-sm);
+  left: var(--spacing-sm);
+}
+
+/* Layout only; Caps KeycapButton owns its key material and states. */
+.prints-panel-footer > button {
+  width: auto;
+}
+
+.prints-upload-key {
+  flex: none;
+  width: auto;
+  min-width: var(--caps-status-tray-key-height);
+}
+
+@container (max-width: 34rem) {
+  .prints-footer .caps-status-tray-row {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1.25fr) minmax(0, 1fr);
+  }
+  .prints-footer .caps-status-tray-row:has(.prints-advanced) {
+    grid-template-columns: auto auto minmax(0, 1.25fr) minmax(0, 1fr) auto;
+  }
+  .prints-model,
+  .prints-size {
+    min-width: 0;
+    max-width: none;
+  }
+  .prints-footer [data-status-tray-chip="activity"] {
+    grid-column: 1 / 3;
+    margin-inline-start: 0;
+  }
+  .prints-footer .prints-generate {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin-left: 0;
+  }
+  .prints-footer:has([data-status-tray-chip="activity"]) .prints-generate {
+    grid-column: 3 / -1;
+  }
+}
+
+/* The composer follows the same theme field-size grid as Caps select-sm. */
+.prints-footer
+  .caps-status-tray-row
+  :is(.caps-keycap-button, .caps-status-tray-chip, .caps-select) {
+  height: var(--caps-status-tray-key-height);
+  min-height: var(--caps-status-tray-key-height);
+}
+
+.prints-gallery-region {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: var(--spacing-xs);
+}
+.prints-info-drawer {
+  flex: 0 0 var(--container-xs);
+  min-width: 0;
+  max-width: 100%;
+  overflow: auto;
+  padding: var(--spacing-md);
+  background: var(--color-base-200);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-md);
+}
+@container (max-width: 40rem) {
+  .prints-info-drawer {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+}
+@media (hover: none) {
+  .prints-gallery-tools {
+    opacity: 1;
+  }
+}

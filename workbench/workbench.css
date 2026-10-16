@@ -1,0 +1,18 @@
+.prints-study {
+  height: calc(100dvh - 64px);
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-sans);
+}
+.prints-study-note {
+  flex: none;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-base-200);
+  color: var(--color-base-content);
+  font-size: var(--text-xs);
+}
+.prints-study-surface {
+  flex: 1;
+  min-height: 0;
+}

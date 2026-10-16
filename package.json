@@ -1,0 +1,219 @@
+{
+  "name": "@fungi.computer/prints",
+  "version": "0.0.1",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p backend/tsconfig.json --noEmit",
+    "lint": "eslint src backend test workbench .ladle --max-warnings=0",
+    "workbench": "pnpm workbench:css && ladle serve --host 127.0.0.1 --port 61002",
+    "build:workbench": "pnpm run workbench:build"
+  },
+  "dependencies": {
+    "@fungi.computer/agar": "0.1.0",
+    "@fungi.computer/cairn": "0.0.1",
+    "@fungi.computer/caps": "0.0.2",
+    "@fungi.computer/parakeet": "0.0.1",
+    "@fungi.computer/whistle": "0.0.1",
+    "@tanstack/react-form": "1.33.2",
+    "animejs": "4.5.0",
+    "effect": "4.0.2",
+    "lucide-react": "0.460.0",
+    "masonic": "3.7.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "zod": "4.4.3",
+    "@tanstack/react-query": "5.102.8",
+    "@fungi.computer/darkroom": "0.0.1",
+    "@fungi.computer/gills": "0.0.1"
+  },
+  "devDependencies": {
+    "@fungi.computer/puffball": "0.0.2",
+    "@ladle/react": "5.1.1",
+    "@tailwindcss/cli": "4.2.1",
+    "@tailwindcss/vite": "4.2.1",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "@fungi.computer/capnweb": "0.12.0",
+    "playwright": "1.62.1",
+    "vitest": "4.1.11",
+    "tsx": "4.23.12",
+    "typescript": "5.9.3",
+    "vite": "8.2.2",
+    "vite-plugin-singlefile": "2.3.3",
+    "@cloudflare/workers-types": "5.20260828.1",
+    "@fungi.computer/oyster": "0.1.0",
+    "eslint": "10.9.1",
+    "jsdom": "29.0.1",
+    "@types/node": "24.13.3"
+  },
+  "fungi": {
+    "build": {
+      "stylesheets": [
+        "src/media.css"
+      ],
+      "react": true
+    },
+    "app": {
+      "displayName": "Prints",
+      "icon": "prints",
+      "capabilities": [
+        "computer.list",
+        "computer.readFile",
+        "computer.writeFile",
+        "media.generation"
+      ],
+      "handlers": [],
+      "roles": [
+        "media"
+      ],
+      "commands": [
+        {
+          "id": "clear-prompt",
+          "title": "Clear prompt",
+          "category": "Prompt",
+          "description": "Remove the current prompt",
+          "projections": {
+            "slash": {
+              "aliases": [
+                "clear"
+              ],
+              "order": 0
+            },
+            "palette": {}
+          }
+        },
+        {
+          "id": "size-landscape",
+          "title": "Use landscape size",
+          "category": "Prompt",
+          "description": "Use 1024 × 768",
+          "projections": {
+            "slash": {
+              "aliases": [
+                "landscape"
+              ],
+              "order": 1
+            },
+            "palette": {}
+          }
+        },
+        {
+          "id": "size-portrait",
+          "title": "Use portrait size",
+          "category": "Prompt",
+          "description": "Use 768 × 1024",
+          "projections": {
+            "slash": {
+              "aliases": [
+                "portrait"
+              ],
+              "order": 2
+            },
+            "palette": {}
+          }
+        },
+        {
+          "id": "size-square",
+          "title": "Use square size",
+          "category": "Prompt",
+          "description": "Use 1024 × 1024",
+          "projections": {
+            "slash": {
+              "aliases": [
+                "square"
+              ],
+              "order": 3
+            },
+            "palette": {}
+          }
+        },
+        {
+          "id": "inspect-generation-draft",
+          "title": "Inspect image draft",
+          "category": "Image generation",
+          "description": "Read the current Prints image form and available models",
+          "projections": {
+            "agent": {}
+          }
+        },
+        {
+          "id": "set-generation-draft",
+          "title": "Edit image draft",
+          "category": "Image generation",
+          "description": "Set selected Prints image form fields; this does not generate an image",
+          "projections": {
+            "agent": {}
+          }
+        },
+        {
+          "id": "submit-generation-draft",
+          "title": "Generate image",
+          "category": "Image generation",
+          "description": "Submit the current Prints image form using the same action as the Send button",
+          "projections": {
+            "agent": {}
+          }
+        }
+      ],
+      "backend": {
+        "bindings": [
+          {
+            "name": "MEDIA",
+            "operations": [
+              "models",
+              "generate"
+            ]
+          },
+          {
+            "name": "COMPUTER",
+            "operations": [
+              "list",
+              "read"
+            ]
+          }
+        ]
+      }
+    },
+    "backendDefinition": "backend/methods.ts"
+  },
+  "description": "Prints: generate images and video into a gallery on your Computer, an App for Oyster",
+  "author": "Levi <levi@technomancy.dev>",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fungi-computer/prints.git"
+  },
+  "botanical": {
+    "role": "app",
+    "operations": {
+      "lint": "required",
+      "typecheck": "required",
+      "build": "required",
+      "test": "required",
+      "docs": {
+        "status": "not-applicable",
+        "reason": "This private captured app has no public package API documentation"
+      },
+      "pack": {
+        "status": "not-applicable",
+        "reason": "Media is delivered as captured HTML, not an npm package"
+      },
+      "smoke": {
+        "status": "not-applicable",
+        "reason": "The separate native captured-Release browser proof exercises the app"
+      },
+      "stranger": {
+        "status": "not-applicable",
+        "reason": "Media has no external npm consumer"
+      }
+    }
+  },
+  "packageManager": "pnpm@11.24.0"
+}

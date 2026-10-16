@@ -1,0 +1,52 @@
+verifyDepsBeforeRun: false
+overrides:
+  "@types/react": 18.3.3
+  "@types/react-dom": 18.3.3
+  "@modelcontextprotocol/client>zod": 4.4.3
+  "@modelcontextprotocol/core>zod": 4.4.3
+  "@modelcontextprotocol/server>zod": 4.4.3
+  "@better-auth/mcp@1.7.2>@better-auth/oauth-provider": 1.7.2
+  "@effect/platform-node-shared": 4.0.2
+allowBuilds:
+  "@google/genai": false
+  "@mongodb-js/zstd": false
+  "@parcel/watcher": false
+  "@swc/core": false
+  better-sqlite3: true
+  bun: true
+  core-js: false
+  esbuild: true
+  exifreader: false
+  msgpackr-extract: false
+  msw: false
+  node-liblzma: false
+  node-llama-cpp: true
+  protobufjs: false
+  tree-sitter-go: true
+  tree-sitter-javascript: true
+  tree-sitter-python: true
+  tree-sitter-rust: true
+  tree-sitter-typescript: true
+  workerd: true
+minimumReleaseAgeExclude:
+  - '@fungi.computer/agar@0.1.0'
+  - '@fungi.computer/almanac@0.0.1'
+  - '@fungi.computer/braid@0.0.1'
+  - '@fungi.computer/burrow@0.0.2'
+  - '@fungi.computer/caps@0.0.2'
+  - '@fungi.computer/cloudflare-computer@0.2.1-fungi.1'
+  - '@fungi.computer/computer@0.0.1'
+  - '@fungi.computer/cordyceps@0.2.2'
+  - '@fungi.computer/darkroom@0.0.1'
+  - '@fungi.computer/forage@0.0.2'
+  - '@fungi.computer/knapsack@0.0.2'
+  - '@fungi.computer/mule@0.0.2'
+  - '@fungi.computer/mycelium@0.0.2'
+  - '@fungi.computer/oyster@0.1.0'
+  - '@fungi.computer/parakeet@0.0.1'
+  - '@fungi.computer/puffball@0.0.2'
+  - '@fungi.computer/seam@0.0.1'
+  - '@fungi.computer/shiitake@0.1.0'
+  - '@fungi.computer/ts-webp@0.1.6'
+  - '@fungi.computer/veil@0.0.1'
+  - '@fungi.computer/workflows-wire@0.0.1'
