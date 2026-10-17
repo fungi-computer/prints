@@ -1,3 +1,4 @@
+import { resultRows } from "@fungi.computer/agar/method-presentation";
 import { recentOutputsGill } from "./gills.js";
 import { outputPageInputSchema, outputPageSchema } from "./output-page.js";
 import {
@@ -231,6 +232,25 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
         generatedVideoSchema.extend({ printId: id }),
         methodRefusalSchema,
       ]),
+      present: {
+        rows: resultRows,
+        verb: "made",
+        row: ({ output }) =>
+          "error" in output
+            ? {
+                id: "refused",
+                title: "Prints could not make this clip",
+                detail: output.error,
+                tone: "error",
+              }
+            : {
+                id: output.printId,
+                title: "Prints made this clip",
+                detail: `${output.model} · ${String(output.width)}×${String(output.height)}`,
+                media: { path: output.destination.path, format: "fungi:video" },
+                open: { params: [{ key: "print", value: output.printId }] },
+              },
+      },
       handler: async (input, context, caller) => {
         if (
           !context.env.MEDIA?.generate ||
@@ -299,6 +319,25 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
         generatedImageSchema.extend({ printId: id }),
         methodRefusalSchema,
       ]),
+      present: {
+        rows: resultRows,
+        verb: "made",
+        row: ({ output }) =>
+          "error" in output
+            ? {
+                id: "refused",
+                title: "Prints could not make this panel",
+                detail: output.error,
+                tone: "error",
+              }
+            : {
+                id: output.printId,
+                title: "Prints made this panel",
+                detail: `${output.model} · ${String(output.width)}×${String(output.height)}`,
+                media: { path: output.destination.path, format: "fungi:image" },
+                open: { params: [{ key: "print", value: output.printId }] },
+              },
+      },
       handler: async (input, context, caller) => {
         if (
           !context.env.MEDIA?.generate ||
