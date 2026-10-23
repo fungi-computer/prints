@@ -3,6 +3,7 @@ import type { PendingGeneration } from "./media-recovery-contract.js";
 import type { GallerySlot } from "./gallery-slots.js";
 import type { useComputerUploads } from "./use-computer-uploads.js";
 import type { PrintsNotice } from "./prints-activity.js";
+import { modelFor, type MediaModel } from "./generation-model.js";
 
 export type NoticeState = {
   connected: boolean;
@@ -10,6 +11,7 @@ export type NoticeState = {
   modelsError: string | null;
   retryModels: () => void;
   modelsLoading: boolean;
+  models: readonly MediaModel[];
   canGenerate: boolean;
   canWrite: boolean;
   generationError: {
@@ -39,6 +41,7 @@ export function noticesFor({
   modelsError,
   retryModels,
   modelsLoading,
+  models,
   canGenerate,
   canWrite,
   generationError,
@@ -164,12 +167,14 @@ export function noticesFor({
       )
     )
       continue;
+    const kind = modelFor(models, record.input.settings.model)?.kind ?? "media";
+    const title = `Unfinished ${kind}`;
     notices.push({
       key: `unfinished:${record.reference.requestId}`,
       group: "Images",
       tone: "info",
-      short: "Unfinished image",
-      title: "Unfinished image",
+      short: title,
+      title,
       detail:
         record.reference.computerId !== computerId
           ? `${record.input.settings.prompt} · on Computer ${record.reference.computerId}`

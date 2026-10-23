@@ -46,13 +46,9 @@ export type GenerationRecord = Readonly<{
 }>;
 
 type GenerationSettingsDraft = {
-  height: number;
-  model: string;
-  prompt: string;
-  references?: readonly MediaReference[];
-  steps?: number;
-  durationSeconds?: number;
-  width: number;
+  -readonly [
+    Key in keyof MediaGenerationInput["settings"]
+  ]: MediaGenerationInput["settings"][Key];
 };
 
 export type GenerationState =
@@ -141,6 +137,12 @@ export function generateActionLabel(model: MediaModel | undefined): string {
   return model?.kind === "video" ? "Generate video" : "Generate image";
 }
 
+/** Missing registry metadata must not relabel a restored attempt as an image. */
+export function generationPendingLabel(model: MediaModel | undefined): string {
+  if (model === undefined) return "Creating media…";
+  return model.kind === "video" ? "Creating video…" : "Creating image…";
+}
+
 /** One size the composer offers: a catalog size or a generic preset. */
 export type SizeChoice = Readonly<{
   value: string;
@@ -149,10 +151,17 @@ export type SizeChoice = Readonly<{
   height: number;
 }>;
 
-/** A model with catalog sizes offers exactly those; others get the presets. */
+/** Videos name catalog formats; sized images keep their sizes, others get presets. */
 export function sizeChoicesFor(
   model: MediaModel | undefined,
 ): readonly SizeChoice[] {
+  if (model?.video !== undefined && model.video !== null)
+    return model.video.formats.map((format) => ({
+      value: `${String(format.width)}x${String(format.height)}`,
+      label: `${format.resolution} · ${format.aspectRatio} · ${String(format.width)} × ${String(format.height)}`,
+      width: format.width,
+      height: format.height,
+    }));
   if (model !== undefined && model.sizes !== null)
     return model.sizes.flatMap((size) => {
       const match = /^(\d+)x(\d+)$/u.exec(size);
@@ -175,11 +184,14 @@ export function sizeChoicesFor(
   }));
 }
 
-/** Keep the chosen size when the next model accepts it; otherwise use its default. */
+/** Preserve video dimensions across model changes; refused sizes need an explicit choice. */
 export function sizeForModel(
   draft: Readonly<{ width: number; height: number }>,
   model: MediaModel,
-): { width: number; height: number } {
+  previousModel: MediaModel | undefined,
+) {
+  if (previousModel?.kind === "video" && model.kind === "video")
+    return { width: draft.width, height: draft.height };
   const accepted =
     model.input.dimensions !== "none" &&
     Result.isSuccess(
@@ -220,13 +232,24 @@ export function draftForModel(
 
 export function generationInputFor(
   draft: GenerationDraft,
+  model: MediaModel,
 ): MediaGenerationInput {
+  const format = model.video?.formats.find(
+    (candidate) =>
+      candidate.width === draft.width && candidate.height === draft.height,
+  );
+  if (model.kind === "video" && format === undefined)
+    throw new Error("Choose a supported video resolution and aspect ratio.");
   const settings: GenerationSettingsDraft = {
     height: draft.height,
     model: draft.model,
     prompt: draft.prompt.trim(),
     width: draft.width,
   };
+  if (format !== undefined) {
+    settings.resolution = format.resolution;
+    settings.aspectRatio = format.aspectRatio;
+  }
   if (draft.steps !== undefined) settings.steps = draft.steps;
   if (draft.durationSeconds !== undefined)
     settings.durationSeconds = draft.durationSeconds;
@@ -316,7 +339,9 @@ export function validationMessage(
   if (draft.destination?.trim().length === 0)
     return "A destination file path is required.";
   if (draft.prompt.trim().length === 0)
-    return "Describe the image to generate.";
+    return model?.kind === "video"
+      ? "Describe the video to generate."
+      : "Describe the image to generate.";
   if (model === undefined) return "Choose a model from the granted registry.";
   const parameters = Schema.decodeUnknownResult(
     generationParametersSchema(() => model),

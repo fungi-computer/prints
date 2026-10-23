@@ -7,6 +7,8 @@ export type GallerySlot = {
   computerId: string;
   width: number;
   height: number;
+  /** Captured display copy for this reservation, independent of composer edits. */
+  pendingLabel?: string;
   previewFile?: File;
   resolved?: boolean;
   uploadId?: string;

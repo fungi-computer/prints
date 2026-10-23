@@ -1,9 +1,6 @@
 import { defaultMediaLibraryPath } from "../library-folder.js";
 import { completeGenerationRequestSchema } from "../src/media-completion-contract.js";
-import {
-  generationInputFor,
-  defaultGenerationDraft,
-} from "../src/generation-model.js";
+import { DEFAULT_MODEL_ID } from "../src/generation-model.js";
 import type {
   MediaGenerationAttemptHandle,
   MediaGenerationOutcome,
@@ -229,11 +226,15 @@ export function createPrintsFixture(
   if (opt.pending)
     pendingGenerations.set("fixture-old-1", {
       reference: { requestId: "fixture-old-1", computerId },
-      input: generationInputFor({
-        ...defaultGenerationDraft(),
-        prompt: "a mushroom knight",
-        destination: "/media/print-2026-10-06-mushroom-knight.png",
-      }),
+      input: {
+        destination: { path: "/media/print-2026-10-06-mushroom-knight.png" },
+        settings: {
+          model: DEFAULT_MODEL_ID,
+          prompt: "a mushroom knight",
+          width: 1024,
+          height: 768,
+        },
+      },
     });
   register(appMethods, {
     call: (method) =>

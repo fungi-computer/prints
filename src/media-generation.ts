@@ -23,6 +23,7 @@ import {
   describeGenerationError,
   generationDestinationFor,
   generationInputFor,
+  generationPendingLabel,
   modelFor,
   validationMessage,
   GENERATION_UNAVAILABLE_REASON,
@@ -197,6 +198,9 @@ export function useMediaGeneration({
         path: run.input.destination.path,
         width: run.draft.width,
         height: run.draft.height,
+        pendingLabel: generationPendingLabel(
+          modelFor(run.session.models, run.input.settings.model),
+        ),
       });
     },
     onSuccess: (record, run) => {
@@ -328,6 +332,13 @@ export function useMediaGeneration({
     }
     retry.current = null;
     const model = modelFor(models, draft.model);
+    if (model === undefined) {
+      setAdmissionError({
+        kind: "error",
+        message: "Choose a model from the granted registry.",
+      });
+      return false;
+    }
     const invalid = validationMessage(draft, model);
     if (invalid) {
       setAdmissionError({ kind: "error", message: invalid });
@@ -344,7 +355,7 @@ export function useMediaGeneration({
       ...draft,
       destination: generationDestinationFor(draft, folder.path, model),
     };
-    const input = generationInputFor(resolved);
+    const input = generationInputFor(resolved, model);
     let reference: MediaGenerationReference;
     try {
       const folderError = await folder.ensureCreated();

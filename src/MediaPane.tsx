@@ -303,7 +303,7 @@ function GenerationComposer({
                       if (next.input.steps === "fixed") setSettingsOpen(false);
                       const touched = form.store.state.fieldMeta;
                       const nextDraft = draftForModel(values, next);
-                      const size = sizeForModel(values, next);
+                      const size = sizeForModel(values, next, selected);
                       if (
                         next.input.dimensions === "none" ||
                         next.sizes !== null
@@ -379,6 +379,12 @@ function GenerationComposer({
                   <option value="provider">Model default</option>
                 ) : (
                   <>
+                    {catalogSized &&
+                    !sizeChoices.some((choice) => choice.value === sizeMode) ? (
+                      <option value={sizeMode} disabled>
+                        Choose a supported resolution
+                      </option>
+                    ) : null}
                     {sizeChoices.map((choice) => (
                       <option key={choice.value} value={choice.value}>
                         {choice.label}
@@ -716,9 +722,18 @@ export function MediaPane({
           if (!model)
             throw new Error("Choose a model from the granted registry.");
           const modelDraft = draftForModel(current.store.state.values, model);
+          const previousModel = modelFor(
+            modelsRef.current,
+            current.store.state.values.model,
+          );
+          const size = sizeForModel(
+            current.store.state.values,
+            model,
+            previousModel,
+          );
           current.setFieldValue("model", modelDraft.model);
-          current.setFieldValue("width", modelDraft.width);
-          current.setFieldValue("height", modelDraft.height);
+          current.setFieldValue("width", size.width);
+          current.setFieldValue("height", size.height);
           current.setFieldValue("steps", modelDraft.steps);
           current.setFieldValue(
             "references",
@@ -921,7 +936,7 @@ export function MediaPane({
               ? "Loading preview…"
               : slot.uploadId
                 ? "Uploading image…"
-                : "Creating image…",
+                : slot.pendingLabel,
           onOpen: () => undefined,
           onRetry:
             error && (canRead || (upload && upload.status !== "complete"))
@@ -988,6 +1003,7 @@ export function MediaPane({
     modelsError,
     retryModels: generation.retryModels,
     modelsLoading,
+    models,
     canGenerate,
     canWrite,
     generationError,

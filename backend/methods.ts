@@ -83,19 +83,19 @@ export type PrintsMethodContext = Readonly<{
     storage: Pick<DurableObjectStorage, "sql" | "transactionSync">;
   }>;
   env: Readonly<{
-    MEDIA?: Readonly<{
-      models?(input: Record<string, never>): Promise<WhistleJsonValue>;
-      generate?(
+    MEDIA: Readonly<{
+      models(input: Record<string, never>): Promise<WhistleJsonValue>;
+      generate(
         input: z.output<typeof generationCommandSchema>,
       ): Promise<WhistleJsonValue>;
     }>;
-    COMPUTER?: Readonly<{
-      list?(input: {
+    COMPUTER: Readonly<{
+      list(input: {
         path: string;
         limit: number;
         offset: number;
       }): Promise<WhistleJsonValue>;
-      read?(input: {
+      read(input: {
         path: string;
         byteOffset: number;
         byteLength: number;
@@ -106,6 +106,21 @@ export type PrintsMethodContext = Readonly<{
 const refusal = (
   error: "not_granted" | "unavailable" | "conflict" | "not_found",
 ) => methodRefusalSchema.parse({ error });
+
+const bindingNotGranted = z.object({
+  code: z.literal("binding_not_granted"),
+});
+
+async function bindingCall(
+  call: () => Promise<WhistleJsonValue>,
+): Promise<WhistleJsonValue> {
+  try {
+    return await call();
+  } catch (cause) {
+    if (!bindingNotGranted.safeParse(cause).success) throw cause;
+    return refusal("not_granted");
+  }
+}
 
 function selectedLibrary(
   context: PrintsMethodContext,
@@ -140,8 +155,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
       input: empty,
       output: z.union([models, methodRefusalSchema]),
       handler: async (input, context) => {
-        if (!context.env.MEDIA?.models) return refusal("not_granted");
-        const reply = await context.env.MEDIA.models(input);
+        const reply = await bindingCall(() => context.env.MEDIA.models(input));
         const refused = methodRefusalSchema.safeParse(reply);
         return refused.success ? refused.data : models.parse({ models: reply });
       },
@@ -154,8 +168,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
       input: outputPageInputSchema,
       output: z.union([outputPageSchema, methodRefusalSchema]),
       handler: (input, context, caller) => {
-        if (!context.env.COMPUTER?.list || caller.computerId === null)
-          return refusal("not_granted");
+        if (caller.computerId === null) return refusal("not_granted");
         const selected = selectedLibrary(context, caller.computerId);
         if (selected === null) return missingLibrary();
         return outputPageSchema.parse(
@@ -191,8 +204,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
       }),
       output: z.union([byteRead.extend({ printId: id }), methodRefusalSchema]),
       handler: async (input, context, caller) => {
-        if (!context.env.COMPUTER?.read || caller.computerId === null)
-          return refusal("not_granted");
+        if (caller.computerId === null) return refusal("not_granted");
         const selected = selectedLibrary(context, caller.computerId);
         if (selected === null) return missingLibrary();
         const item = indexedOutput(
@@ -202,11 +214,13 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
           selected,
         );
         if (!item) return refusal("not_found");
-        const reply = await context.env.COMPUTER.read({
-          path: item.path,
-          byteOffset: input.byteOffset,
-          byteLength: input.byteLength,
-        });
+        const reply = await bindingCall(() =>
+          context.env.COMPUTER.read({
+            path: item.path,
+            byteOffset: input.byteOffset,
+            byteLength: input.byteLength,
+          }),
+        );
         const refused = methodRefusalSchema.safeParse(reply);
         if (refused.success) return refused.data;
         const bytes = byteRead.parse(reply);
@@ -252,11 +266,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
               },
       },
       handler: async (input, context, caller) => {
-        if (
-          !context.env.MEDIA?.generate ||
-          caller.computerId === null ||
-          caller.actor.kind === "team-key"
-        )
+        if (caller.computerId === null || caller.actor.kind === "team-key")
           return refusal("not_granted");
         const requestId =
           input.requestId ??
@@ -284,7 +294,9 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
         );
         if ("error" in remembered) return refusal("conflict");
         // Media rechecks admission and owns the existing provider/Billing retry identity.
-        const reply = await context.env.MEDIA.generate(command);
+        const reply = await bindingCall(() =>
+          context.env.MEDIA.generate(command),
+        );
         const refused = methodRefusalSchema.safeParse(reply);
         if (refused.success) return refused.data;
         const working = pendingSchema.safeParse(reply);
@@ -339,11 +351,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
               },
       },
       handler: async (input, context, caller) => {
-        if (
-          !context.env.MEDIA?.generate ||
-          caller.computerId === null ||
-          caller.actor.kind === "team-key"
-        )
+        if (caller.computerId === null || caller.actor.kind === "team-key")
           return refusal("not_granted");
         const requestId =
           input.requestId ??
@@ -382,7 +390,9 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
         );
         if ("error" in remembered) return refusal("conflict");
         // Always re-enter Media admission on replay; it owns provider/Billing idempotency.
-        const reply = await context.env.MEDIA.generate(command);
+        const reply = await bindingCall(() =>
+          context.env.MEDIA.generate(command),
+        );
         const refused = methodRefusalSchema.safeParse(reply);
         if (refused.success) return refused.data;
         const result = generatedImageSchema.parse(reply);
