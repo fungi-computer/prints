@@ -1,5 +1,11 @@
 # @fungi.computer/prints
 
+## 0.2.1
+
+### Patch Changes
+
+- @fungi.computer/parakeet@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
