@@ -22,8 +22,25 @@ export const generateImageCommandSchema = mediaImageBindingInputSchema.omit({
   kind: true,
   libraryPath: true,
 });
+/** Optional name of a saved style block whose text leads the prompt. */
+const styleArgumentSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .describe(
+    "Name of a saved Prints style block. Its text is placed before the prompt; the combined prompt must fit the model's limit.",
+  );
+/** Optional names of saved Prints characters to weave into the prompt. */
+const charactersArgumentSchema = z
+  .array(z.string().min(1).max(32))
+  .max(8)
+  .describe(
+    "Names of saved Prints characters. Each one's description is added to the prompt and its reference images to the references, counting against the model's reference limit. An unknown name is INVALID_ARGUMENT. The prompt may also mention characters as @name.",
+  );
 export const generateImageInputSchema = generateImageCommandSchema.extend({
   requestId: mediaRequestIdSchema.optional(),
+  style: styleArgumentSchema.optional(),
+  characters: charactersArgumentSchema.optional(),
 });
 /** Video grammar comes from Darkroom; defaults/combinations remain host-owned. */
 const videoCommandSchema = mediaVideoBindingInputSchema.omit({
@@ -46,6 +63,8 @@ export const generateVideoCommandSchema =
 export const generateVideoInputSchema = videoCommandSchema
   .extend({
     requestId: mediaRequestIdSchema.optional(),
+    style: styleArgumentSchema.optional(),
+    characters: charactersArgumentSchema.optional(),
   })
   .superRefine(validateVideoCommand);
 export const generationCommandSchema = mediaBindingGenerationSchema;

@@ -35,8 +35,12 @@ export type GenerationDraft = {
   prompt: string;
   references: readonly MediaReference[];
   steps?: number;
+  /** Name of the saved style block that leads the prompt; absent for none. */
+  style?: string;
   /** Video models only: clip length in seconds. */
   durationSeconds?: number;
+  /** Video models only: audio on or off; absent leaves the provider's default. */
+  generateAudio?: boolean;
   width: number;
 };
 
@@ -151,6 +155,77 @@ export type SizeChoice = Readonly<{
   height: number;
 }>;
 
+const greatestCommonDivisor = (a: number, b: number): number =>
+  b === 0 ? a : greatestCommonDivisor(b, a % b);
+
+/** Pixel size with its reduced aspect ratio, e.g. "1536 × 1024 · 3:2". */
+const sizeLabel = (
+  width: number,
+  height: number,
+  ratio?: readonly [number, number],
+): string => {
+  if (ratio !== undefined)
+    return `${String(width)} × ${String(height)} · ${String(ratio[0])}:${String(ratio[1])}`;
+  const divisor = greatestCommonDivisor(width, height);
+  return `${String(width)} × ${String(height)} · ${String(width / divisor)}:${String(height / divisor)}`;
+};
+
+const WIDESCREEN_RATIOS = [
+  [16, 9],
+  [21, 9],
+] as const;
+const PIXEL_MULTIPLE = 16;
+
+/**
+ * Widescreen presets for a model whose provider documents its maximum
+ * dimension: the largest width (a multiple of 16, within that maximum) with
+ * the height rounded to the nearest multiple of 16.
+ */
+function widescreenChoices(model: MediaModel): readonly SizeChoice[] {
+  const maximum = model.input.maxDimension;
+  if (
+    model.kind !== "image" ||
+    model.input.dimensions !== "own" ||
+    !model.input.maxDimensionDocumented ||
+    maximum === null
+  )
+    return [];
+  const width = Math.floor(maximum / PIXEL_MULTIPLE) * PIXEL_MULTIPLE;
+  return WIDESCREEN_RATIOS.map(([w, h]) => {
+    const height =
+      Math.round((width * h) / w / PIXEL_MULTIPLE) * PIXEL_MULTIPLE;
+    return {
+      value: `${String(width)}x${String(height)}`,
+      label: sizeLabel(width, height, [w, h]),
+      width,
+      height,
+    };
+  });
+}
+
+/**
+ * The size in a few characters for the settings readout: a video's catalog
+ * format ("720p 16:9"), an image's reduced ratio ("3:2"), or its pixels when
+ * the ratio has no short name. Provider-sized models show nothing.
+ */
+export function shortSizeLabel(
+  model: MediaModel | undefined,
+  width: number,
+  height: number,
+): string | null {
+  if (model?.input.dimensions === "none") return null;
+  const format = model?.video?.formats.find(
+    (entry) => entry.width === width && entry.height === height,
+  );
+  if (format !== undefined) return `${format.resolution} ${format.aspectRatio}`;
+  const divisor = greatestCommonDivisor(width, height);
+  const across = width / divisor;
+  const down = height / divisor;
+  return across <= 21 && down <= 21
+    ? `${String(across)}:${String(down)}`
+    : `${String(width)} × ${String(height)}`;
+}
+
 /** Videos name catalog formats; sized images keep their sizes, others get presets. */
 export function sizeChoicesFor(
   model: MediaModel | undefined,
@@ -171,17 +246,20 @@ export function sizeChoicesFor(
       return [
         {
           value: size,
-          label: `${String(width)} × ${String(height)}`,
+          label: sizeLabel(width, height),
           width,
           height,
         },
       ];
     });
-  return SIZE_MODES.map((mode) => ({
-    value: mode,
-    label: `${String(SIZE_PRESETS[mode].width)} × ${String(SIZE_PRESETS[mode].height)}`,
-    ...SIZE_PRESETS[mode],
-  }));
+  return [
+    ...SIZE_MODES.map((mode) => ({
+      value: mode,
+      label: sizeLabel(SIZE_PRESETS[mode].width, SIZE_PRESETS[mode].height),
+      ...SIZE_PRESETS[mode],
+    })),
+    ...(model === undefined ? [] : widescreenChoices(model)),
+  ];
 }
 
 /** Preserve video dimensions across model changes; refused sizes need an explicit choice. */
@@ -206,6 +284,11 @@ export function sizeForModel(
     : { width: model.input.defaultWidth, height: model.input.defaultHeight };
 }
 
+/** The catalog's display name, without the label's description. */
+export function modelName(model: Pick<MediaModel, "label">): string {
+  return model.label.split(" — ")[0] ?? model.label;
+}
+
 export function modelFor(
   models: readonly MediaModel[],
   id: string,
@@ -226,8 +309,121 @@ export function draftForModel(
         ? undefined
         : (model.input.defaultSteps ?? undefined),
     durationSeconds: model.video?.defaultSeconds,
+    generateAudio: model.video?.defaultGenerateAudio ?? undefined,
     width: model.input.defaultWidth,
   };
+}
+
+export type ReferenceRole = NonNullable<MediaReference["role"]>;
+
+/** What the composer calls each video reference role. */
+export const REFERENCE_ROLE_LABELS = {
+  "first-frame": "First frame",
+  "last-frame": "Last frame",
+  reference: "Reference",
+} as const satisfies Record<ReferenceRole, string>;
+
+/**
+ * The role a tap on a reference's tag moves it to: the next documented role
+ * that no other reference holds (any number may be plain references).
+ */
+export function nextReferenceRole(
+  roles: readonly ReferenceRole[],
+  references: readonly MediaReference[],
+  at: number,
+): ReferenceRole | undefined {
+  const current = references[at]?.role;
+  const after = current === undefined ? 0 : roles.indexOf(current) + 1;
+  // Walk the roles once, starting after the current one.
+  return [...roles.slice(after), ...roles.slice(0, after)].find(
+    (role) =>
+      role !== current &&
+      (role === "reference" ||
+        !references.some(
+          (other, index) => index !== at && other.role === role,
+        )),
+  );
+}
+
+/** The roles the model documents, or none for an image model. */
+export function referenceRolesFor(
+  model: MediaModel | undefined,
+): readonly ReferenceRole[] {
+  return model?.video?.referenceRoles ?? [];
+}
+
+/**
+ * Give every reference the role it will be sent with. A role the person chose
+ * and the model documents is kept; the rest are filled in so the set is valid
+ * whenever it can be: first frame, then last frame where the model has one,
+ * else references. Image models take no roles.
+ */
+export function resolveReferenceRoles(
+  references: readonly MediaReference[],
+  model: MediaModel | undefined,
+): readonly MediaReference[] {
+  const supported = referenceRolesFor(model);
+  if (model?.video == null)
+    return references.map((reference) => ({ path: reference.path }));
+  const chosen = references.map((reference) =>
+    reference.role !== undefined && supported.includes(reference.role)
+      ? reference.role
+      : undefined,
+  );
+  const has = (role: ReferenceRole) => chosen.includes(role);
+  const lastFrame = supported.includes("last-frame");
+  // More images than frames can hold are references.
+  const asReferences =
+    has("reference") ||
+    (!has("first-frame") &&
+      !has("last-frame") &&
+      references.length > (lastFrame ? 2 : 1));
+  return references.map((reference, index) => {
+    let role = chosen[index];
+    if (role === undefined) {
+      if (asReferences && supported.includes("reference")) role = "reference";
+      else if (!has("first-frame") && supported.includes("first-frame"))
+        role = "first-frame";
+      else if (lastFrame && !has("last-frame")) role = "last-frame";
+      else role = supported.includes("reference") ? "reference" : "first-frame";
+      chosen[index] = role;
+    }
+    return { path: reference.path, role };
+  });
+}
+
+/** Why these resolved references cannot be one video request, in plain words. */
+export function referenceRoleMessage(
+  references: readonly MediaReference[],
+  model: MediaModel,
+  resolution?: string,
+): string | undefined {
+  const video = model.video;
+  if (video === null || references.length === 0) return undefined;
+  const count = (role: ReferenceRole) =>
+    references.filter((reference) => reference.role === role).length;
+  const first = count("first-frame");
+  const last = count("last-frame");
+  const refs = count("reference");
+  if (first > 1 || last > 1)
+    return video.referenceRoles.includes("last-frame")
+      ? `${model.label} takes one first frame and one last frame.`
+      : `${model.label} takes one first frame.`;
+  if (last > 0 && first === 0)
+    return "A last frame needs a first frame as well.";
+  if (refs > 0 && first + last > 0)
+    return "Frames and references cannot be mixed. Use a first and last frame, or references.";
+  if (refs > video.maxReferenceImages)
+    return video.maxReferenceImages === 0
+      ? `${model.label} takes no reference images.`
+      : `${model.label} takes up to ${String(video.maxReferenceImages)} reference images.`;
+  if (
+    refs > 0 &&
+    resolution !== undefined &&
+    !video.referenceResolutions.some((allowed) => allowed === resolution)
+  )
+    return `${model.label} takes reference images only at ${video.referenceResolutions.join(", ")}.`;
+  return undefined;
 }
 
 export function generationInputFor(
@@ -253,7 +449,10 @@ export function generationInputFor(
   if (draft.steps !== undefined) settings.steps = draft.steps;
   if (draft.durationSeconds !== undefined)
     settings.durationSeconds = draft.durationSeconds;
-  if (draft.references.length > 0) settings.references = draft.references;
+  if (draft.references.length > 0)
+    settings.references = resolveReferenceRoles(draft.references, model);
+  if (model.video?.supportsAudio === true && draft.generateAudio !== undefined)
+    settings.generateAudio = draft.generateAudio;
   return {
     destination: {
       path: draft.destination?.trim() ?? "",
@@ -332,6 +531,17 @@ export function generationParametersSchema(
   );
 }
 
+/** How far a trimmed prompt exceeds the model's limit, or null when it fits. */
+function promptOverflow(
+  prompt: string,
+  model: Pick<MediaModel, "maxPromptLength">,
+): { length: number; excess: number } | null {
+  const length = prompt.trim().length;
+  return length > model.maxPromptLength
+    ? { length, excess: length - model.maxPromptLength }
+    : null;
+}
+
 export function validationMessage(
   draft: GenerationDraft,
   model: MediaModel | undefined,
@@ -343,6 +553,9 @@ export function validationMessage(
       ? "Describe the video to generate."
       : "Describe the image to generate.";
   if (model === undefined) return "Choose a model from the granted registry.";
+  const over = promptOverflow(draft.prompt, model);
+  if (over !== null)
+    return `${model.label} accepts prompts up to ${String(model.maxPromptLength)} characters; this one is ${String(over.length)}. Shorten it by ${String(over.excess)}.`;
   const parameters = Schema.decodeUnknownResult(
     generationParametersSchema(() => model),
   )(draft);
@@ -354,5 +567,16 @@ export function validationMessage(
     return `${model.label} accepts at most ${String(model.input.maxReferences)} reference images.`;
   if (draft.references.length > 0 && model.input.referenceField === null)
     return `${model.label} does not accept reference images.`;
+  if (model.video !== null) {
+    const format = model.video.formats.find(
+      (candidate) =>
+        candidate.width === draft.width && candidate.height === draft.height,
+    );
+    return referenceRoleMessage(
+      resolveReferenceRoles(draft.references, model),
+      model,
+      format?.resolution,
+    );
+  }
   return undefined;
 }

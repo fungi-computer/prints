@@ -1,6 +1,6 @@
 {
   "name": "@fungi.computer/prints",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p backend/tsconfig.json --noEmit",
@@ -9,11 +9,11 @@
     "build:workbench": "pnpm run workbench:build"
   },
   "dependencies": {
-    "@fungi.computer/agar": "0.3.1",
+    "@fungi.computer/agar": "0.4.0",
     "@fungi.computer/cairn": "0.1.0",
-    "@fungi.computer/caps": "0.3.0",
-    "@fungi.computer/parakeet": "0.3.0",
-    "@fungi.computer/whistle": "0.1.0",
+    "@fungi.computer/caps": "0.3.1",
+    "@fungi.computer/parakeet": "0.4.0",
+    "@fungi.computer/whistle": "0.2.0",
     "@tanstack/react-form": "1.33.2",
     "animejs": "4.5.0",
     "effect": "4.0.2",
@@ -23,7 +23,7 @@
     "react-dom": "18.3.1",
     "zod": "4.4.3",
     "@tanstack/react-query": "5.102.8",
-    "@fungi.computer/darkroom": "0.2.1",
+    "@fungi.computer/darkroom": "0.3.0",
     "@fungi.computer/gills": "0.2.0"
   },
   "devDependencies": {
@@ -42,7 +42,7 @@
     "vite": "8.2.2",
     "vite-plugin-singlefile": "2.3.3",
     "@cloudflare/workers-types": "5.20260828.1",
-    "@fungi.computer/oyster": "0.4.1",
+    "@fungi.computer/oyster": "0.5.0",
     "eslint": "10.9.1",
     "jsdom": "29.0.1",
     "@types/node": "24.13.3"
@@ -171,6 +171,36 @@
           "description": "Submit the current Prints image form using the same action as the Send button",
           "projections": {
             "agent": {}
+          }
+        },
+        {
+          "id": "choose-style",
+          "title": "Choose style",
+          "category": "Prompt",
+          "description": "Pick, create or edit a saved style",
+          "projections": {
+            "slash": {
+              "aliases": [
+                "style"
+              ],
+              "order": 4
+            },
+            "palette": {}
+          }
+        },
+        {
+          "id": "no-style",
+          "title": "Use no style",
+          "category": "Prompt",
+          "description": "Send the prompt without a style",
+          "projections": {
+            "slash": {
+              "aliases": [
+                "nostyle"
+              ],
+              "order": 5
+            },
+            "palette": {}
           }
         }
       ],

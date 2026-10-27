@@ -9,9 +9,18 @@ const draftPatchSchema = Schema.Struct({
   model: Schema.optionalKey(Schema.String),
   prompt: Schema.optionalKey(Schema.String),
   references: Schema.optionalKey(
-    Schema.Array(Schema.Struct({ path: Schema.String })),
+    Schema.Array(
+      Schema.Struct({
+        path: Schema.String,
+        role: Schema.optionalKey(
+          Schema.Literals(["first-frame", "last-frame", "reference"]),
+        ),
+      }),
+    ),
   ),
+  generateAudio: Schema.optionalKey(Schema.NullOr(Schema.Boolean)),
   steps: Schema.optionalKey(Schema.NullOr(Schema.Int)),
+  style: Schema.optionalKey(Schema.NullOr(Schema.String)),
   width: Schema.optionalKey(Schema.Int),
 });
 const draftPatchInputSchema = z.record(z.string(), z.json()).parse(
@@ -98,10 +107,13 @@ export function registerGenerationCommands(
         height: draft.height,
         model: draft.model,
         prompt: draft.prompt,
+        generateAudio: draft.generateAudio ?? null,
         references: draft.references.map((reference) => ({
           path: reference.path,
+          role: reference.role ?? null,
         })),
         steps: draft.steps ?? null,
+        style: draft.style ?? null,
         width: draft.width,
       },
       models: binding.readModels().map((model) => ({

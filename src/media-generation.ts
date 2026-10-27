@@ -42,6 +42,13 @@ import {
   normalizePendingGeneration,
   type PendingGeneration,
 } from "./media-recovery-contract.js";
+import {
+  composePrompt,
+  promptLengthMessage,
+  promptLimitFor,
+  type PromptStyle,
+} from "./prompt-styles.js";
+import { planCharacters, type PromptCharacter } from "./prompt-characters.js";
 import type { useMediaFolder } from "./media-folder.js";
 import type { GallerySlot } from "./gallery-slots.js";
 import { reportCatchFailure } from "./log-event.js";
@@ -59,6 +66,12 @@ type Command = {
   reference: MediaGenerationReference;
   input: ReturnType<typeof generationInputFor>;
   draft: GenerationDraft;
+  /** The prompt and own reference count as typed, before composition. */
+  typed: { prompt: string; references: number };
+  /** Name of the style whose text leads `input.settings.prompt`. */
+  style?: string | undefined;
+  /** Saved characters whose text and references `input` was composed with. */
+  characters?: readonly string[] | undefined;
 };
 type Run = Command & {
   session: MediaGenerationSession;
@@ -75,10 +88,14 @@ export function useMediaGeneration({
   connection,
   folder,
   effects,
+  styles,
+  characters,
 }: {
   connection: MediaConnection | null;
   folder: ReturnType<typeof useMediaFolder>;
   effects: GenerationEffects;
+  styles: readonly PromptStyle[];
+  characters: readonly PromptCharacter[];
 }) {
   const app = connection?.app ?? null;
   const computerId = useComputerId(app);
@@ -171,6 +188,9 @@ export function useMediaGeneration({
       const pendingRecord = normalizePendingGeneration({
         reference: run.reference,
         input: run.input,
+        typed: run.typed,
+        style: run.style,
+        characters: run.characters,
       });
       await rememberGeneration(run.connection.app.capabilities, pendingRecord);
       run.controller.signal.throwIfAborted();
@@ -339,9 +359,47 @@ export function useMediaGeneration({
       });
       return false;
     }
-    const invalid = validationMessage(draft, model);
+    const plan = planCharacters({
+      prompt: draft.prompt,
+      saved: characters,
+      references: draft.references,
+      model: { label: model.label, maxReferences: model.input.maxReferences },
+    });
+    if (plan.kind === "refused") {
+      setAdmissionError({ kind: "error", message: plan.message });
+      return false;
+    }
+    // The typed prompt with the characters' references; the expanded prompt's
+    // length is checked below, where the message can name what expanded it.
+    const invalid = validationMessage(
+      { ...draft, references: plan.references },
+      model,
+    );
     if (invalid) {
       setAdmissionError({ kind: "error", message: invalid });
+      return false;
+    }
+    const style =
+      draft.style === undefined
+        ? undefined
+        : styles.find((entry) => entry.name === draft.style);
+    if (draft.style !== undefined && style === undefined) {
+      setAdmissionError({
+        kind: "error",
+        message: `The "${draft.style}" style no longer exists. Pick another or none.`,
+      });
+      return false;
+    }
+    const characterNames = plan.characters.map((entry) => entry.name);
+    const composed = composePrompt(style?.text, plan.prompt);
+    const tooLong = promptLengthMessage(
+      composed,
+      promptLimitFor(model),
+      style?.name,
+      characterNames,
+    );
+    if (tooLong !== undefined) {
+      setAdmissionError({ kind: "error", message: tooLong });
       return false;
     }
     if (!mediaCapability || !session) {
@@ -353,6 +411,8 @@ export function useMediaGeneration({
     const admissionTicket = ticket.current;
     const resolved = {
       ...draft,
+      prompt: composed,
+      references: plan.references,
       destination: generationDestinationFor(draft, folder.path, model),
     };
     const input = generationInputFor(resolved, model);
@@ -387,7 +447,18 @@ export function useMediaGeneration({
       captured.app.context.get().computerId !== id
     )
       return false;
-    return run({ connection: captured, reference, input, draft: resolved });
+    return run({
+      connection: captured,
+      reference,
+      input,
+      draft: resolved,
+      typed: {
+        prompt: draft.prompt.trim(),
+        references: draft.references.length,
+      },
+      style: style?.name,
+      characters: characterNames,
+    });
   };
   const latest = generate.variables;
   const attemptState: GenerationState | null =

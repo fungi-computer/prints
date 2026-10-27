@@ -1,15 +1,21 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   AppRoot,
   AppBrowserAction,
   AppBrowserActionOutcome,
 } from "@fungi.computer/agar";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { capabilityQuery, queryKeys } from "@fungi.computer/agar/query";
+import { appMethods } from "@fungi.computer/agar/backend";
+import * as z from "zod";
+import { printStyleQuery } from "./media-queries.js";
 import { Button } from "@fungi.computer/caps/components/button";
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Surface } from "@fungi.computer/caps/components/surface";
 import { DataList, DataRow } from "@fungi.computer/caps/components/data-list";
-import { Download, X } from "lucide-react";
+import { Clapperboard, Download, RotateCcw, Shuffle, X } from "lucide-react";
+import type { Iteration, PrintLineage } from "./print-iteration.js";
+import { modelFor, modelName, type MediaModel } from "./generation-model.js";
 import type { GalleryImage, GallerySource } from "./media-gallery.js";
 import {
   preparePrintDownload,
@@ -17,6 +23,71 @@ import {
   describePrintDownloadRefusal,
 } from "./prints-download.js";
 import { reportCatchFailure } from "./log-event.js";
+
+// Only the generation facts the drawer shows; getOutput's owner validates the rest.
+const outputDetailsSchema = z.object({
+  print: z.object({
+    kind: z.enum(["image", "video"]),
+    model: z.string(),
+    width: z.number().nullable(),
+    height: z.number().nullable(),
+    steps: z.number().nullable(),
+    createdAt: z.number(),
+  }),
+  typed: z.object({ prompt: z.string(), references: z.number() }),
+  references: z.array(z.object({ path: z.string() })),
+  characters: z.array(z.string()),
+});
+type OutputDetails = z.output<typeof outputDetailsSchema>;
+
+const lineageOf = (
+  details: OutputDetails,
+  style: string | null,
+): PrintLineage => ({
+  style,
+  kind: details.print.kind,
+  model: details.print.model,
+  typed: details.typed,
+  references: details.references,
+  steps: details.print.steps,
+  width: details.print.width,
+  height: details.print.height,
+});
+
+const divisor = (a: number, b: number): number =>
+  b === 0 ? a : divisor(b, a % b);
+const aspectOf = (width: number, height: number): string => {
+  const common = divisor(width, height);
+  return `${String(width / common)}:${String(height / common)}`;
+};
+const madeAt = new Intl.DateTimeFormat("en", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+/** The recorded model and reference images of a Computer file, when it is a print. */
+function useOutputDetails(image: GalleryImage, app: AppRoot | null) {
+  const source = image.source;
+  const path = source.kind === "computer" ? source.path : null;
+  const computerId = source.kind === "computer" ? source.computerId : null;
+  return useQuery({
+    ...capabilityQuery(
+      app,
+      appMethods,
+      queryKeys.of(app, "prints", "output-details", computerId, path),
+      async (methods, signal) => {
+        const reply = await methods.call("getOutput", JSON.stringify({ path }));
+        signal.throwIfAborted();
+        const details = outputDetailsSchema.safeParse(reply);
+        return details.success ? details.data : null;
+      },
+    ),
+    enabled: Boolean(
+      app && path && computerId && app.capabilities.has(appMethods),
+    ),
+    retry: false,
+  });
+}
 
 function usePrintDownload(source: GallerySource, app: AppRoot | null) {
   const active = useRef<AbortController | null>(null);
@@ -109,15 +180,39 @@ function usePrintDownload(source: GallerySource, app: AppRoot | null) {
 export function PrintInfoDrawer({
   image,
   app,
+  referenceImages,
+  models,
+  canAnimate,
+  onIterate,
   onClose,
 }: {
   image: GalleryImage;
   app: AppRoot | null;
+  /** Gallery images by path, for the reference thumbnails. */
+  referenceImages: readonly { path: string; url: string }[];
+  /** The granted catalog, for the recorded model's display name. */
+  models: readonly MediaModel[];
+  /** An image-to-video model is available. */
+  canAnimate: boolean;
+  /** Load the print into the composer; a message says why it could not. */
+  onIterate: (action: Iteration, lineage: PrintLineage) => string | null;
   onClose: () => void;
 }) {
+  const [refusal, setRefusal] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const download = usePrintDownload(image.source, app);
   const failure = download.failure;
+  const style = useQuery(
+    printStyleQuery(
+      app,
+      image.source.kind === "computer" ? image.source.path : null,
+    ),
+  );
+  const details = useOutputDetails(image, app).data;
+  const lineage = details
+    ? lineageOf(details, style.data?.style ?? null)
+    : null;
+  const recordedModel = details ? modelFor(models, details.print.model) : null;
   useEffect(() => {
     const previous = document.activeElement;
     panel.current?.focus();
@@ -156,10 +251,110 @@ export function PrintInfoDrawer({
         <DataRow>
           <span className="text-base-content/60">Size</span>
           <span>
-            {image.width} × {image.height}
+            {image.width} × {image.height} ·{" "}
+            {aspectOf(image.width, image.height)}
           </span>
         </DataRow>
+        {style.data?.style ? (
+          <DataRow>
+            <span className="text-base-content/60">Style</span>
+            <span>{style.data.style}</span>
+          </DataRow>
+        ) : null}
+        {details ? (
+          <DataRow>
+            <span className="text-base-content/60">Prompt</span>
+            <span className="whitespace-pre-wrap break-words" data-print-prompt>
+              {details.typed.prompt}
+            </span>
+          </DataRow>
+        ) : null}
+        {details ? (
+          <DataRow>
+            <span className="text-base-content/60">Model</span>
+            <span className="break-all" data-print-model>
+              {recordedModel
+                ? modelName(recordedModel)
+                : `${details.print.model} (no longer available)`}
+            </span>
+          </DataRow>
+        ) : null}
+        {details && details.characters.length > 0 ? (
+          <DataRow>
+            <span className="text-base-content/60">Characters</span>
+            <span data-print-characters>
+              {details.characters.map((name) => `@${name}`).join(", ")}
+            </span>
+          </DataRow>
+        ) : null}
+        {details && details.references.length > 0 ? (
+          <DataRow>
+            <span className="text-base-content/60">
+              References ({details.references.length})
+            </span>
+            <ul className="prints-info-references" data-print-references>
+              {details.references.map((reference, index) => {
+                const name = reference.path.split("/").at(-1);
+                const thumbnail = referenceImages.find(
+                  (entry) => entry.path === reference.path,
+                );
+                return (
+                  <li
+                    key={`${String(index)}:${reference.path}`}
+                    title={reference.path}
+                  >
+                    {thumbnail ? <img src={thumbnail.url} alt={name} /> : name}
+                  </li>
+                );
+              })}
+            </ul>
+          </DataRow>
+        ) : null}
+        {details ? (
+          <DataRow>
+            <span className="text-base-content/60">Made</span>
+            <span>{madeAt.format(details.print.createdAt)}</span>
+          </DataRow>
+        ) : null}
       </DataList>
+      {lineage && image.source.kind === "computer" ? (
+        <div className="prints-info-actions" role="group" aria-label="Iterate">
+          <Button
+            disabled={style.isPending}
+            onClick={() => {
+              setRefusal(onIterate("reuse", lineage));
+            }}
+          >
+            <RotateCcw aria-hidden="true" size={16} />
+            Reuse
+          </Button>
+          <Button
+            disabled={style.isPending}
+            onClick={() => {
+              setRefusal(onIterate("remix", lineage));
+            }}
+          >
+            <Shuffle aria-hidden="true" size={16} />
+            Remix
+          </Button>
+          {canAnimate && lineage.kind === "image" ? (
+            <Button
+              disabled={style.isPending}
+              onClick={() => {
+                setRefusal(onIterate("animate", lineage));
+              }}
+            >
+              <Clapperboard aria-hidden="true" size={16} />
+              Animate
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {refusal ? (
+        <p role="alert" className="text-sm">
+          {refusal}
+        </p>
+      ) : null}
       <Button
         onClick={download.start}
         disabled={download.disabled}

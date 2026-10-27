@@ -26,9 +26,25 @@ import {
 } from "../src/media-settings.js";
 import { completeGeneration } from "./prints-index.js";
 import { ensurePrintsIndexTables } from "./print-records.js";
+import {
+  deletePromptStyle,
+  ensurePromptStyleTables,
+  listPromptStyles,
+  printStyleAt,
+  savePromptStyle,
+} from "./prompt-styles.js";
+import { promptStyleRequestSchema } from "../src/prompt-styles.js";
+import {
+  deletePromptCharacter,
+  listPromptCharacters,
+  savePromptCharacter,
+} from "./prompt-characters.js";
+import { promptCharacterRequestSchema } from "../src/prompt-characters.js";
 
 const requestSchema = Schema.Union([
   mediaNoticeRequestSchema,
+  promptStyleRequestSchema,
+  promptCharacterRequestSchema,
   mediaSettingsRequestSchema,
   mediaRecoveryRequestSchema,
   mediaLibraryRequestSchema,
@@ -84,6 +100,7 @@ class PrintsFacet extends DurableObject<PrintsEnv, unknown> {
       "CREATE TABLE IF NOT EXISTS pending_generations (actor_id TEXT NOT NULL, request_id TEXT NOT NULL, computer_id TEXT NOT NULL, record_json TEXT NOT NULL, PRIMARY KEY(actor_id,request_id)) STRICT",
     );
     ensurePrintsIndexTables(ctx.storage.sql);
+    ensurePromptStyleTables(ctx.storage.sql);
     ensureMethodGenerationTables(ctx.storage.sql);
   }
 
@@ -143,6 +160,65 @@ class PrintsFacet extends DurableObject<PrintsEnv, unknown> {
       return Response.json(
         Schema.decodeUnknownSync(mediaNoticesSchema)({ keys }),
       );
+    }
+    if (
+      input.operation === "list-styles" ||
+      input.operation === "save-style" ||
+      input.operation === "delete-style" ||
+      input.operation === "read-print-style"
+    ) {
+      const refused = requireComputer(input.computerId);
+      if (refused !== null) return refused;
+      if (input.operation === "read-print-style")
+        return Response.json({
+          style: printStyleAt(sql, input.computerId, input.path),
+        });
+      if (input.operation === "delete-style") deletePromptStyle(sql, input.id);
+      if (input.operation === "save-style") {
+        const outcome = savePromptStyle(sql, input);
+        if (outcome.kind === "name-taken")
+          return Response.json(
+            { error: "A style with this name already exists" },
+            { status: 409 },
+          );
+        if (outcome.kind === "full")
+          return Response.json(
+            { error: "Delete a style before saving another" },
+            { status: 409 },
+          );
+        if (outcome.kind === "not-found")
+          return Response.json({ error: "Style not found" }, { status: 404 });
+      }
+      return Response.json({ styles: listPromptStyles(sql) });
+    }
+    if (
+      input.operation === "list-characters" ||
+      input.operation === "save-character" ||
+      input.operation === "delete-character"
+    ) {
+      const refused = requireComputer(input.computerId);
+      if (refused !== null) return refused;
+      if (input.operation === "delete-character")
+        deletePromptCharacter(sql, input.id);
+      if (input.operation === "save-character") {
+        const outcome = savePromptCharacter(sql, input);
+        if (outcome.kind === "name-taken")
+          return Response.json(
+            { error: "A character with this name already exists" },
+            { status: 409 },
+          );
+        if (outcome.kind === "full")
+          return Response.json(
+            { error: "Delete a character before saving another" },
+            { status: 409 },
+          );
+        if (outcome.kind === "not-found")
+          return Response.json(
+            { error: "Character not found" },
+            { status: 404 },
+          );
+      }
+      return Response.json({ characters: listPromptCharacters(sql) });
     }
     if (
       input.operation !== "read-folder" &&

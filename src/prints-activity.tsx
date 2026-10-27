@@ -111,7 +111,15 @@ const noticeIcons = {
   ),
 } satisfies Record<PrintsNotice["group"], ReactNode>;
 
-/** App notices, seated in the composer's Caps footer. */
+/** The composer's settings tray: a readout of the current choices and the panel that changes them. */
+export type PrintsSettingsTray = Readonly<{
+  label: ReactNode;
+  content: ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}>;
+
+/** App notices and the composer's settings, seated in its Caps footer. */
 export function PrintsFooter({
   notices,
   activity,
@@ -123,6 +131,7 @@ export function PrintsFooter({
   onLoadMore,
   send,
   controls,
+  settings,
 }: {
   notices: readonly PrintsNotice[];
   activity: ActivitySummary;
@@ -134,9 +143,19 @@ export function PrintsFooter({
   onLoadMore?: (() => void) | undefined;
   send: ReactNode;
   controls: ReactNode;
+  /** The composer's tucked-away choices, one tray beside Activity. */
+  settings?: PrintsSettingsTray | undefined;
 }) {
   const summary = activityFor(notices, activity);
   const items: StatusTrayItem[] = [];
+  if (settings)
+    items.push({
+      id: "settings",
+      label: settings.label,
+      accessibleLabel: "Generation settings",
+      title: "Settings",
+      content: settings.content,
+    });
   if (summary)
     items.push({
       id: "activity",
@@ -161,9 +180,11 @@ export function PrintsFooter({
     <StatusTray
       className="prints-footer"
       items={items}
-      openId={activityOpen ? "activity" : null}
+      align={settings?.open ? "start" : "end"}
+      openId={activityOpen ? "activity" : settings?.open ? "settings" : null}
       onOpenChange={(id) => {
         onActivityOpenChange(id === "activity");
+        settings?.onOpenChange(id === "settings");
       }}
       leading={controls}
       trailing={send}

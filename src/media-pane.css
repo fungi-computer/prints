@@ -63,10 +63,6 @@ body,
   flex: 0 1 220px;
   min-width: 0;
 }
-.prints-size {
-  flex: 0 1 150px;
-  min-width: 0;
-}
 .prints-generate {
   margin-left: auto;
   flex: none;
@@ -101,13 +97,15 @@ body,
 }
 .prints-reference-tile {
   position: relative;
-  width: 56px;
-  height: 56px;
-  flex: 0 0 56px;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--spacing-xs);
 }
 .prints-reference-face {
-  width: 100%;
-  height: 100%;
+  width: 56px;
+  height: 56px;
+  align-self: center;
   background: var(--color-base-100);
 }
 .prints-reference-tile img {
@@ -135,26 +133,51 @@ body,
     opacity: 1;
   }
 }
-.prints-custom-size {
-  display: flex;
+/* The settings tray: Caps Fields in one column, the libraries last. */
+.prints-settings {
+  display: grid;
   gap: var(--spacing-sm);
-  flex: 1 1 100%;
-  order: 1;
 }
-.prints-custom-size > label {
-  flex: 1;
-  min-width: 0;
+.prints-settings-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+.prints-custom-size {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-sm);
+}
+.prints-custom-size .caps-input {
+  width: 100%;
+}
+.prints-settings-library {
+  display: flex;
+  gap: var(--spacing-xs);
+  border-top: var(--border) solid var(--stipe-hairline);
+  padding-top: var(--spacing-xs);
+}
+/* A reference's role is a tag under its thumbnail; a tap moves it on. */
+.prints-reference-role {
+  align-self: center;
+  font-size: var(--text-xs);
+}
+span.prints-reference-role {
+  color: var(--stipe-fg-muted);
+}
+/* Reference and character readouts, aligned with the prompt counter. */
+.prints-composer-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs) var(--spacing-md);
+  padding-inline: 0.75rem;
 }
 .prints-reference-count {
   font-size: var(--text-xs);
   color: var(--stipe-fg-muted);
 }
-.prints-advanced {
-  position: relative;
-}
-.prints-advanced-panel {
-  width: 11.25rem;
-  left: auto;
+.prints-reference-count[data-over-limit] {
+  color: var(--color-error);
 }
 .prints-uploads {
   flex-shrink: 0;
@@ -173,7 +196,10 @@ body,
   font-size: var(--text-sm);
   color: var(--stipe-fg-muted);
 }
-.prints-composer-dock:has([data-status-tray-panel]) {
+.prints-composer-dock:has(
+  [data-status-tray-panel],
+  .prints-prompt [role="listbox"]
+) {
   overflow: visible;
 }
 .prints-footer {
@@ -249,30 +275,27 @@ body,
   min-width: var(--caps-status-tray-key-height);
 }
 
+/* Narrow composers keep one control row (upload, model, settings) and put
+   Generate full width on the next, so it is always in reach. */
 @container (max-width: 34rem) {
-  .prints-footer .caps-status-tray-row {
-    display: grid;
-    grid-template-columns: auto auto minmax(0, 1.25fr) minmax(0, 1fr);
+  .prints-model {
+    flex: 1 1 9rem;
   }
-  .prints-footer .caps-status-tray-row:has(.prints-advanced) {
-    grid-template-columns: auto auto minmax(0, 1.25fr) minmax(0, 1fr) auto;
-  }
-  .prints-model,
-  .prints-size {
+  .prints-footer [data-status-tray-chip="settings"] {
+    flex: 0 1 auto;
     min-width: 0;
-    max-width: none;
   }
   .prints-footer [data-status-tray-chip="activity"] {
-    grid-column: 1 / 3;
+    order: 2;
     margin-inline-start: 0;
   }
-  .prints-footer .prints-generate {
-    grid-column: 1 / -1;
-    width: 100%;
-    margin-left: 0;
-  }
   .prints-footer:has([data-status-tray-chip="activity"]) .prints-generate {
-    grid-column: 3 / -1;
+    flex-basis: 0;
+  }
+  .prints-footer .prints-generate {
+    flex: 1 1 100%;
+    order: 2;
+    margin-left: 0;
   }
 }
 
@@ -314,4 +337,63 @@ body,
   .prints-gallery-tools {
     opacity: 1;
   }
+}
+
+.prints-info-references {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--spacing-xs);
+  overflow-wrap: anywhere;
+}
+.prints-info-references img {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-field);
+}
+.prints-info-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+/* Saved characters: thumbnails in the list and the reference picker. */
+.prints-character-thumb {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  overflow: hidden;
+  background: var(--color-base-100);
+}
+.prints-character-thumb img,
+.prints-character-pick img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.prints-character-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  gap: var(--spacing-sm);
+  max-height: 12rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.prints-character-pick {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+}
+.prints-character-check {
+  position: absolute;
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
 }

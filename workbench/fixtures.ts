@@ -7,6 +7,7 @@ import type {
 } from "@fungi.computer/agar/media";
 import { appBackend, appMethods } from "@fungi.computer/agar/backend";
 import * as Schema from "effect/Schema";
+import * as z from "zod";
 import {
   mediaRecoveryRequestSchema,
   normalizePendingGeneration,
@@ -16,6 +17,15 @@ import {
   mediaNoticeRequestSchema,
   mediaSettingsRequestSchema,
 } from "../src/media-settings.js";
+import {
+  BUILT_IN_STYLES,
+  promptStyleRequestSchema,
+  type PromptStyle,
+} from "../src/prompt-styles.js";
+import {
+  promptCharacterRequestSchema,
+  type PromptCharacter,
+} from "../src/prompt-characters.js";
 import {
   mediaGeneration,
   type AppRoot,
@@ -137,6 +147,8 @@ async function photograph(
   return response.blob();
 }
 
+const outputPathRequest = z.object({ path: z.string() });
+
 /** Typed local implementations of the same Agar capabilities supplied by the host. */
 export function createPrintsFixture(
   scenario: Scenario,
@@ -223,6 +235,33 @@ export function createPrintsFixture(
       : opt.folder;
   if (opt.folderExists === false) folders.clear();
   const pendingGenerations = new Map<string, PendingGeneration>();
+  const savedStyles: PromptStyle[] = [
+    {
+      id: 1,
+      name: "Storybook gouache",
+      text: "Gouache storybook illustration with soft edges and a warm palette.",
+      builtIn: false,
+    },
+  ];
+  const styleList = () => ({ styles: [...BUILT_IN_STYLES, ...savedStyles] });
+  const savedCharacters: PromptCharacter[] = [
+    {
+      id: 1,
+      name: "Mira",
+      description: "a tall girl with silver hair and a red scarf",
+      references: [{ path: "/media/forest-light.jpg" }],
+    },
+    {
+      id: 2,
+      name: "Kenji",
+      description: "a quiet boy in a blue raincoat",
+      references: [
+        { path: "/media/alpine-lake.jpg" },
+        { path: "/media/coast.jpg" },
+      ],
+    },
+  ];
+  const characterList = () => ({ characters: [...savedCharacters] });
   if (opt.pending)
     pendingGenerations.set("fixture-old-1", {
       reference: { requestId: "fixture-old-1", computerId },
@@ -235,19 +274,42 @@ export function createPrintsFixture(
           height: 768,
         },
       },
+      typed: { prompt: "a mushroom knight", references: 0 },
     });
   register(appMethods, {
-    call: (method) =>
-      method === "openOutput" && scenario === "gill-navigate"
+    call: (method, input) =>
+      method === "getOutput" && scenario === "studio"
         ? Promise.resolve({
-            printId: "fixture-last-output",
-            path: "/media/print-47.svg",
-            byteOffset: 0,
-            content: "PA==",
-            encoding: "base64",
-            truncated: true,
+            print: {
+              kind: "image",
+              model: "openai/gpt-image-2",
+              width: 1024,
+              height: 1024,
+              steps: null,
+              createdAt: Date.UTC(2026, 9, 26, 14, 30),
+            },
+            typed: {
+              prompt: "@Mira and @Kenji waiting at a bus stop in the rain",
+              references: 1,
+            },
+            path: outputPathRequest.parse(JSON.parse(input)).path,
+            references: [
+              { path: "/media/coast.jpg", printId: null },
+              { path: "/media/forest-light.jpg", printId: null },
+              { path: "/media/alpine-lake.jpg", printId: null },
+            ],
+            characters: ["Mira", "Kenji"],
           })
-        : Promise.reject(new Error("No matching fixture output")),
+        : method === "openOutput" && scenario === "gill-navigate"
+          ? Promise.resolve({
+              printId: "fixture-last-output",
+              path: "/media/print-47.svg",
+              byteOffset: 0,
+              content: "PA==",
+              encoding: "base64",
+              truncated: true,
+            })
+          : Promise.reject(new Error("No matching fixture output")),
   });
   register(appBackend, {
     request: (input) => {
@@ -255,6 +317,8 @@ export function createPrintsFixture(
         Schema.fromJsonString(
           Schema.Union([
             mediaNoticeRequestSchema,
+            promptStyleRequestSchema,
+            promptCharacterRequestSchema,
             mediaSettingsRequestSchema,
             mediaRecoveryRequestSchema,
             completeGenerationRequestSchema,
@@ -267,6 +331,60 @@ export function createPrintsFixture(
           return noticeStore(command.computerId);
         case "dismiss-notices":
           return noticeStore(command.computerId, command.keys);
+        case "list-styles":
+          return Promise.resolve(styleList());
+        case "save-style": {
+          const index = savedStyles.findIndex(
+            (style) => style.id === command.id,
+          );
+          const style = {
+            id:
+              command.id ??
+              Math.max(0, ...savedStyles.map((saved) => saved.id)) + 1,
+            name: command.name,
+            text: command.text,
+            builtIn: false,
+          };
+          if (index === -1) savedStyles.push(style);
+          else savedStyles[index] = style;
+          return Promise.resolve(styleList());
+        }
+        case "delete-style": {
+          const index = savedStyles.findIndex(
+            (style) => style.id === command.id,
+          );
+          if (index !== -1) savedStyles.splice(index, 1);
+          return Promise.resolve(styleList());
+        }
+        case "read-print-style":
+          return Promise.resolve({
+            style: scenario === "studio" ? "Storybook gouache" : null,
+          });
+        case "list-characters":
+          return Promise.resolve(characterList());
+        case "save-character": {
+          const index = savedCharacters.findIndex(
+            (character) => character.id === command.id,
+          );
+          const character = {
+            id:
+              command.id ??
+              Math.max(0, ...savedCharacters.map((saved) => saved.id)) + 1,
+            name: command.name,
+            description: command.description,
+            references: command.references,
+          };
+          if (index === -1) savedCharacters.push(character);
+          else savedCharacters[index] = character;
+          return Promise.resolve(characterList());
+        }
+        case "delete-character": {
+          const index = savedCharacters.findIndex(
+            (character) => character.id === command.id,
+          );
+          if (index !== -1) savedCharacters.splice(index, 1);
+          return Promise.resolve(characterList());
+        }
         case "remember-generation": {
           const record = normalizePendingGeneration(command.record);
           const previous = pendingGenerations.get(record.reference.requestId);

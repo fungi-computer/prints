@@ -1,6 +1,11 @@
 import { resultRows } from "@fungi.computer/agar/method-presentation";
 import { recentOutputsGill } from "./gills.js";
-import { outputPageInputSchema, outputPageSchema } from "./output-page.js";
+import {
+  outputAtPathInputSchema,
+  outputItemSchema,
+  outputPageInputSchema,
+  outputPageSchema,
+} from "./output-page.js";
 import {
   mediaImageBindingInputSchema,
   mediaVideoBindingInputSchema,
@@ -16,6 +21,7 @@ import * as Schema from "effect/Schema";
 import { Base64 } from "effect/encoding";
 import {
   MediaSettingsError,
+  listMediaModels,
   validateMediaGenerationSelection,
   mediaModelSchema,
 } from "@fungi.computer/darkroom";
@@ -40,7 +46,26 @@ import {
   rememberMethodGeneration,
   completeMethodGeneration,
 } from "./method-pending.js";
-import { indexedOutput, indexedOutputs } from "./print-records.js";
+import {
+  indexedOutput,
+  indexedOutputAtPath,
+  indexedOutputs,
+  printReferences,
+  printTyped,
+  type TypedInput,
+} from "./print-records.js";
+import { promptStyleNamed, recordPrintStyle } from "./prompt-styles.js";
+import {
+  composePrompt,
+  promptLengthMessage,
+  promptLimitFor,
+} from "../src/prompt-styles.js";
+import {
+  listPromptCharacters,
+  printCharacters,
+  recordPrintCharacters,
+} from "./prompt-characters.js";
+import { mentionNames, planCharacters } from "../src/prompt-characters.js";
 
 const empty = z.strictObject({});
 const id = z.string().min(1).max(256);
@@ -122,6 +147,99 @@ async function bindingCall(
   }
 }
 
+const refuseArgument = (message: string) =>
+  methodRefusalSchema.parse({
+    error: "INVALID_ARGUMENT",
+    message,
+    stage: "settings",
+    retryable: false,
+  });
+
+/**
+ * Compose one generation from the caller's choices: each named or `@`-mentioned
+ * saved character adds its description to the prompt and its images to the
+ * references, a named style leads the prompt, and the result must fit the
+ * model's reference and prompt limits. Anything unknown or over a limit is
+ * refused before Media is called.
+ */
+export function composeGeneration<
+  Settings extends {
+    prompt: string;
+    model: string;
+    references?: readonly { path: string }[] | undefined;
+  },
+>(
+  sql: SqlStorage,
+  choices: Readonly<{
+    style: string | undefined;
+    characters: readonly string[] | undefined;
+  }>,
+  settings: Settings,
+):
+  | { settings: Settings; characters: readonly string[] }
+  | { refusal: z.output<typeof methodRefusalSchema> } {
+  const { style } = choices;
+  const savedStyle = style === undefined ? null : promptStyleNamed(sql, style);
+  if (style !== undefined && savedStyle === null)
+    return { refusal: refuseArgument(`No style named "${style}".`) };
+  const saved = listPromptCharacters(sql);
+  const unknown = (choices.characters ?? []).filter(
+    (name) =>
+      !saved.some((entry) => entry.name.toLowerCase() === name.toLowerCase()),
+  );
+  if (unknown.length > 0)
+    return {
+      refusal: refuseArgument(
+        `No character named ${unknown.map((name) => `"${name}"`).join(", ")}.`,
+      ),
+    };
+  const model = listMediaModels().find((entry) => entry.id === settings.model);
+  const plan = planCharacters({
+    prompt: settings.prompt,
+    names: choices.characters,
+    saved,
+    references: settings.references ?? [],
+    model:
+      model === undefined
+        ? undefined
+        : { label: model.label, maxReferences: model.input.maxReferences },
+  });
+  if (plan.kind === "refused") return { refusal: refuseArgument(plan.message) };
+  const characters = plan.characters.map((entry) => entry.name);
+  const prompt = composePrompt(savedStyle?.text, plan.prompt);
+  // Nothing added: the command's own settings validation names the limit.
+  if (style === undefined && characters.length === 0)
+    return { settings: { ...settings, prompt }, characters };
+  const tooLong = promptLengthMessage(
+    prompt,
+    promptLimitFor(model),
+    style,
+    characters,
+  );
+  if (tooLong !== undefined) return { refusal: refuseArgument(tooLong) };
+  return {
+    settings:
+      characters.length === 0
+        ? { ...settings, prompt }
+        : { ...settings, prompt, references: plan.references },
+    characters,
+  };
+}
+
+/** The request as the caller typed it: named characters read as mentions. */
+function typedOf(
+  settings: Readonly<{
+    prompt: string;
+    references?: readonly unknown[] | undefined;
+  }>,
+  characters: readonly string[] | undefined,
+): TypedInput {
+  return {
+    prompt: mentionNames(settings.prompt, characters ?? []),
+    references: settings.references?.length ?? 0,
+  };
+}
+
 function selectedLibrary(
   context: PrintsMethodContext,
   computerId: string,
@@ -180,6 +298,38 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             input.limit,
           ),
         );
+      },
+    }),
+    getOutput: defineAppMethod({
+      description:
+        "Read one recorded output by its file path in the selected library on the admitted Computer: its prompt, model and the reference images it was generated from.",
+      effect: "read",
+      requires: ["computer.list"],
+      input: outputAtPathInputSchema,
+      output: z.union([outputItemSchema, methodRefusalSchema]),
+      handler: (input, context, caller) => {
+        if (caller.computerId === null) return refusal("not_granted");
+        const selected = selectedLibrary(context, caller.computerId);
+        if (selected === null) return missingLibrary();
+        const item = indexedOutputAtPath(
+          context.ctx.storage.sql,
+          caller.computerId,
+          input.path,
+          selected,
+        );
+        if (!item) return refusal("not_found");
+        return outputItemSchema.parse({
+          ...item,
+          references: printReferences(
+            context.ctx.storage.sql,
+            item.print.printId,
+          ),
+          characters: printCharacters(
+            context.ctx.storage.sql,
+            item.print.printId,
+          ),
+          typed: printTyped(context.ctx.storage.sql, item.print.printId),
+        });
       },
     }),
     openOutput: defineAppMethod({
@@ -275,9 +425,20 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             : await requestIdForCaller("generateVideo", caller.idempotencyKey));
         if (requestId === undefined)
           return methodRefusalSchema.parse({ error: "invalid" });
+        const { style, characters: characterNames, ...videoInput } = input;
+        const composed = composeGeneration(
+          context.ctx.storage.sql,
+          { style, characters: characterNames },
+          videoInput.settings,
+        );
+        if ("refusal" in composed) return composed.refusal;
         const command = mediaVideoBindingInputSchema.parse({
           kind: "video",
-          ...generateVideoCommandSchema.parse({ ...input, requestId }),
+          ...generateVideoCommandSchema.parse({
+            ...videoInput,
+            settings: composed.settings,
+            requestId,
+          }),
           libraryPath:
             selectedLibrary(context, caller.computerId) ??
             defaultMediaLibraryPath,
@@ -308,8 +469,16 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
           caller.computerId,
           command,
           result,
+          typedOf(videoInput.settings, characterNames),
         );
         if ("error" in completed) return refusal("conflict");
+        if (style !== undefined)
+          recordPrintStyle(context.ctx.storage.sql, command.requestId, style);
+        recordPrintCharacters(
+          context.ctx.storage.sql,
+          command.requestId,
+          composed.characters,
+        );
         context.ctx.storage.sql.exec(
           "INSERT OR IGNORE INTO media_library_folders(computer_id,path) VALUES (?,?)",
           caller.computerId,
@@ -323,7 +492,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
     }),
     generateImage: defineAppMethod({
       description:
-        "Generate one image in this App's library. The host chooses the path. Workflows may omit requestId to derive it from the trusted caller's idempotency key. Other callers form requestId as media_request_ followed by 21 random lowercase letters or digits. Reuse the same identity and inputs for recovery. The default is the model-native image format; PNG, JPEG or WebP may be pinned only when the model supports it. The result reports the actual format. Optional settings.references contains path-only image references on the admitted Computer. Select a model from listModels whose input.maxReferences supports their count; unsupported references return INVALID_ARGUMENT at stage settings before recording or dispatch. No video settings. Existing Team billing and attachment budgets apply.",
+        "Generate one image in this App's library. The host chooses the path. Workflows may omit requestId to derive it from the trusted caller's idempotency key. Other callers form requestId as media_request_ followed by 21 random lowercase letters or digits. Reuse the same identity and inputs for recovery. The default is the model-native image format; PNG, JPEG or WebP may be pinned only when the model supports it. The result reports the actual format. Optional characters names saved Prints characters: their descriptions join the prompt and their reference images the references. Optional settings.references contains path-only image references on the admitted Computer. Select a model from listModels whose input.maxReferences supports their count; unsupported references return INVALID_ARGUMENT at stage settings before recording or dispatch. No video settings. Existing Team billing and attachment budgets apply.",
       effect: "write",
       requires: ["media.generation", "computer.writeFile"],
       input: generateImageInputSchema,
@@ -360,9 +529,20 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             : await requestIdForCaller("generateImage", caller.idempotencyKey));
         if (requestId === undefined)
           return methodRefusalSchema.parse({ error: "invalid" });
+        const { style, characters: characterNames, ...imageInput } = input;
+        const composed = composeGeneration(
+          context.ctx.storage.sql,
+          { style, characters: characterNames },
+          imageInput.settings,
+        );
+        if ("refusal" in composed) return composed.refusal;
         const command = mediaImageBindingInputSchema.parse({
           kind: "image",
-          ...generateImageCommandSchema.parse({ ...input, requestId }),
+          ...generateImageCommandSchema.parse({
+            ...imageInput,
+            settings: composed.settings,
+            requestId,
+          }),
           libraryPath:
             selectedLibrary(context, caller.computerId) ??
             defaultMediaLibraryPath,
@@ -402,8 +582,16 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
           caller.computerId,
           command,
           result,
+          typedOf(imageInput.settings, characterNames),
         );
         if ("error" in completed) return refusal("conflict");
+        if (style !== undefined)
+          recordPrintStyle(context.ctx.storage.sql, command.requestId, style);
+        recordPrintCharacters(
+          context.ctx.storage.sql,
+          command.requestId,
+          composed.characters,
+        );
         context.ctx.storage.sql.exec(
           "INSERT OR IGNORE INTO media_library_folders(computer_id,path) VALUES (?,?)",
           caller.computerId,

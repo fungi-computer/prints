@@ -80,9 +80,10 @@ Agents call Prints through Oyster's MCP endpoint, or at
 | Method          | What it does                                                                                                                                 |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `listModels`    | Lists the image and video models, with their sizes, settings and how many references each takes.                                             |
-| `generateImage` | Generates one image from a prompt and saves it to the gallery folder.                                                                        |
+| `generateImage` | Generates one image from a prompt and saves it to the gallery folder. Optional `characters` names saved characters to keep consistent.       |
 | `generateVideo` | Generates one video. While it works, the method returns `{kind: "pending", retryAfterMs}`; call again with the same inputs after that delay. |
 | `listOutputs`   | Lists the prints this App made, newest first.                                                                                                |
+| `getOutput`     | Reads one print by file path: its prompt, model, characters and the reference images it used.                                                |
 | `openOutput`    | Reads up to 128 KiB of one print per call.                                                                                                   |
 
 Each generation carries a request id (`media_request_` and 21 lowercase letters

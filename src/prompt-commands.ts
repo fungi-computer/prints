@@ -11,6 +11,10 @@ import type { MediaSlashItem } from "./media-composer-pieces.js";
 export type PromptCommandActions = Readonly<{
   clear: () => void;
   useSize: (mode: (typeof SIZE_MODES)[number]) => void;
+  /** Open the style picker, where a saved style is chosen or managed. */
+  openStyles: () => void;
+  /** Send the next prompt without a style. */
+  clearStyle: () => void;
 }>;
 
 /**
@@ -45,6 +49,26 @@ export function mediaPromptCommands(
         actions().useSize(mode);
       },
     })),
+    {
+      id: "choose-style",
+      title: "Choose style",
+      category: "Prompt",
+      description: "Pick, create or edit a saved style",
+      projections: { slash: { aliases: ["style"], order: 4 }, palette: {} },
+      handler: () => {
+        actions().openStyles();
+      },
+    },
+    {
+      id: "no-style",
+      title: "Use no style",
+      category: "Prompt",
+      description: "Send the prompt without a style",
+      projections: { slash: { aliases: ["nostyle"], order: 5 }, palette: {} },
+      handler: () => {
+        actions().clearStyle();
+      },
+    },
   ];
 }
 

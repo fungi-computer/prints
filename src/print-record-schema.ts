@@ -1,3 +1,4 @@
+import { MAX_MEDIA_PROMPT_LENGTH } from "@fungi.computer/darkroom/browser";
 import * as z from "zod";
 
 const text = (maximum: number) => z.string().min(1).max(maximum);
@@ -14,7 +15,7 @@ export const printRecordSchema = z.strictObject({
   printId: text(256),
   computerId: text(256),
   kind: z.enum(["image", "video"]),
-  prompt: text(2_048),
+  prompt: text(MAX_MEDIA_PROMPT_LENGTH),
   model: text(256),
   width: positiveInteger.nullable(),
   height: positiveInteger.nullable(),

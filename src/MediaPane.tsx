@@ -8,28 +8,27 @@ import {
 import { useMediaGeneration } from "./media-generation.js";
 import type { AppRoot } from "@fungi.computer/agar";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { ArrowUp, ImagePlus, SlidersHorizontal, Upload, X } from "lucide-react";
+import { ImagePlus, SlidersHorizontal, Upload, X } from "lucide-react";
 
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Button } from "@fungi.computer/caps/components/button";
 import { KeycapButton } from "@fungi.computer/caps/components/keycap";
-import { Loader } from "@fungi.computer/caps/components/loader";
 import { ScrollArea } from "@fungi.computer/caps/components/scroll-area";
 import { Input } from "@fungi.computer/caps/components/input";
+import { Field } from "@fungi.computer/caps/components/field";
 import { Select } from "@fungi.computer/caps/components/select";
+import { Switch } from "@fungi.computer/caps/components/switch";
 import { EmptyState } from "@fungi.computer/caps/blocks/empty-state";
 import { useWindowStatus } from "@fungi.computer/agar/react";
 import { folderStatusItem } from "./folder-status.js";
 import { Card } from "@fungi.computer/caps/components/card";
-import {
-  Popover,
-  PopoverAnchor,
-} from "@fungi.computer/caps/components/popover";
+import { PopoverAnchor } from "@fungi.computer/caps/components/popover";
 import { useMediaFolder } from "./media-folder.js";
 import {
   PrintsFolderDialog,
   PrintsFooter,
   type PrintsNotice,
+  type PrintsSettingsTray,
 } from "./prints-activity.js";
 import { noticesFor } from "./prints-notices.js";
 import { useNoticeDismissals } from "./notice-dismissals.js";
@@ -48,9 +47,20 @@ import { MediaMosaic, type MediaMasonryItem } from "./media-masonry.js";
 import { galleryWithSlots } from "./gallery-slots.js";
 import {
   MediaComposerTextarea,
+  MediaMentionSheet,
   MediaSlashSheet,
+  useCharacterMentions,
   useMediaSlashSheet,
+  GenerateButton,
 } from "./media-composer-pieces.js";
+import { usePromptCharacters } from "./use-prompt-characters.js";
+import { PromptCharactersDialog } from "./prompt-character-controls.js";
+import {
+  addedPromptLength,
+  expandCharacters,
+  planCharacters,
+  type PromptCharacter,
+} from "./prompt-characters.js";
 import { normalizeUploadFilename } from "./upload-path.js";
 import {
   DEFAULT_MODEL_ID,
@@ -60,13 +70,26 @@ import {
   draftForModel,
   generateActionLabel,
   modelFor,
+  modelName,
+  nextReferenceRole,
+  REFERENCE_ROLE_LABELS,
+  referenceRoleMessage,
+  referenceRolesFor,
+  resolveReferenceRoles,
   sizeChoicesFor,
+  shortSizeLabel,
+  type SizeChoice,
   sizeForModel,
-  sizeModeFor,
   SIZE_PRESETS,
 } from "./generation-model.js";
 import { registerGenerationCommands } from "./generation-commands.js";
 import { usePromptCommands } from "./prompt-commands.js";
+import { usePromptStyles } from "./use-prompt-styles.js";
+import { animateModelFor, iterationDraft } from "./print-iteration.js";
+import {
+  PromptStyleSelect,
+  PromptStylesDialog,
+} from "./prompt-style-controls.js";
 
 /** Starting points for an empty gallery; choosing one fills the composer. */
 const promptSuggestions = [
@@ -93,6 +116,241 @@ function useGenerationForm(submit: { current: GenerationSubmit }) {
   return Object.assign(form, { submitCurrent });
 }
 
+/**
+ * The settings tray: the choices a creator sets once a session (style, size,
+ * video length and audio, steps), and the doors to the style and character
+ * libraries.
+ */
+function GenerationSettings({
+  form,
+  selected,
+  stylePicker,
+  sizeChoices,
+  sizeMode,
+  onCustomSize,
+  onEditStyles,
+  onEditCharacters,
+}: {
+  form: ReturnType<typeof useGenerationForm>;
+  selected: MediaModel | undefined;
+  stylePicker: ReactNode;
+  sizeChoices: readonly SizeChoice[];
+  sizeMode: string;
+  onCustomSize: (custom: boolean) => void;
+  onEditStyles: () => void;
+  onEditCharacters: () => void;
+}): React.JSX.Element {
+  const providerSized = selected?.input.dimensions === "none";
+  const catalogSized = selected !== undefined && selected.sizes !== null;
+  const video = selected?.video ?? null;
+  return (
+    <div className="prints-settings">
+      <Field label="Style" orientation="horizontal">
+        {stylePicker}
+      </Field>
+      <Field label="Size" orientation="horizontal">
+        <Select
+          aria-label="Generation size"
+          data-generation-size
+          className="select-sm"
+          disabled={providerSized}
+          title={
+            providerSized ? "This model chooses the output size." : undefined
+          }
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            onCustomSize(value === "custom");
+            const choice = sizeChoices.find((option) => option.value === value);
+            if (choice) {
+              form.setFieldValue("width", choice.width);
+              form.setFieldValue("height", choice.height);
+            }
+          }}
+          value={providerSized ? "provider" : sizeMode}
+        >
+          {providerSized ? (
+            <option value="provider">Model default</option>
+          ) : (
+            <>
+              {catalogSized &&
+              !sizeChoices.some((choice) => choice.value === sizeMode) ? (
+                <option value={sizeMode} disabled>
+                  Choose a supported resolution
+                </option>
+              ) : null}
+              {sizeChoices.map((choice) => (
+                <option key={choice.value} value={choice.value}>
+                  {choice.label}
+                </option>
+              ))}
+              {catalogSized ? null : (
+                <option value="custom">Custom size</option>
+              )}
+            </>
+          )}
+        </Select>
+      </Field>
+      {!providerSized && !catalogSized && sizeMode === "custom" ? (
+        <div className="prints-custom-size">
+          <form.Field name="width">
+            {(field) => (
+              <Field label="Width">
+                <Input
+                  aria-label="Generation width"
+                  data-generation-width
+                  max={4096}
+                  min={1}
+                  onChange={(event) => {
+                    field.handleChange(Number(event.currentTarget.value) || 1);
+                  }}
+                  type="number"
+                  value={field.state.value}
+                />
+              </Field>
+            )}
+          </form.Field>
+          <form.Field name="height">
+            {(field) => (
+              <Field label="Height">
+                <Input
+                  aria-label="Generation height"
+                  data-generation-height
+                  max={4096}
+                  min={1}
+                  onChange={(event) => {
+                    field.handleChange(Number(event.currentTarget.value) || 1);
+                  }}
+                  type="number"
+                  value={field.state.value}
+                />
+              </Field>
+            )}
+          </form.Field>
+        </div>
+      ) : null}
+      {video ? (
+        <form.Field name="durationSeconds">
+          {(field) => (
+            <Field label="Length" orientation="horizontal">
+              <Select
+                aria-label="Video length in seconds"
+                className="select-sm"
+                data-generation-duration
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  field.handleChange(
+                    video.durations.find(
+                      (seconds) => String(seconds) === value,
+                    ),
+                  );
+                }}
+                value={
+                  field.state.value === undefined
+                    ? ""
+                    : String(field.state.value)
+                }
+              >
+                {video.durations.map((seconds) => (
+                  <option key={seconds} value={String(seconds)}>
+                    {seconds} seconds
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+        </form.Field>
+      ) : null}
+      {video?.supportsAudio ? (
+        <form.Field name="generateAudio">
+          {(field) =>
+            video.defaultGenerateAudio === null ? (
+              <Field label="Audio" orientation="horizontal">
+                <Select
+                  aria-label="Video audio"
+                  className="select-sm"
+                  data-generation-audio
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    field.handleChange(
+                      value === "" ? undefined : value === "on",
+                    );
+                  }}
+                  value={
+                    field.state.value === undefined
+                      ? ""
+                      : field.state.value
+                        ? "on"
+                        : "off"
+                  }
+                >
+                  <option value="">Model default</option>
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </Select>
+              </Field>
+            ) : (
+              <Field label="Audio" orientation="horizontal">
+                <Switch
+                  aria-label="Video audio"
+                  checked={field.state.value ?? true}
+                  data-generation-audio
+                  onCheckedChange={field.handleChange}
+                />
+              </Field>
+            )
+          }
+        </form.Field>
+      ) : null}
+      {selected && selected.input.steps !== "fixed" ? (
+        <form.Field name="steps">
+          {(field) => (
+            <Field label="Steps" optional orientation="horizontal">
+              <Input
+                aria-label="Generation steps"
+                className="input-sm"
+                data-generation-steps
+                max={selected.input.maxSteps ?? undefined}
+                min={1}
+                onChange={(event) => {
+                  field.handleChange(
+                    event.currentTarget.value === ""
+                      ? undefined
+                      : Number(event.currentTarget.value),
+                  );
+                }}
+                type="number"
+                value={field.state.value ?? ""}
+              />
+            </Field>
+          )}
+        </form.Field>
+      ) : null}
+      <div className="prints-settings-library">
+        <Button
+          size="xs"
+          variant="ghost"
+          type="button"
+          onClick={() => {
+            onEditStyles();
+          }}
+        >
+          Edit styles…
+        </Button>
+        <Button
+          size="xs"
+          variant="ghost"
+          type="button"
+          onClick={() => {
+            onEditCharacters();
+          }}
+        >
+          Characters…
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function GenerationComposer({
   actions,
   guidance,
@@ -106,10 +364,30 @@ function GenerationComposer({
   computerId,
   mediaDirectory,
   referenceImages,
+  characters,
+  characterDialog,
   onSubmit,
   footer,
+  styleControls,
+  addedLength,
 }: {
-  footer: (controls: ReactNode, send: ReactNode) => ReactNode;
+  /** Characters the picked style and expanded `@characters` add to the prompt. */
+  addedLength: number;
+  /** The style picker for the settings tray, and the style library dialog. */
+  styleControls: (dialog: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  }) => Readonly<{ picker: ReactNode; dialog: ReactNode }>;
+  characters: readonly PromptCharacter[];
+  characterDialog: (dialog: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  }) => ReactNode;
+  footer: (
+    controls: ReactNode,
+    send: ReactNode,
+    settings: PrintsSettingsTray,
+  ) => ReactNode;
   actions: ReactNode;
   guidance: PrintsNotice | undefined;
   commandApp: AppRoot | undefined;
@@ -125,7 +403,27 @@ function GenerationComposer({
   onSubmit: () => Promise<boolean>;
 }): React.JSX.Element {
   const selected = modelFor(models, values.model);
-  const providerSized = selected?.input.dimensions === "none";
+  const typedLength = values.prompt.trim().length;
+  const promptOver =
+    selected !== undefined &&
+    typedLength > 0 &&
+    typedLength + addedLength > selected.maxPromptLength;
+  const roles = referenceRolesFor(selected);
+  const video = selected?.video ?? null;
+  const shownReferences = resolveReferenceRoles(values.references, selected);
+  const roleProblem =
+    selected === undefined
+      ? undefined
+      : referenceRoleMessage(
+          shownReferences,
+          selected,
+          video?.formats.find(
+            (format) =>
+              format.width === values.width && format.height === values.height,
+          )?.resolution,
+        );
+  const referenceLimit = selected?.input.maxReferences ?? 0;
+  const referencesOver = values.references.length > referenceLimit;
   const [customSize, setCustomSize] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Catalog-sized models offer only their sizes; others add presets and custom.
@@ -135,8 +433,11 @@ function GenerationComposer({
     ? `${String(values.width)}x${String(values.height)}`
     : customSize
       ? "custom"
-      : sizeModeFor(values.width, values.height);
-  const referencesAllowed = (selected?.input.maxReferences ?? 0) > 0;
+      : (sizeChoices.find(
+          (choice) =>
+            choice.width === values.width && choice.height === values.height,
+        )?.value ?? "custom");
+  const [stylesOpen, setStylesOpen] = useState(false);
   const promptCommands = usePromptCommands(
     {
       clear: () => {
@@ -148,16 +449,73 @@ function GenerationComposer({
         form.setFieldValue("height", SIZE_PRESETS[mode].height);
         form.setFieldValue("prompt", "");
       },
+      openStyles: () => {
+        form.setFieldValue("prompt", "");
+        setStylesOpen(true);
+      },
+      clearStyle: () => {
+        form.setFieldValue("style", undefined);
+        form.setFieldValue("prompt", "");
+      },
     },
     commandApp,
   );
+  const [charactersOpen, setCharactersOpen] = useState(false);
+  const mentions = useCharacterMentions(characters, values.prompt);
   const slash = useMediaSlashSheet(promptCommands.items, values.prompt);
+  // Show what the typed @names will add before the person sends.
+  const usedCharacters = planCharacters({
+    prompt: values.prompt,
+    saved: characters,
+    references: values.references,
+    model:
+      selected === undefined
+        ? undefined
+        : {
+            label: selected.label,
+            maxReferences: selected.input.maxReferences,
+          },
+  });
+  const mentioned = expandCharacters(values.prompt, characters).characters;
   const pickSlash = (index: number) => {
     const item = slash.slashMatches.at(index);
     if (!item) return;
     slash.resetSlash();
     promptCommands.run(item.id);
   };
+  const style = styleControls({
+    open: stylesOpen,
+    onOpenChange: setStylesOpen,
+  });
+  // The tray's chip reads back what the hidden choices are set to.
+  const summary = [
+    values.style,
+    shortSizeLabel(selected, values.width, values.height),
+    video && values.durationSeconds !== undefined
+      ? `${String(values.durationSeconds)}s`
+      : undefined,
+    video?.supportsAudio && values.generateAudio === false
+      ? "silent"
+      : undefined,
+  ].filter((part) => part !== undefined && part !== null);
+  const settings = (
+    <GenerationSettings
+      form={form}
+      selected={selected}
+      stylePicker={style.picker}
+      sizeChoices={sizeChoices}
+      sizeMode={sizeMode}
+      onCustomSize={setCustomSize}
+      onEditStyles={() => {
+        setSettingsOpen(false);
+        setStylesOpen(true);
+      }}
+      onEditCharacters={() => {
+        setSettingsOpen(false);
+        setCharactersOpen(true);
+      }}
+    />
+  );
   return (
     <PopoverAnchor className="prints-composer-anchor">
       <Card
@@ -181,6 +539,8 @@ function GenerationComposer({
                 const thumbnail = referenceImages.find(
                   (image) => image.path === reference.path,
                 );
+                const role = shownReferences[index]?.role;
+                const next = nextReferenceRole(roles, shownReferences, index);
                 return (
                   <div
                     className="prints-reference-tile"
@@ -197,6 +557,34 @@ function GenerationComposer({
                         <span>Ref {index + 1}</span>
                       )}
                     </div>
+                    {role === undefined ? null : next === undefined ? (
+                      <span
+                        className="prints-reference-role"
+                        data-reference-role={role}
+                      >
+                        {REFERENCE_ROLE_LABELS[role]}
+                      </span>
+                    ) : (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        type="button"
+                        className="prints-reference-role"
+                        data-reference-role={role}
+                        aria-label={`Reference ${String(index + 1)}: ${REFERENCE_ROLE_LABELS[role]}. Use as ${REFERENCE_ROLE_LABELS[next]}`}
+                        title={`Use as ${REFERENCE_ROLE_LABELS[next]}`}
+                        onClick={() => {
+                          form.setFieldValue(
+                            "references",
+                            shownReferences.map((item, at) =>
+                              at === index ? { ...item, role: next } : item,
+                            ),
+                          );
+                        }}
+                      >
+                        {REFERENCE_ROLE_LABELS[role]}
+                      </Button>
+                    )}
                     <IconButton
                       icon={<X />}
                       className="prints-reference-remove"
@@ -225,13 +613,35 @@ function GenerationComposer({
                     onPick={pickSlash}
                   />
                 ) : null}
+                {!slash.slashOpen && mentions.matches.length > 0 ? (
+                  <MediaMentionSheet
+                    images={referenceImages}
+                    index={mentions.index}
+                    matches={mentions.matches}
+                    onPick={(at) => {
+                      const next = mentions.complete(at);
+                      if (next !== null) field.handleChange(next);
+                    }}
+                  />
+                ) : null}
                 <MediaComposerTextarea
+                  caretRequest={mentions.caretRequest}
+                  mentionCount={slash.slashOpen ? 0 : mentions.matches.length}
+                  onCaret={mentions.setCaret}
+                  onMentionDismiss={mentions.dismiss}
+                  onMentionMove={mentions.move}
+                  onMentionPick={() => {
+                    const next = mentions.complete(mentions.index);
+                    if (next !== null) field.handleChange(next);
+                  }}
                   disabled={
                     !mediaCapability ||
                     modelsLoading ||
                     models.length === 0 ||
                     submitting
                   }
+                  maxLength={selected?.maxPromptLength}
+                  addedLength={addedLength}
                   onChange={(value) => {
                     field.handleChange(value);
                   }}
@@ -244,6 +654,55 @@ function GenerationComposer({
                   slashCount={slash.slashMatches.length}
                   value={field.state.value}
                 />
+                {values.references.length > 0 ||
+                roleProblem !== undefined ||
+                mentioned.length > 0 ? (
+                  <div className="prints-composer-notes">
+                    {values.references.length > 0 ? (
+                      <span
+                        className="prints-reference-count"
+                        data-generation-references
+                        data-over-limit={referencesOver ? "" : undefined}
+                        role={referencesOver ? "alert" : undefined}
+                      >
+                        {values.references.length} / {referenceLimit} references
+                        {referencesOver
+                          ? referenceLimit === 0
+                            ? " — this model takes none; remove them or pick another model"
+                            : " — over this model's limit; remove some to generate"
+                          : null}
+                      </span>
+                    ) : null}
+                    {roleProblem !== undefined ? (
+                      <span
+                        className="prints-reference-count"
+                        data-generation-reference-roles
+                        data-over-limit=""
+                        role="alert"
+                      >
+                        {roleProblem}
+                      </span>
+                    ) : null}
+                    {mentioned.length > 0 ? (
+                      <span
+                        className="prints-reference-count"
+                        data-generation-characters
+                        data-over-limit={
+                          usedCharacters.kind === "refused" ? "" : undefined
+                        }
+                        role={
+                          usedCharacters.kind === "refused"
+                            ? "alert"
+                            : undefined
+                        }
+                      >
+                        {usedCharacters.kind === "refused"
+                          ? usedCharacters.message
+                          : `Characters: ${mentioned.map((entry) => entry.name).join(", ")}`}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             )}
           </form.Field>
@@ -278,15 +737,6 @@ function GenerationComposer({
         {footer(
           <>
             {actions}
-            {referencesAllowed && values.references.length > 0 ? (
-              <span
-                className="prints-reference-count"
-                data-generation-references
-              >
-                {values.references.length} /{" "}
-                {selected?.input.maxReferences ?? 0} references
-              </span>
-            ) : null}
             <form.Field name="model">
               {(field) => (
                 <label className="prints-model">
@@ -300,7 +750,6 @@ function GenerationComposer({
                       const next = modelFor(models, event.currentTarget.value);
                       field.handleChange(event.currentTarget.value);
                       if (!next) return;
-                      if (next.input.steps === "fixed") setSettingsOpen(false);
                       const touched = form.store.state.fieldMeta;
                       const nextDraft = draftForModel(values, next);
                       const size = sizeForModel(values, next, selected);
@@ -311,24 +760,19 @@ function GenerationComposer({
                         setCustomSize(false);
                       form.setFieldValue("width", size.width);
                       form.setFieldValue("height", size.height);
+                      form.setFieldValue(
+                        "durationSeconds",
+                        nextDraft.durationSeconds,
+                      );
+                      form.setFieldValue(
+                        "generateAudio",
+                        nextDraft.generateAudio,
+                      );
                       if (
                         next.input.steps === "fixed" ||
                         !touched.steps?.isTouched
                       )
                         form.setFieldValue("steps", nextDraft.steps);
-                      if (next.input.maxReferences === 0)
-                        form.setFieldValue("references", []);
-                      else if (
-                        form.store.state.values.references.length >
-                        next.input.maxReferences
-                      )
-                        form.setFieldValue(
-                          "references",
-                          form.store.state.values.references.slice(
-                            0,
-                            next.input.maxReferences,
-                          ),
-                        );
                     }}
                     value={field.state.value}
                   >
@@ -343,172 +787,13 @@ function GenerationComposer({
                     ) : null}
                     {models.map((model) => (
                       <option key={model.id} value={model.id}>
-                        {model.label.split(" — ")[0]}
+                        {modelName(model)}
                       </option>
                     ))}
                   </Select>
                 </label>
               )}
             </form.Field>
-            <label className="prints-size">
-              <span className="sr-only">Size</span>
-              <Select
-                aria-label="Generation size"
-                data-generation-size
-                className="select-sm"
-                disabled={providerSized}
-                title={
-                  providerSized
-                    ? "This model chooses the output size."
-                    : undefined
-                }
-                onChange={(event) => {
-                  const value = event.currentTarget.value;
-                  setCustomSize(value === "custom");
-                  const choice = sizeChoices.find(
-                    (option) => option.value === value,
-                  );
-                  if (choice) {
-                    form.setFieldValue("width", choice.width);
-                    form.setFieldValue("height", choice.height);
-                  }
-                }}
-                value={providerSized ? "provider" : sizeMode}
-              >
-                {providerSized ? (
-                  <option value="provider">Model default</option>
-                ) : (
-                  <>
-                    {catalogSized &&
-                    !sizeChoices.some((choice) => choice.value === sizeMode) ? (
-                      <option value={sizeMode} disabled>
-                        Choose a supported resolution
-                      </option>
-                    ) : null}
-                    {sizeChoices.map((choice) => (
-                      <option key={choice.value} value={choice.value}>
-                        {choice.label}
-                      </option>
-                    ))}
-                    {catalogSized ? null : (
-                      <option value="custom">Custom size</option>
-                    )}
-                  </>
-                )}
-              </Select>
-            </label>
-            {!providerSized && !catalogSized && sizeMode === "custom" ? (
-              <div className="prints-custom-size">
-                <form.Field name="width">
-                  {(field) => (
-                    <label className="space-y-1">
-                      <span className="text-xs font-bold">Width</span>
-                      <Input
-                        aria-label="Generation width"
-                        data-generation-width
-                        max={4096}
-                        min={1}
-                        onChange={(event) => {
-                          field.handleChange(
-                            Number(event.currentTarget.value) || 1,
-                          );
-                        }}
-                        type="number"
-                        value={field.state.value}
-                      />
-                    </label>
-                  )}
-                </form.Field>
-                <form.Field name="height">
-                  {(field) => (
-                    <label className="space-y-1">
-                      <span className="text-xs font-bold">Height</span>
-                      <Input
-                        aria-label="Generation height"
-                        data-generation-height
-                        max={4096}
-                        min={1}
-                        onChange={(event) => {
-                          field.handleChange(
-                            Number(event.currentTarget.value) || 1,
-                          );
-                        }}
-                        type="number"
-                        value={field.state.value}
-                      />
-                    </label>
-                  )}
-                </form.Field>
-              </div>
-            ) : null}
-            {selected?.video ? (
-              <form.Field name="durationSeconds">
-                {(field) => (
-                  <label className="block space-y-1">
-                    <span className="text-xs font-bold">Seconds</span>
-                    <Input
-                      aria-label="Video length in seconds"
-                      data-generation-duration
-                      max={selected.video?.maxSeconds}
-                      min={selected.video?.minSeconds}
-                      onChange={(event) => {
-                        field.handleChange(
-                          Number(event.currentTarget.value) || undefined,
-                        );
-                      }}
-                      type="number"
-                      value={field.state.value ?? ""}
-                    />
-                  </label>
-                )}
-              </form.Field>
-            ) : null}
-            {selected && selected.input.steps !== "fixed" ? (
-              <PopoverAnchor className="prints-advanced">
-                <IconButton
-                  aria-label="Generation settings"
-                  aria-expanded={settingsOpen}
-                  title="Generation settings"
-                  type="button"
-                  icon={<SlidersHorizontal />}
-                  iconSize="sm"
-                  size="sm"
-                  onClick={() => {
-                    setSettingsOpen(!settingsOpen);
-                  }}
-                />
-                <Popover
-                  open={settingsOpen}
-                  side="top"
-                  className="prints-advanced-panel z-30"
-                >
-                  <form.Field name="steps">
-                    {(field) => (
-                      <label className="block space-y-1">
-                        <span className="text-xs font-bold">
-                          Steps (optional)
-                        </span>
-                        <Input
-                          aria-label="Generation steps"
-                          data-generation-steps
-                          max={selected.input.maxSteps ?? undefined}
-                          min={1}
-                          onChange={(event) => {
-                            field.handleChange(
-                              event.currentTarget.value === ""
-                                ? undefined
-                                : Number(event.currentTarget.value),
-                            );
-                          }}
-                          type="number"
-                          value={field.state.value ?? ""}
-                        />
-                      </label>
-                    )}
-                  </form.Field>
-                </Popover>
-              </PopoverAnchor>
-            ) : null}
             {computerId && mediaDirectory ? (
               <span
                 className="sr-only"
@@ -519,32 +804,40 @@ function GenerationComposer({
               </span>
             ) : null}
           </>,
-          <Button
-            aria-label={generateActionLabel(selected)}
-            title={generateActionLabel(selected)}
-            className="prints-generate"
-            variant="primary"
-            size="sm"
-            data-generation-submit
+          <GenerateButton
+            busy={submitting}
             disabled={
               !mediaCapability ||
               modelsLoading ||
               models.length === 0 ||
               submitting
             }
-            aria-busy={submitting}
-            onClick={() => {
+            label={generateActionLabel(selected)}
+            onGenerate={() => {
               void onSubmit();
             }}
-            type="button"
-          >
-            {submitting ? (
-              <Loader decorative size="sm" />
-            ) : (
-              <ArrowUp aria-hidden="true" size={20} />
-            )}
-          </Button>,
+            promptOver={promptOver}
+          />,
+          {
+            label: (
+              <span className="prints-settings-chip">
+                <SlidersHorizontal
+                  aria-hidden="true"
+                  className="size-[var(--stipe-icon-size-sm)]"
+                />
+                {summary.length > 0 ? summary.join(" · ") : "Settings"}
+              </span>
+            ),
+            content: settings,
+            open: settingsOpen,
+            onOpenChange: setSettingsOpen,
+          },
         )}
+        {style.dialog}
+        {characterDialog({
+          open: charactersOpen,
+          onOpenChange: setCharactersOpen,
+        })}
       </Card>
     </PopoverAnchor>
   );
@@ -663,9 +956,13 @@ export function MediaPane({
         });
     },
   );
+  const promptStyles = usePromptStyles(connection?.app ?? null);
+  const promptCharacters = usePromptCharacters(connection?.app ?? null);
   const generation = useMediaGeneration({
     connection,
     folder,
+    styles: promptStyles.styles,
+    characters: promptCharacters.characters,
     effects: {
       reserve: reserveSlot,
       failed: failSlot,
@@ -702,9 +999,30 @@ export function MediaPane({
   const scrollRef = useRef<HTMLDivElement>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
   const pasteSequence = useRef(0);
-  const generationSubmit = useRef(generation.submit);
-  generationSubmit.current = generation.submit;
+  /** Why an iterated draft differs from its print, while it keeps that model. */
+  const [iterationNotice, setIterationNotice] = useState<{
+    model: string;
+    message: string;
+  } | null>(null);
+  const generationSubmit = useRef<GenerationSubmit>(generation.submit);
+  generationSubmit.current = async (draft) => {
+    const accepted = await generation.submit(draft);
+    if (accepted) setIterationNotice(null);
+    return accepted;
+  };
   const form = useGenerationForm(generationSubmit);
+  const loadDraft = (draft: GenerationDraft) => {
+    form.setFieldValue("model", draft.model);
+    form.setFieldValue("width", draft.width);
+    form.setFieldValue("height", draft.height);
+    form.setFieldValue("steps", draft.steps);
+    form.setFieldValue("durationSeconds", draft.durationSeconds);
+    form.setFieldValue("generateAudio", draft.generateAudio);
+    form.setFieldValue("prompt", draft.prompt);
+    form.setFieldValue("references", draft.references);
+    form.setFieldValue("style", draft.style);
+    form.setFieldValue("destination", undefined);
+  };
   const formRef = useRef(form);
   formRef.current = form;
   const values = useSelector(form.store, (state) => state.values);
@@ -735,14 +1053,14 @@ export function MediaPane({
           current.setFieldValue("width", size.width);
           current.setFieldValue("height", size.height);
           current.setFieldValue("steps", modelDraft.steps);
-          current.setFieldValue(
-            "references",
-            current.store.state.values.references.slice(
-              0,
-              model.input.maxReferences,
-            ),
-          );
+          current.setFieldValue("durationSeconds", modelDraft.durationSeconds);
+          current.setFieldValue("generateAudio", modelDraft.generateAudio);
         }
+        if (patch.generateAudio !== undefined)
+          current.setFieldValue(
+            "generateAudio",
+            patch.generateAudio ?? undefined,
+          );
         if (patch.destination !== undefined)
           current.setFieldValue("destination", patch.destination ?? undefined);
         if (patch.height !== undefined)
@@ -753,6 +1071,8 @@ export function MediaPane({
           current.setFieldValue("references", patch.references);
         if (patch.steps !== undefined)
           current.setFieldValue("steps", patch.steps ?? undefined);
+        if (patch.style !== undefined)
+          current.setFieldValue("style", patch.style ?? undefined);
         if (patch.width !== undefined)
           current.setFieldValue("width", patch.width);
       },
@@ -1076,6 +1396,11 @@ export function MediaPane({
       uploads.remove(id);
     },
   };
+  const composerImages = images.flatMap((image) =>
+    image.source.kind === "computer"
+      ? [{ path: image.source.path, url: image.url }]
+      : [],
+  );
   return (
     <main
       className="h-full w-full flex flex-col overflow-hidden"
@@ -1196,6 +1521,28 @@ export function MediaPane({
             key={infoImage.url}
             image={infoImage}
             app={connection?.app ?? null}
+            referenceImages={composerImages}
+            models={models}
+            canAnimate={animateModelFor(models) !== undefined}
+            onIterate={(action, lineage) => {
+              if (infoImage.source.kind !== "computer") return null;
+              const outcome = iterationDraft(action, {
+                lineage,
+                printPath: infoImage.source.path,
+                models,
+                styles: promptStyles.styles.map((entry) => entry.name),
+                current: form.store.state.values,
+              });
+              if (outcome.kind === "refused") return outcome.message;
+              loadDraft(outcome.draft);
+              setIterationNotice(
+                outcome.notice === null
+                  ? null
+                  : { model: outcome.draft.model, message: outcome.notice },
+              );
+              setInfoImage(null);
+              return null;
+            }}
             onClose={() => {
               setInfoImage(null);
             }}
@@ -1219,6 +1566,58 @@ export function MediaPane({
           />
         </section>
         <GenerationComposer
+          addedLength={addedPromptLength(
+            values.prompt,
+            promptStyles.styles.find((style) => style.name === values.style)
+              ?.text,
+            promptCharacters.characters,
+          )}
+          styleControls={(dialog) => ({
+            picker: (
+              <PromptStyleSelect
+                styles={promptStyles.styles}
+                selected={values.style}
+                disabled={!mediaCapability || modelsLoading || generationBusy}
+                onSelect={(name) => {
+                  form.setFieldValue("style", name);
+                }}
+              />
+            ),
+            dialog: (
+              <PromptStylesDialog
+                open={dialog.open}
+                onOpenChange={dialog.onOpenChange}
+                styles={promptStyles.styles}
+                selected={values.style}
+                busy={promptStyles.busy}
+                error={promptStyles.error}
+                onSelect={(name) => {
+                  form.setFieldValue("style", name);
+                }}
+                onSave={promptStyles.save}
+                onDelete={(style, done) => {
+                  promptStyles.remove(style.id, done);
+                }}
+              />
+            ),
+          })}
+          characters={promptCharacters.characters}
+          characterDialog={(dialog) => (
+            <PromptCharactersDialog
+              open={dialog.open}
+              onOpenChange={dialog.onOpenChange}
+              characters={promptCharacters.characters}
+              images={composerImages}
+              busy={promptCharacters.busy}
+              error={promptCharacters.error}
+              canUpload={canWrite && mediaDirectory !== null}
+              onUpload={() => uploadInput.current?.click()}
+              onSave={promptCharacters.save}
+              onDelete={(character, done) => {
+                promptCharacters.remove(character.id, done);
+              }}
+            />
+          )}
           guidance={
             visibleNotices.find(
               (notice) => notice.blocking && notice.group === "Setup",
@@ -1227,11 +1626,30 @@ export function MediaPane({
               ? visibleNotices.find(
                   (notice) => notice.key === generationError?.key,
                 )
+              : undefined) ??
+            (iterationNotice !== null && iterationNotice.model === values.model
+              ? {
+                  key: "iteration-model",
+                  group: "Images",
+                  tone: "warning",
+                  short: "Model changed",
+                  title: "Model changed",
+                  detail: iterationNotice.message,
+                  actions: [
+                    {
+                      label: "Dismiss",
+                      run: () => {
+                        setIterationNotice(null);
+                      },
+                    },
+                  ],
+                }
               : undefined)
           }
           commandApp={commandApp}
-          footer={(controls, send) => (
+          footer={(controls, send, settings) => (
             <PrintsFooter
+              settings={settings}
               notices={visibleNotices}
               activity={activity}
               uploads={uploadQueueProps}
@@ -1275,11 +1693,7 @@ export function MediaPane({
           values={values}
           computerId={folder.computerId}
           mediaDirectory={mediaDirectory}
-          referenceImages={images.flatMap((image) =>
-            image.source.kind === "computer"
-              ? [{ path: image.source.path, url: image.url }]
-              : [],
-          )}
+          referenceImages={composerImages}
         />
       </div>
       <PrintsFolderDialog folder={folder} />

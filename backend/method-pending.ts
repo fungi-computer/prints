@@ -9,7 +9,7 @@ import {
   type GeneratedMedia,
   type MethodActor,
 } from "./method-contracts.js";
-import { recordCompletedPrint } from "./print-records.js";
+import { recordCompletedPrint, type TypedInput } from "./print-records.js";
 
 export function ensureMethodGenerationTables(sql: SqlStorage): void {
   sql.exec(`CREATE TABLE IF NOT EXISTS method_generations (
@@ -88,6 +88,7 @@ export function completeMethodGeneration(
   computerId: string,
   input: GenerationCommand,
   rawResult: GeneratedMedia,
+  typed: TypedInput,
 ): { kind: "completed"; result: GeneratedMedia } | { error: "conflict" } {
   const result = generatedMediaSchema.parse(rawResult);
   return storage.transactionSync(() => {
@@ -136,6 +137,7 @@ export function completeMethodGeneration(
       }),
       settings,
       result,
+      typed,
     });
     storage.sql.exec(
       "UPDATE method_generations SET result_json=? WHERE request_id=?",

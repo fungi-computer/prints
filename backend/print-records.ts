@@ -3,6 +3,12 @@ import { printRecordSchema } from "../src/print-record-schema.js";
 export { printRecordSchema } from "../src/print-record-schema.js";
 import type { MediaGenerationInput } from "@fungi.computer/agar/media";
 import type { CompleteGenerationRequest } from "../src/media-completion-contract.js";
+import { recordPrintStyle } from "./prompt-styles.js";
+import {
+  ensurePromptCharacterTables,
+  printCharacters,
+  recordPrintCharacters,
+} from "./prompt-characters.js";
 
 const text = (maximum: number) => z.string().min(1).max(maximum);
 export type PrintRecord = Readonly<{
@@ -28,7 +34,30 @@ export type PrintRecord = Readonly<{
 
 const PRINTS_SCHEMA_VERSION = 1;
 
+/** The request as typed: the prompt before composition, and how many of the
+ * recorded references were the person's own (the rest came from characters). */
+export type TypedInput = Readonly<{ prompt: string; references: number }>;
+
+const typedRowSchema = z.strictObject({
+  prompt: printRecordSchema.shape.prompt,
+  own_references: z.number().int().nonnegative(),
+});
+
+/** The typed request recorded with every print. */
+export function printTyped(sql: SqlStorage, printId: string): TypedInput {
+  const decoded = typedRowSchema.parse(
+    sql
+      .exec(
+        "SELECT prompt, own_references FROM print_typed WHERE print_id=?",
+        printId,
+      )
+      .one(),
+  );
+  return { prompt: decoded.prompt, references: decoded.own_references };
+}
+
 export function ensurePrintsIndexTables(sql: SqlStorage): void {
+  ensurePromptCharacterTables(sql);
   sql.exec(
     `CREATE TABLE IF NOT EXISTS prints (
       print_id TEXT PRIMARY KEY,
@@ -61,6 +90,13 @@ export function ensurePrintsIndexTables(sql: SqlStorage): void {
       path TEXT NOT NULL,
       ref_print_id TEXT,
       PRIMARY KEY(print_id, position)
+    ) STRICT`,
+  );
+  sql.exec(
+    `CREATE TABLE IF NOT EXISTS print_typed (
+      print_id TEXT PRIMARY KEY,
+      prompt TEXT NOT NULL,
+      own_references INTEGER NOT NULL
     ) STRICT`,
   );
   sql.exec(
@@ -162,6 +198,12 @@ export function recordCompletedPrint(
     result: CompleteGenerationRequest["result"];
     derivedFrom?: CompleteGenerationRequest["derivedFrom"];
     references?: CompleteGenerationRequest["references"];
+    /** What the person asked for, before a style or saved characters were woven in. */
+    typed: TypedInput;
+    /** Name of the style block the prompt was composed with, if any. */
+    style?: string | undefined;
+    /** Names of the saved characters the prompt was composed with, in order. */
+    characters?: readonly string[] | undefined;
   }>,
 ): PrintRecord {
   const { printId, computerId, settings } = input;
@@ -200,6 +242,13 @@ export function recordCompletedPrint(
     printId,
     createdAt,
   );
+  sql.exec(
+    "INSERT INTO print_typed (print_id,prompt,own_references) VALUES (?,?,?)",
+    printId,
+    input.typed.prompt,
+    input.typed.references,
+  );
+  if (input.style !== undefined) recordPrintStyle(sql, printId, input.style);
   const referencePaths = settings.references ?? [];
   const referencePrintIds = input.references ?? [];
   referencePaths.forEach((reference, position) => {
@@ -211,6 +260,7 @@ export function recordCompletedPrint(
       referencePrintIds[position] ?? null,
     );
   });
+  recordPrintCharacters(sql, printId, input.characters ?? []);
   const print = readPrint(sql, printId);
   if (print === null)
     throw new Error("Prints index lost its own completed row");
@@ -242,6 +292,46 @@ export function indexedOutput(
     path: text(4096).parse(file_path),
   };
 }
+/** The reference images a print was generated from, in request order. */
+export function printReferences(
+  sql: SqlStorage,
+  printId: string,
+): readonly Readonly<{ path: string; printId: string | null }>[] {
+  return sql
+    .exec<{ path: string; ref_print_id: string | null }>(
+      "SELECT path, ref_print_id FROM print_references WHERE print_id=? ORDER BY position",
+      printId,
+    )
+    .toArray()
+    .map((row) => ({
+      path: text(4096).parse(row.path),
+      printId: text(256).nullable().parse(row.ref_print_id),
+    }));
+}
+
+/** Read one indexed output by its file path in this Installation's library. */
+export function indexedOutputAtPath(
+  sql: SqlStorage,
+  computerId: string,
+  filePath: string,
+  folder: string,
+): Readonly<{ print: PrintRecord; path: string }> | null {
+  const prefix = `${folder}/`;
+  const row = sql
+    .exec<PrintRow & { file_path: string }>(
+      "SELECT p.*, f.path AS file_path FROM prints p JOIN print_files f ON f.print_id=p.print_id AND f.computer_id=p.computer_id WHERE p.computer_id=? AND f.path=? AND f.state='present' AND substr(f.path,1,length(?))=? AND instr(substr(f.path,length(?)+1),'/')=0",
+      computerId,
+      filePath,
+      prefix,
+      prefix,
+      prefix,
+    )
+    .toArray()[0];
+  if (!row) return null;
+  const { file_path, ...print } = row;
+  return { print: printRecordOf(print), path: text(4096).parse(file_path) };
+}
+
 export function indexedOutputs(
   sql: SqlStorage,
   computerId: string,
@@ -264,10 +354,16 @@ export function indexedOutputs(
       limit + 1,
     )
     .toArray();
-  const items = rows.slice(0, limit).map(({ file_path, ...print }) => ({
-    print: printRecordOf(print),
-    path: text(4096).parse(file_path),
-  }));
+  const items = rows.slice(0, limit).map(({ file_path, ...print }) => {
+    const record = printRecordOf(print);
+    return {
+      print: record,
+      path: text(4096).parse(file_path),
+      references: printReferences(sql, record.printId),
+      characters: printCharacters(sql, record.printId),
+      typed: printTyped(sql, record.printId),
+    };
+  });
   const last = items.at(-1)?.print;
   return {
     items,

@@ -110,6 +110,9 @@ export function completeGeneration(
       result: input.result,
       derivedFrom: input.derivedFrom,
       references: input.references,
+      typed: pending.typed,
+      style: pending.style,
+      characters: pending.characters,
     });
     sql.exec(
       "DELETE FROM pending_generations WHERE actor_id=? AND request_id=? AND computer_id=?",
