@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type {
   AppRoot,
   AppBrowserAction,
@@ -9,10 +9,11 @@ import { capabilityQuery, queryKeys } from "@fungi.computer/agar/query";
 import { appMethods } from "@fungi.computer/agar/backend";
 import * as z from "zod";
 import { printStyleQuery } from "./media-queries.js";
-import { Button } from "@fungi.computer/caps/components/button";
+import { KeycapButton } from "@fungi.computer/caps/components/keycap";
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Surface } from "@fungi.computer/caps/components/surface";
 import { DataList, DataRow } from "@fungi.computer/caps/components/data-list";
+import { Sigil, type SigilName } from "@fungi.computer/sigils";
 import { Clapperboard, Download, RotateCcw, Shuffle, X } from "lucide-react";
 import type { Iteration, PrintLineage } from "./print-iteration.js";
 import { modelFor, modelName, type MediaModel } from "./generation-model.js";
@@ -176,6 +177,41 @@ function usePrintDownload(source: GallerySource, app: AppRoot | null) {
   };
 }
 
+/** One fact row: a fixed label column (Sigil and name) and a wrapping value. */
+function Fact({
+  sigil,
+  label,
+  children,
+}: {
+  sigil: SigilName;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <DataRow>
+      <span className="prints-info-label">
+        <Sigil name={sigil} size={16} />
+        {label}
+      </span>
+      <span className="prints-info-value">{children}</span>
+    </DataRow>
+  );
+}
+
+/** Keeps a long file name's extension in view; the middle gives way first. */
+function FileName({ name }: { name: string }) {
+  const tail = name.length > fileNameTail ? name.slice(-fileNameTail) : "";
+  return (
+    <span className="prints-info-file" title={name} data-print-file>
+      <span className="prints-info-file-head">
+        {name.slice(0, name.length - tail.length)}
+      </span>
+      {tail ? <span className="prints-info-file-tail">{tail}</span> : null}
+    </span>
+  );
+}
+const fileNameTail = 10;
+
 /** One non-modal information panel owns file actions; tiles stay uncluttered. */
 export function PrintInfoDrawer({
   image,
@@ -243,56 +279,48 @@ export function PrintInfoDrawer({
           onClick={onClose}
         />
       </div>
-      <DataList density="compact">
-        <DataRow>
-          <span className="text-base-content/60">File</span>
-          <span className="break-all">{image.file.name}</span>
-        </DataRow>
-        <DataRow>
-          <span className="text-base-content/60">Size</span>
-          <span>
-            {image.width} × {image.height} ·{" "}
-            {aspectOf(image.width, image.height)}
-          </span>
-        </DataRow>
+      <DataList density="compact" className="prints-info-facts">
+        <Fact sigil="list" label="File">
+          <FileName name={image.file.name} />
+        </Fact>
+        <Fact sigil="prints" label="Size">
+          {image.width} × {image.height} · {aspectOf(image.width, image.height)}
+        </Fact>
         {style.data?.style ? (
-          <DataRow>
-            <span className="text-base-content/60">Style</span>
-            <span>{style.data.style}</span>
-          </DataRow>
+          <Fact sigil="write" label="Style">
+            {style.data.style}
+          </Fact>
         ) : null}
         {details ? (
-          <DataRow>
-            <span className="text-base-content/60">Prompt</span>
-            <span className="whitespace-pre-wrap break-words" data-print-prompt>
+          <Fact sigil="sendPrompts" label="Prompt">
+            <span className="whitespace-pre-wrap" data-print-prompt>
               {details.typed.prompt}
             </span>
-          </DataRow>
+          </Fact>
         ) : null}
         {details ? (
-          <DataRow>
-            <span className="text-base-content/60">Model</span>
-            <span className="break-all" data-print-model>
+          <Fact sigil="generateMedia" label="Model">
+            <span data-print-model>
               {recordedModel
                 ? modelName(recordedModel)
                 : `${details.print.model} (no longer available)`}
             </span>
-          </DataRow>
+          </Fact>
         ) : null}
         {details && details.characters.length > 0 ? (
-          <DataRow>
-            <span className="text-base-content/60">Characters</span>
+          <Fact sigil="members" label="Characters">
             <span data-print-characters>
               {details.characters.map((name) => `@${name}`).join(", ")}
             </span>
-          </DataRow>
+          </Fact>
         ) : null}
         {details && details.references.length > 0 ? (
-          <DataRow>
-            <span className="text-base-content/60">
-              References ({details.references.length})
-            </span>
-            <ul className="prints-info-references" data-print-references>
+          <Fact sigil="read" label="References">
+            <ul
+              className="prints-info-references"
+              data-print-references
+              aria-label={`${String(details.references.length)} references`}
+            >
               {details.references.map((reference, index) => {
                 const name = reference.path.split("/").at(-1);
                 const thumbnail = referenceImages.find(
@@ -308,65 +336,69 @@ export function PrintInfoDrawer({
                 );
               })}
             </ul>
-          </DataRow>
+          </Fact>
         ) : null}
         {details ? (
-          <DataRow>
-            <span className="text-base-content/60">Made</span>
-            <span>{madeAt.format(details.print.createdAt)}</span>
-          </DataRow>
+          <Fact sigil="schedule" label="Made">
+            {madeAt.format(details.print.createdAt)}
+          </Fact>
         ) : null}
       </DataList>
-      {lineage && image.source.kind === "computer" ? (
-        <div className="prints-info-actions" role="group" aria-label="Iterate">
-          <Button
-            disabled={style.isPending}
-            onClick={() => {
-              setRefusal(onIterate("reuse", lineage));
-            }}
-          >
-            <RotateCcw aria-hidden="true" size={16} />
-            Reuse
-          </Button>
-          <Button
-            disabled={style.isPending}
-            onClick={() => {
-              setRefusal(onIterate("remix", lineage));
-            }}
-          >
-            <Shuffle aria-hidden="true" size={16} />
-            Remix
-          </Button>
-          {canAnimate && lineage.kind === "image" ? (
-            <Button
+      <div
+        className="prints-info-actions"
+        role="group"
+        aria-label="Image actions"
+      >
+        {lineage && image.source.kind === "computer" ? (
+          <>
+            <KeycapButton
+              label="Reuse"
+              icon={<RotateCcw />}
               disabled={style.isPending}
               onClick={() => {
-                setRefusal(onIterate("animate", lineage));
+                setRefusal(onIterate("reuse", lineage));
               }}
-            >
-              <Clapperboard aria-hidden="true" size={16} />
-              Animate
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
+            />
+            <KeycapButton
+              label="Remix"
+              icon={<Shuffle />}
+              disabled={style.isPending}
+              onClick={() => {
+                setRefusal(onIterate("remix", lineage));
+              }}
+            />
+            {canAnimate && lineage.kind === "image" ? (
+              <KeycapButton
+                label="Animate"
+                icon={<Clapperboard />}
+                disabled={style.isPending}
+                onClick={() => {
+                  setRefusal(onIterate("animate", lineage));
+                }}
+              />
+            ) : null}
+          </>
+        ) : null}
+        <KeycapButton
+          label="Download"
+          icon={<Download />}
+          title={
+            download.preparing
+              ? "Preparing download…"
+              : download.isPending
+                ? "Downloading…"
+                : undefined
+          }
+          onClick={download.start}
+          disabled={download.disabled}
+          aria-busy={download.preparing || download.isPending}
+        />
+      </div>
       {refusal ? (
         <p role="alert" className="text-sm">
           {refusal}
         </p>
       ) : null}
-      <Button
-        onClick={download.start}
-        disabled={download.disabled}
-        aria-busy={download.preparing || download.isPending}
-      >
-        <Download aria-hidden="true" size={16} />
-        {download.preparing
-          ? "Preparing download…"
-          : download.isPending
-            ? "Downloading…"
-            : "Download"}
-      </Button>
       {failure ? (
         <p role="alert" className="text-sm">
           {failure.title}. {failure.message}

@@ -3,7 +3,7 @@ import { printRecordSchema } from "../src/print-record-schema.js";
 export { printRecordSchema } from "../src/print-record-schema.js";
 import type { MediaGenerationInput } from "@fungi.computer/agar/media";
 import type { CompleteGenerationRequest } from "../src/media-completion-contract.js";
-import { recordPrintStyle } from "./prompt-styles.js";
+import { printStyle, recordPrintStyle } from "./prompt-styles.js";
 import {
   ensurePromptCharacterTables,
   printCharacters,
@@ -361,6 +361,7 @@ export function indexedOutputs(
       path: text(4096).parse(file_path),
       references: printReferences(sql, record.printId),
       characters: printCharacters(sql, record.printId),
+      style: printStyle(sql, record.printId),
       typed: printTyped(sql, record.printId),
     };
   });

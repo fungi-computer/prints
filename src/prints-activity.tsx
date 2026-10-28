@@ -1,6 +1,11 @@
 import { Folder, ImagePlus, SlidersHorizontal, Upload, X } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 import * as Schema from "effect/Schema";
+import {
+  statusText,
+  type AppStatusItem,
+  type AppStatusTone,
+} from "@fungi.computer/agar";
 import { mediaLibraryPathSchema } from "@fungi.computer/agar/media";
 import { SchemaForm, field, useSchemaForm } from "@fungi.computer/caps/form";
 import { FormFooter } from "@fungi.computer/caps/components/field";
@@ -16,7 +21,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@fungi.computer/caps/components/dialog";
-import { type StatusTone } from "@fungi.computer/caps/components/status";
 import {
   StatusTray,
   StatusTrayList,
@@ -59,16 +63,15 @@ export function activityFor(
   activity: ActivitySummary,
 ): {
   label: string;
-  tone: StatusTone;
+  /** The status light's colour; absent while only working or informing. */
+  tone: AppStatusTone | undefined;
   busy: boolean;
-  glyph: "dot" | "bang";
 } | null {
   const busy = activity.generating + activity.uploading > 0;
   if (busy)
     return {
       busy,
-      glyph: "dot",
-      tone: "accent",
+      tone: undefined,
       label: [
         activity.generating ? `Creating ${String(activity.generating)}` : "",
         activity.uploading ? `Uploading ${String(activity.uploading)}` : "",
@@ -86,11 +89,31 @@ export function activityFor(
   if (!top) return null;
   return {
     busy,
-    glyph: top.tone === "error" ? "bang" : "dot",
-    tone: top.tone,
+    tone: top.tone === "info" ? "neutral" : top.tone,
     label:
       top.short + (notices.length > 1 ? ` +${String(notices.length - 1)}` : ""),
   };
+}
+
+/** The window status bar's Activity key: a count and a light for the state. */
+export function activityStatusItem(
+  notices: readonly PrintsNotice[],
+  activity: ActivitySummary,
+  open: boolean,
+): AppStatusItem | null {
+  const summary = activityFor(notices, activity);
+  if (!summary) return null;
+  const item: AppStatusItem = {
+    kind: "button",
+    id: "activity",
+    text: "Activity",
+    count: notices.length + activity.generating + activity.uploading,
+    busy: summary.busy,
+    title: statusText(`Activity: ${summary.label}`, 1_024),
+    opens: "dialog",
+    expanded: open,
+  };
+  return summary.tone === undefined ? item : { ...item, tone: summary.tone };
 }
 
 const noticeIcons = {
@@ -119,34 +142,17 @@ export type PrintsSettingsTray = Readonly<{
   onOpenChange: (open: boolean) => void;
 }>;
 
-/** App notices and the composer's settings, seated in its Caps footer. */
+/** The composer's settings, seated in its Caps footer. */
 export function PrintsFooter({
-  notices,
-  activity,
-  uploads,
-  activityOpen,
-  onActivityOpenChange,
-  onDismiss,
-  onDismissAll,
-  onLoadMore,
-  send,
   controls,
+  send,
   settings,
 }: {
-  notices: readonly PrintsNotice[];
-  activity: ActivitySummary;
-  uploads?: UploadQueueProps | undefined;
-  activityOpen: boolean;
-  onActivityOpenChange: (open: boolean) => void;
-  onDismiss: (key: string) => void;
-  onDismissAll: () => void;
-  onLoadMore?: (() => void) | undefined;
   send: ReactNode;
   controls: ReactNode;
-  /** The composer's tucked-away choices, one tray beside Activity. */
+  /** The composer's tucked-away choices, one tray in the footer. */
   settings?: PrintsSettingsTray | undefined;
 }) {
-  const summary = activityFor(notices, activity);
   const items: StatusTrayItem[] = [];
   if (settings)
     items.push({
@@ -156,38 +162,71 @@ export function PrintsFooter({
       title: "Settings",
       content: settings.content,
     });
-  if (summary)
-    items.push({
-      id: "activity",
-      label: "Activity",
-      count: notices.length + activity.generating + activity.uploading,
-      tone: summary.tone,
-      glyph: summary.glyph,
-      motion: summary.busy ? "pulse" : "none",
-      accessibleLabel: `Activity: ${summary.label}`,
-      title: "Activity",
-      content: (
-        <ActivityContent
-          notices={notices}
-          uploads={uploads}
-          onDismiss={onDismiss}
-          onDismissAll={onDismissAll}
-          onLoadMore={onLoadMore}
-        />
-      ),
-    });
   return (
     <StatusTray
       className="prints-footer"
       items={items}
       align={settings?.open ? "start" : "end"}
-      openId={activityOpen ? "activity" : settings?.open ? "settings" : null}
+      openId={settings?.open ? "settings" : null}
       onOpenChange={(id) => {
-        onActivityOpenChange(id === "activity");
         settings?.onOpenChange(id === "settings");
       }}
       leading={controls}
       trailing={send}
+    />
+  );
+}
+
+/**
+ * The Activity panel. The window's status bar draws the Activity key; this
+ * answers its click with the tray that opens above it.
+ */
+export function PrintsActivityTray({
+  notices,
+  uploads,
+  open,
+  inset,
+  onOpenChange,
+  onDismiss,
+  onDismissAll,
+  onLoadMore,
+}: {
+  notices: readonly PrintsNotice[];
+  uploads?: UploadQueueProps | undefined;
+  open: boolean;
+  /** Where the status bar's key starts, from this tray's inline start. */
+  inset?: number | undefined;
+  onOpenChange: (open: boolean) => void;
+  onDismiss: (key: string) => void;
+  onDismissAll: () => void;
+  onLoadMore?: (() => void) | undefined;
+}) {
+  return (
+    <StatusTray
+      className="prints-activity-tray"
+      placement="host"
+      align="start"
+      {...(inset === undefined ? {} : { hostInset: inset })}
+      items={[
+        {
+          id: "activity",
+          label: "Activity",
+          title: "Activity",
+          content: (
+            <ActivityContent
+              notices={notices}
+              uploads={uploads}
+              onDismiss={onDismiss}
+              onDismissAll={onDismissAll}
+              onLoadMore={onLoadMore}
+            />
+          ),
+        },
+      ]}
+      openId={open ? "activity" : null}
+      onOpenChange={(id) => {
+        onOpenChange(id === "activity");
+      }}
     />
   );
 }

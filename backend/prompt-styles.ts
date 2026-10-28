@@ -114,6 +114,17 @@ export function recordPrintStyle(
   );
 }
 
+/** The style name recorded for one print, or null when it used none. */
+export function printStyle(sql: SqlStorage, printId: string): string | null {
+  const row = sql
+    .exec<{ style_name: string }>(
+      "SELECT style_name FROM print_styles WHERE print_id=?",
+      printId,
+    )
+    .toArray()[0];
+  return row?.style_name ?? null;
+}
+
 /** The style name recorded for the print saved at one path on one Computer. */
 export function printStyleAt(
   sql: SqlStorage,

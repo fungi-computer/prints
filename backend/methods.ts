@@ -54,9 +54,18 @@ import {
   printTyped,
   type TypedInput,
 } from "./print-records.js";
-import { promptStyleNamed, recordPrintStyle } from "./prompt-styles.js";
+import {
+  listPromptStyles,
+  printStyle,
+  promptStyleNamed,
+  recordPrintStyle,
+} from "./prompt-styles.js";
 import {
   composePrompt,
+  BUILT_IN_STYLES,
+  MAX_STYLES,
+  STYLE_NAME_LIMIT,
+  STYLE_TEXT_LIMIT,
   promptLengthMessage,
   promptLimitFor,
 } from "../src/prompt-styles.js";
@@ -65,7 +74,14 @@ import {
   printCharacters,
   recordPrintCharacters,
 } from "./prompt-characters.js";
-import { mentionNames, planCharacters } from "../src/prompt-characters.js";
+import {
+  CHARACTER_DESCRIPTION_LIMIT,
+  MAX_CHARACTERS,
+  MAX_CHARACTER_REFERENCES,
+  CHARACTER_NAME_LIMIT,
+  mentionNames,
+  planCharacters,
+} from "../src/prompt-characters.js";
 
 const empty = z.strictObject({});
 const id = z.string().min(1).max(256);
@@ -278,6 +294,60 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
         return refused.success ? refused.data : models.parse({ models: reply });
       },
     }),
+    listCharacters: defineAppMethod({
+      description:
+        "List the saved Prints characters, by name. Each has a description and reference images (paths on the Computer; the count summed over the characters you pass is what the model's maxReferences must cover). Pass names as generateImage characters, or write @name in the prompt; the description joins the prompt and the references join settings.references. Names are case-insensitive. If the user names a character that is not listed, ask before generating.",
+      effect: "read",
+      requires: [],
+      input: empty,
+      output: z.strictObject({
+        characters: z
+          .array(
+            z.strictObject({
+              name: z.string().min(1).max(CHARACTER_NAME_LIMIT),
+              description: z.string().max(CHARACTER_DESCRIPTION_LIMIT),
+              references: z
+                .array(z.strictObject({ path }))
+                .max(MAX_CHARACTER_REFERENCES),
+            }),
+          )
+          .max(MAX_CHARACTERS),
+      }),
+      handler: (_input, context) => ({
+        characters: listPromptCharacters(context.ctx.storage.sql).map(
+          ({ name, description, references }) => ({
+            name,
+            description,
+            references: references.map((reference) => ({
+              path: reference.path,
+            })),
+          }),
+        ),
+      }),
+    }),
+    listStyles: defineAppMethod({
+      description:
+        "List the saved Prints styles: built-in starters first, then the user's own. Pass a name as generateImage style; its text leads the prompt, so the model's maxPromptLength must cover style text + character descriptions + the prompt. Style names are exact and case-sensitive. If the user names a style that is not listed, ask before generating.",
+      effect: "read",
+      requires: [],
+      input: empty,
+      output: z.strictObject({
+        styles: z
+          .array(
+            z.strictObject({
+              name: z.string().min(1).max(STYLE_NAME_LIMIT),
+              text: z.string().min(1).max(STYLE_TEXT_LIMIT),
+              builtIn: z.boolean(),
+            }),
+          )
+          .max(MAX_STYLES + BUILT_IN_STYLES.length),
+      }),
+      handler: (_input, context) => ({
+        styles: listPromptStyles(context.ctx.storage.sql).map(
+          ({ name, text, builtIn }) => ({ name, text, builtIn }),
+        ),
+      }),
+    }),
     listOutputs: defineAppMethod({
       description:
         "List this App's recorded outputs in its selected library on the admitted Computer, newest first. A file may have been removed since recording.",
@@ -302,7 +372,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
     }),
     getOutput: defineAppMethod({
       description:
-        "Read one recorded output by its file path in the selected library on the admitted Computer: its prompt, model and the reference images it was generated from.",
+        "Read one recorded output by its file path in the selected library on the admitted Computer: its prompt, model, the reference images it was generated from, the saved characters it used (characters) and the saved style it used (style, null when none). To remake or vary it, pass the same characters and style to generateImage with a new prompt.",
       effect: "read",
       requires: ["computer.list"],
       input: outputAtPathInputSchema,
@@ -328,6 +398,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             context.ctx.storage.sql,
             item.print.printId,
           ),
+          style: printStyle(context.ctx.storage.sql, item.print.printId),
           typed: printTyped(context.ctx.storage.sql, item.print.printId),
         });
       },
@@ -492,7 +563,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
     }),
     generateImage: defineAppMethod({
       description:
-        "Generate one image in this App's library. The host chooses the path. Workflows may omit requestId to derive it from the trusted caller's idempotency key. Other callers form requestId as media_request_ followed by 21 random lowercase letters or digits. Reuse the same identity and inputs for recovery. The default is the model-native image format; PNG, JPEG or WebP may be pinned only when the model supports it. The result reports the actual format. Optional characters names saved Prints characters: their descriptions join the prompt and their reference images the references. Optional settings.references contains path-only image references on the admitted Computer. Select a model from listModels whose input.maxReferences supports their count; unsupported references return INVALID_ARGUMENT at stage settings before recording or dispatch. No video settings. Existing Team billing and attachment budgets apply.",
+        "One image; the host picks its path. requestId: media_request_ + 21 random [a-z0-9]; reuse it to recover. Input {requestId, characters, style, settings:{model, prompt, width, height}}. Call listCharacters and listStyles first. characters/@name add descriptions and references; style leads, so prompts hold only the scene. Use the listModels model labelled default unless asked for quality. For up to 8 panels, await one call per panel in turn in ONE execute (Prints makes one at a time), each with a new requestId and the same characters and style; on attachment_budget_exceeded retry after retryAfterMs with the same requestId, on expired/outcome-unknown once with a new one. Return the results array in panel order; if env.computers exists, files.read each destination.path first. Never fetch image bytes. Tell the user each panel's number, printId and the summed costMilliunits.",
       effect: "write",
       requires: ["media.generation", "computer.writeFile"],
       input: generateImageInputSchema,

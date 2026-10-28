@@ -22,11 +22,14 @@ import { EmptyState } from "@fungi.computer/caps/blocks/empty-state";
 import { useWindowStatus } from "@fungi.computer/agar/react";
 import { folderStatusItem } from "./folder-status.js";
 import { Card } from "@fungi.computer/caps/components/card";
+import { Composer } from "@fungi.computer/caps/blocks/composer";
 import { PopoverAnchor } from "@fungi.computer/caps/components/popover";
 import { useMediaFolder } from "./media-folder.js";
 import {
   PrintsFolderDialog,
+  PrintsActivityTray,
   PrintsFooter,
+  activityStatusItem,
   type PrintsNotice,
   type PrintsSettingsTray,
 } from "./prints-activity.js";
@@ -38,6 +41,7 @@ import type { UploadQueueProps } from "@fungi.computer/caps/blocks/upload-queue"
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -463,6 +467,9 @@ function GenerationComposer({
   const [charactersOpen, setCharactersOpen] = useState(false);
   const mentions = useCharacterMentions(characters, values.prompt);
   const slash = useMediaSlashSheet(promptCommands.items, values.prompt);
+  const promptId = useId();
+  const slashListId = `${promptId}-commands`;
+  const mentionListId = `${promptId}-characters`;
   // Show what the typed @names will add before the person sends.
   const usedCharacters = planCharacters({
     prompt: values.prompt,
@@ -481,7 +488,7 @@ function GenerationComposer({
     const item = slash.slashMatches.at(index);
     if (!item) return;
     slash.resetSlash();
-    promptCommands.run(item.id);
+    promptCommands.run(item.command);
   };
   const style = styleControls({
     open: stylesOpen,
@@ -523,316 +530,349 @@ function GenerationComposer({
         className="prints-composer"
         data-generation-form
       >
-        <form
-          aria-busy={submitting}
-          onSubmit={(event) => {
-            event.preventDefault();
-            void onSubmit();
-          }}
-        >
-          {values.references.length > 0 ? (
-            <div
-              className="prints-reference-tray"
-              aria-label="Image references"
-            >
-              {values.references.map((reference, index) => {
-                const thumbnail = referenceImages.find(
-                  (image) => image.path === reference.path,
-                );
-                const role = shownReferences[index]?.role;
-                const next = nextReferenceRole(roles, shownReferences, index);
-                return (
-                  <div
-                    className="prints-reference-tile"
-                    key={reference.path}
-                    title={reference.path}
-                  >
-                    <div className="prints-reference-face mask mask-squircle">
-                      {thumbnail ? (
-                        <img
-                          src={thumbnail.url}
-                          alt={reference.path.split("/").at(-1)}
-                        />
+        <Composer
+          attachments={
+            values.references.length > 0 ? (
+              <div
+                className="prints-reference-tray"
+                aria-label="Image references"
+              >
+                {values.references.map((reference, index) => {
+                  const thumbnail = referenceImages.find(
+                    (image) => image.path === reference.path,
+                  );
+                  const role = shownReferences[index]?.role;
+                  const next = nextReferenceRole(roles, shownReferences, index);
+                  return (
+                    <div
+                      className="prints-reference-tile"
+                      key={reference.path}
+                      title={reference.path}
+                    >
+                      <div className="prints-reference-face mask mask-squircle">
+                        {thumbnail ? (
+                          <img
+                            src={thumbnail.url}
+                            alt={reference.path.split("/").at(-1)}
+                          />
+                        ) : (
+                          <span>Ref {index + 1}</span>
+                        )}
+                      </div>
+                      {role === undefined ? null : next === undefined ? (
+                        <span
+                          className="prints-reference-role"
+                          data-reference-role={role}
+                        >
+                          {REFERENCE_ROLE_LABELS[role]}
+                        </span>
                       ) : (
-                        <span>Ref {index + 1}</span>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          type="button"
+                          className="prints-reference-role"
+                          data-reference-role={role}
+                          aria-label={`Reference ${String(index + 1)}: ${REFERENCE_ROLE_LABELS[role]}. Use as ${REFERENCE_ROLE_LABELS[next]}`}
+                          title={`Use as ${REFERENCE_ROLE_LABELS[next]}`}
+                          onClick={() => {
+                            form.setFieldValue(
+                              "references",
+                              shownReferences.map((item, at) =>
+                                at === index ? { ...item, role: next } : item,
+                              ),
+                            );
+                          }}
+                        >
+                          {REFERENCE_ROLE_LABELS[role]}
+                        </Button>
                       )}
-                    </div>
-                    {role === undefined ? null : next === undefined ? (
-                      <span
-                        className="prints-reference-role"
-                        data-reference-role={role}
-                      >
-                        {REFERENCE_ROLE_LABELS[role]}
-                      </span>
-                    ) : (
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        type="button"
-                        className="prints-reference-role"
-                        data-reference-role={role}
-                        aria-label={`Reference ${String(index + 1)}: ${REFERENCE_ROLE_LABELS[role]}. Use as ${REFERENCE_ROLE_LABELS[next]}`}
-                        title={`Use as ${REFERENCE_ROLE_LABELS[next]}`}
+                      <IconButton
+                        icon={<X />}
+                        className="prints-reference-remove"
+                        aria-label={`Remove reference ${String(index + 1)}`}
                         onClick={() => {
                           form.setFieldValue(
                             "references",
-                            shownReferences.map((item, at) =>
-                              at === index ? { ...item, role: next } : item,
+                            values.references.filter(
+                              (item) => item.path !== reference.path,
                             ),
                           );
                         }}
-                      >
-                        {REFERENCE_ROLE_LABELS[role]}
-                      </Button>
-                    )}
-                    <IconButton
-                      icon={<X />}
-                      className="prints-reference-remove"
-                      aria-label={`Remove reference ${String(index + 1)}`}
-                      onClick={() => {
-                        form.setFieldValue(
-                          "references",
-                          values.references.filter(
-                            (item) => item.path !== reference.path,
-                          ),
-                        );
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-          <form.Field name="prompt">
-            {(field) => (
-              <div className="prints-prompt">
-                {slash.slashOpen ? (
-                  <MediaSlashSheet
-                    index={slash.slashIndex}
-                    matches={slash.slashMatches}
-                    onPick={pickSlash}
-                  />
-                ) : null}
-                {!slash.slashOpen && mentions.matches.length > 0 ? (
-                  <MediaMentionSheet
-                    images={referenceImages}
-                    index={mentions.index}
-                    matches={mentions.matches}
-                    onPick={(at) => {
-                      const next = mentions.complete(at);
-                      if (next !== null) field.handleChange(next);
-                    }}
-                  />
-                ) : null}
-                <MediaComposerTextarea
-                  caretRequest={mentions.caretRequest}
-                  mentionCount={slash.slashOpen ? 0 : mentions.matches.length}
-                  onCaret={mentions.setCaret}
-                  onMentionDismiss={mentions.dismiss}
-                  onMentionMove={mentions.move}
-                  onMentionPick={() => {
-                    const next = mentions.complete(mentions.index);
-                    if (next !== null) field.handleChange(next);
-                  }}
-                  disabled={
-                    !mediaCapability ||
-                    modelsLoading ||
-                    models.length === 0 ||
-                    submitting
-                  }
-                  maxLength={selected?.maxPromptLength}
-                  addedLength={addedLength}
-                  onChange={(value) => {
-                    field.handleChange(value);
-                  }}
-                  onSend={onSubmit}
-                  onSlashMove={slash.moveSlash}
-                  onSlashPick={() => {
-                    pickSlash(slash.slashIndex);
-                  }}
-                  placeholder="What are we making?"
-                  slashCount={slash.slashMatches.length}
-                  value={field.state.value}
-                />
-                {values.references.length > 0 ||
-                roleProblem !== undefined ||
-                mentioned.length > 0 ? (
-                  <div className="prints-composer-notes">
-                    {values.references.length > 0 ? (
-                      <span
-                        className="prints-reference-count"
-                        data-generation-references
-                        data-over-limit={referencesOver ? "" : undefined}
-                        role={referencesOver ? "alert" : undefined}
-                      >
-                        {values.references.length} / {referenceLimit} references
-                        {referencesOver
-                          ? referenceLimit === 0
-                            ? " — this model takes none; remove them or pick another model"
-                            : " — over this model's limit; remove some to generate"
-                          : null}
-                      </span>
-                    ) : null}
-                    {roleProblem !== undefined ? (
-                      <span
-                        className="prints-reference-count"
-                        data-generation-reference-roles
-                        data-over-limit=""
-                        role="alert"
-                      >
-                        {roleProblem}
-                      </span>
-                    ) : null}
-                    {mentioned.length > 0 ? (
-                      <span
-                        className="prints-reference-count"
-                        data-generation-characters
-                        data-over-limit={
-                          usedCharacters.kind === "refused" ? "" : undefined
-                        }
-                        role={
-                          usedCharacters.kind === "refused"
-                            ? "alert"
-                            : undefined
-                        }
-                      >
-                        {usedCharacters.kind === "refused"
-                          ? usedCharacters.message
-                          : `Characters: ${mentioned.map((entry) => entry.name).join(", ")}`}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
+                      />
+                    </div>
+                  );
+                })}
               </div>
-            )}
-          </form.Field>
-        </form>
-        {guidance ? (
-          <div
-            className="prints-composer-guidance"
-            role="status"
-            data-composer-guidance
-          >
-            <span>
-              {guidance.group === "Images" && guidance.detail ? (
-                guidance.detail
-              ) : (
-                <>
-                  {guidance.title}. {guidance.detail}
-                </>
-              )}
-            </span>
-            {guidance.actions?.map((action) => (
-              <Button
-                key={action.label}
-                variant="ghost"
-                size="xs"
-                onClick={action.run}
+            ) : undefined
+          }
+          input={
+            <>
+              <form
+                aria-busy={submitting}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void onSubmit();
+                }}
               >
-                {action.label}
-              </Button>
-            ))}
-          </div>
-        ) : null}
-        {footer(
-          <>
-            {actions}
-            <form.Field name="model">
-              {(field) => (
-                <label className="prints-model">
-                  <span className="sr-only">Model</span>
-                  <Select
-                    aria-label="Generation model"
-                    data-generation-model
-                    className="select-sm"
-                    disabled={modelsLoading || !mediaCapability}
-                    onChange={(event) => {
-                      const next = modelFor(models, event.currentTarget.value);
-                      field.handleChange(event.currentTarget.value);
-                      if (!next) return;
-                      const touched = form.store.state.fieldMeta;
-                      const nextDraft = draftForModel(values, next);
-                      const size = sizeForModel(values, next, selected);
-                      if (
-                        next.input.dimensions === "none" ||
-                        next.sizes !== null
-                      )
-                        setCustomSize(false);
-                      form.setFieldValue("width", size.width);
-                      form.setFieldValue("height", size.height);
-                      form.setFieldValue(
-                        "durationSeconds",
-                        nextDraft.durationSeconds,
-                      );
-                      form.setFieldValue(
-                        "generateAudio",
-                        nextDraft.generateAudio,
-                      );
-                      if (
-                        next.input.steps === "fixed" ||
-                        !touched.steps?.isTouched
-                      )
-                        form.setFieldValue("steps", nextDraft.steps);
-                    }}
-                    value={field.state.value}
-                  >
-                    {models.length === 0 ? (
-                      <option value="">
-                        {computerId === null
-                          ? "Choose a Computer"
-                          : modelsLoading
-                            ? "Loading models…"
-                            : "Models unavailable"}
-                      </option>
-                    ) : null}
-                    {models.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {modelName(model)}
-                      </option>
-                    ))}
-                  </Select>
-                </label>
-              )}
-            </form.Field>
-            {computerId && mediaDirectory ? (
-              <span
-                className="sr-only"
-                data-generation-computer
-                title={`Saved to ${computerId}:${mediaDirectory}`}
-              >
-                Saves to {mediaDirectory}
-              </span>
-            ) : null}
-          </>,
-          <GenerateButton
-            busy={submitting}
-            disabled={
-              !mediaCapability ||
-              modelsLoading ||
-              models.length === 0 ||
-              submitting
-            }
-            label={generateActionLabel(selected)}
-            onGenerate={() => {
-              void onSubmit();
-            }}
-            promptOver={promptOver}
-          />,
-          {
-            label: (
-              <span className="prints-settings-chip">
-                <SlidersHorizontal
-                  aria-hidden="true"
-                  className="size-[var(--stipe-icon-size-sm)]"
-                />
-                {summary.length > 0 ? summary.join(" · ") : "Settings"}
-              </span>
-            ),
-            content: settings,
-            open: settingsOpen,
-            onOpenChange: setSettingsOpen,
-          },
-        )}
+                <form.Field name="prompt">
+                  {(field) => (
+                    <div className="prints-prompt">
+                      {slash.slashOpen ? (
+                        <MediaSlashSheet
+                          index={slash.slashIndex}
+                          listId={slashListId}
+                          matches={slash.slashMatches}
+                          onHighlight={slash.highlightSlash}
+                          onPick={pickSlash}
+                        />
+                      ) : null}
+                      {!slash.slashOpen && mentions.matches.length > 0 ? (
+                        <MediaMentionSheet
+                          images={referenceImages}
+                          index={mentions.index}
+                          listId={mentionListId}
+                          matches={mentions.matches}
+                          onHighlight={mentions.highlight}
+                          onPick={(at) => {
+                            const next = mentions.complete(at);
+                            if (next !== null) field.handleChange(next);
+                          }}
+                        />
+                      ) : null}
+                      <MediaComposerTextarea
+                        caretRequest={mentions.caretRequest}
+                        menu={
+                          slash.slashOpen
+                            ? {
+                                open: slash.slashMatches.length > 0,
+                                listId: slashListId,
+                                selected: slash.slashIndex,
+                              }
+                            : {
+                                open: mentions.matches.length > 0,
+                                listId: mentionListId,
+                                selected: mentions.index,
+                              }
+                        }
+                        mentionCount={
+                          slash.slashOpen ? 0 : mentions.matches.length
+                        }
+                        onCaret={mentions.setCaret}
+                        onMentionDismiss={mentions.dismiss}
+                        onMentionMove={mentions.move}
+                        onMentionPick={() => {
+                          const next = mentions.complete(mentions.index);
+                          if (next !== null) field.handleChange(next);
+                        }}
+                        disabled={
+                          !mediaCapability ||
+                          modelsLoading ||
+                          models.length === 0 ||
+                          submitting
+                        }
+                        maxLength={selected?.maxPromptLength}
+                        addedLength={addedLength}
+                        onChange={(value) => {
+                          field.handleChange(value);
+                        }}
+                        onSend={onSubmit}
+                        onSlashMove={slash.moveSlash}
+                        onSlashPick={() => {
+                          pickSlash(slash.slashIndex);
+                        }}
+                        placeholder="What are we making?"
+                        slashCount={slash.slashMatches.length}
+                        value={field.state.value}
+                      />
+                      {values.references.length > 0 ||
+                      roleProblem !== undefined ||
+                      mentioned.length > 0 ? (
+                        <div className="prints-composer-notes">
+                          {values.references.length > 0 ? (
+                            <span
+                              className="prints-reference-count"
+                              data-generation-references
+                              data-over-limit={referencesOver ? "" : undefined}
+                              role={referencesOver ? "alert" : undefined}
+                            >
+                              {values.references.length} / {referenceLimit}{" "}
+                              references
+                              {referencesOver
+                                ? referenceLimit === 0
+                                  ? " — this model takes none; remove them or pick another model"
+                                  : " — over this model's limit; remove some to generate"
+                                : null}
+                            </span>
+                          ) : null}
+                          {roleProblem !== undefined ? (
+                            <span
+                              className="prints-reference-count"
+                              data-generation-reference-roles
+                              data-over-limit=""
+                              role="alert"
+                            >
+                              {roleProblem}
+                            </span>
+                          ) : null}
+                          {mentioned.length > 0 ? (
+                            <span
+                              className="prints-reference-count"
+                              data-generation-characters
+                              data-over-limit={
+                                usedCharacters.kind === "refused"
+                                  ? ""
+                                  : undefined
+                              }
+                              role={
+                                usedCharacters.kind === "refused"
+                                  ? "alert"
+                                  : undefined
+                              }
+                            >
+                              {usedCharacters.kind === "refused"
+                                ? usedCharacters.message
+                                : `Characters: ${mentioned.map((entry) => entry.name).join(", ")}`}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </form.Field>
+              </form>
+              {guidance ? (
+                <div
+                  className="prints-composer-guidance"
+                  role="status"
+                  data-composer-guidance
+                >
+                  <span>
+                    {guidance.group === "Images" && guidance.detail ? (
+                      guidance.detail
+                    ) : (
+                      <>
+                        {guidance.title}. {guidance.detail}
+                      </>
+                    )}
+                  </span>
+                  {guidance.actions?.map((action) => (
+                    <Button
+                      key={action.label}
+                      variant="ghost"
+                      size="xs"
+                      onClick={action.run}
+                    >
+                      {action.label}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          }
+          toolbar={footer(
+            <>
+              {actions}
+              <form.Field name="model">
+                {(field) => (
+                  <label className="prints-model">
+                    <span className="sr-only">Model</span>
+                    <Select
+                      aria-label="Generation model"
+                      data-generation-model
+                      className="select-sm"
+                      disabled={modelsLoading || !mediaCapability}
+                      onChange={(event) => {
+                        const next = modelFor(
+                          models,
+                          event.currentTarget.value,
+                        );
+                        field.handleChange(event.currentTarget.value);
+                        if (!next) return;
+                        const touched = form.store.state.fieldMeta;
+                        const nextDraft = draftForModel(values, next);
+                        const size = sizeForModel(values, next, selected);
+                        if (
+                          next.input.dimensions === "none" ||
+                          next.sizes !== null
+                        )
+                          setCustomSize(false);
+                        form.setFieldValue("width", size.width);
+                        form.setFieldValue("height", size.height);
+                        form.setFieldValue(
+                          "durationSeconds",
+                          nextDraft.durationSeconds,
+                        );
+                        form.setFieldValue(
+                          "generateAudio",
+                          nextDraft.generateAudio,
+                        );
+                        if (
+                          next.input.steps === "fixed" ||
+                          !touched.steps?.isTouched
+                        )
+                          form.setFieldValue("steps", nextDraft.steps);
+                      }}
+                      value={field.state.value}
+                    >
+                      {models.length === 0 ? (
+                        <option value="">
+                          {computerId === null
+                            ? "Choose a Computer"
+                            : modelsLoading
+                              ? "Loading models…"
+                              : "Models unavailable"}
+                        </option>
+                      ) : null}
+                      {models.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {modelName(model)}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                )}
+              </form.Field>
+              {computerId && mediaDirectory ? (
+                <span
+                  className="sr-only"
+                  data-generation-computer
+                  title={`Saved to ${computerId}:${mediaDirectory}`}
+                >
+                  Saves to {mediaDirectory}
+                </span>
+              ) : null}
+            </>,
+            <GenerateButton
+              busy={submitting}
+              disabled={
+                !mediaCapability ||
+                modelsLoading ||
+                models.length === 0 ||
+                submitting
+              }
+              label={generateActionLabel(selected)}
+              onGenerate={() => {
+                void onSubmit();
+              }}
+              promptOver={promptOver}
+            />,
+            {
+              label: (
+                <span className="prints-settings-chip">
+                  <SlidersHorizontal
+                    aria-hidden="true"
+                    className="size-[var(--stipe-icon-size-sm)]"
+                  />
+                  {summary.length > 0 ? summary.join(" · ") : "Settings"}
+                </span>
+              ),
+              content: settings,
+              open: settingsOpen,
+              onOpenChange: setSettingsOpen,
+            },
+          )}
+        />
         {style.dialog}
         {characterDialog({
           open: charactersOpen,
@@ -852,6 +892,7 @@ export function MediaPane({
   connectionRef.current = connection;
   const folder = useMediaFolder(connection?.app ?? null);
   const [noticesOpen, setNoticesOpen] = useState(false);
+  const [activityInset, setActivityInset] = useState<number | undefined>();
   const dismissed = useNoticeDismissals(
     connection?.app ?? null,
     folder.computerId,
@@ -904,57 +945,6 @@ export function MediaPane({
       image.source.kind === "computer" &&
       image.source.computerId === printNavigation.target?.computerId &&
       image.source.path === printNavigation.target.path,
-  );
-  // The shell's window status bar draws these beside the window's Computer;
-  // the folder item opens where Prints saves new images.
-  const printCount = new Set([
-    ...gallery.entries.map(
-      (entry) => `${folder.computerId ?? ""}:${entry.path}`,
-    ),
-    ...images.map((image) =>
-      image.source.kind === "computer"
-        ? `${image.source.computerId}:${image.source.path}`
-        : image.file.name,
-    ),
-  ]).size;
-  useWindowStatus(
-    connection?.app,
-    [
-      ...(folder.available
-        ? [
-            folderStatusItem(folder.path, {
-              checking: folder.busy && folder.path === null,
-              editing: folder.editing,
-            }),
-          ]
-        : []),
-      ...(canBrowse
-        ? [
-            {
-              kind: "text" as const,
-              id: "prints",
-              text: `${String(printCount)} ${printCount === 1 ? "print" : "prints"}`,
-            },
-          ]
-        : []),
-    ],
-    (action) => {
-      if (action.itemId !== "folder" || !folder.available) return false;
-      folder.setEditing(true);
-      return true;
-    },
-    (cause) => {
-      // Say so in the window instead of leaving a stale bar silently.
-      reportCatchFailure("prints.status.report", cause);
-      void connection?.app.ui
-        .showToast({
-          message: "Prints couldn't update its status bar.",
-          tone: "error",
-        })
-        .catch((toastCause: unknown) => {
-          reportCatchFailure("prints.status.toast", toastCause);
-        });
-    },
   );
   const promptStyles = usePromptStyles(connection?.app ?? null);
   const promptCharacters = usePromptCharacters(connection?.app ?? null);
@@ -1314,7 +1304,10 @@ export function MediaPane({
                     });
                 }
               : undefined,
-          retry: tileFailed ? generation.retry : undefined,
+          retry:
+            tileFailed && generationState.retryable !== false
+              ? generation.retry
+              : undefined,
         }
       : null;
   const notices = noticesFor({
@@ -1396,6 +1389,69 @@ export function MediaPane({
       uploads.remove(id);
     },
   };
+  // The shell's window status bar draws these beside the window's Computer;
+  // the folder item opens where Prints saves new images.
+  const printCount = new Set([
+    ...gallery.entries.map(
+      (entry) => `${folder.computerId ?? ""}:${entry.path}`,
+    ),
+    ...images.map((image) =>
+      image.source.kind === "computer"
+        ? `${image.source.computerId}:${image.source.path}`
+        : image.file.name,
+    ),
+  ]).size;
+  const activityItem = activityStatusItem(
+    visibleNotices,
+    activity,
+    noticesOpen,
+  );
+  useWindowStatus(
+    connection?.app,
+    [
+      ...(folder.available
+        ? [
+            folderStatusItem(folder.path, {
+              checking: folder.busy && folder.path === null,
+              editing: folder.editing,
+            }),
+          ]
+        : []),
+      ...(activityItem === null ? [] : [activityItem]),
+      ...(canBrowse
+        ? [
+            {
+              kind: "text" as const,
+              id: "prints",
+              text: `${String(printCount)} ${printCount === 1 ? "print" : "prints"}`,
+            },
+          ]
+        : []),
+    ],
+    (action) => {
+      if (action.itemId === "activity") {
+        // The tray opens above the key the person used in the window's bar.
+        setActivityInset(action.anchor?.start);
+        setNoticesOpen((open) => !open);
+        return true;
+      }
+      if (action.itemId !== "folder" || !folder.available) return false;
+      folder.setEditing(true);
+      return true;
+    },
+    (cause) => {
+      // Say so in the window instead of leaving a stale bar silently.
+      reportCatchFailure("prints.status.report", cause);
+      void connection?.app.ui
+        .showToast({
+          message: "Prints couldn't update its status bar.",
+          tone: "error",
+        })
+        .catch((toastCause: unknown) => {
+          reportCatchFailure("prints.status.toast", toastCause);
+        });
+    },
+  );
   const composerImages = images.flatMap((image) =>
     image.source.kind === "computer"
       ? [{ path: image.source.path, url: image.url }]
@@ -1648,21 +1704,7 @@ export function MediaPane({
           }
           commandApp={commandApp}
           footer={(controls, send, settings) => (
-            <PrintsFooter
-              settings={settings}
-              notices={visibleNotices}
-              activity={activity}
-              uploads={uploadQueueProps}
-              activityOpen={noticesOpen}
-              onActivityOpenChange={setNoticesOpen}
-              onDismiss={dismissed.dismiss}
-              onDismissAll={() => {
-                dismissed.dismissAll(notices);
-              }}
-              onLoadMore={generation.hasMore ? generation.loadMore : undefined}
-              controls={controls}
-              send={send}
-            />
+            <PrintsFooter settings={settings} controls={controls} send={send} />
           )}
           actions={
             <KeycapButton
@@ -1696,6 +1738,20 @@ export function MediaPane({
           referenceImages={composerImages}
         />
       </div>
+      {activityItem === null ? null : (
+        <PrintsActivityTray
+          notices={visibleNotices}
+          uploads={uploadQueueProps}
+          open={noticesOpen}
+          inset={activityInset}
+          onOpenChange={setNoticesOpen}
+          onDismiss={dismissed.dismiss}
+          onDismissAll={() => {
+            dismissed.dismissAll(notices);
+          }}
+          onLoadMore={generation.hasMore ? generation.loadMore : undefined}
+        />
+      )}
       <PrintsFolderDialog folder={folder} />
     </main>
   );

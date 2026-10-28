@@ -1,9 +1,11 @@
-import { ArrowUp } from "lucide-react";
-import { Button } from "@fungi.computer/caps/components/button";
-import { Loader } from "@fungi.computer/caps/components/loader";
-import { Popover } from "@fungi.computer/caps/components/popover";
+import type { WhistleCommandKey } from "@fungi.computer/whistle";
+import { SendAction } from "@fungi.computer/caps/components/send-action";
 import { isImeComposing } from "@fungi.computer/caps/lib/ime";
-import { CommandMenu } from "@fungi.computer/caps/blocks/command-menu";
+import {
+  CompletionMenu,
+  completionFieldProps,
+  completionKeyAction,
+} from "@fungi.computer/parakeet/completion-menu";
 import { completeSlash } from "@fungi.computer/parakeet/slash";
 import { Textarea } from "@fungi.computer/caps/components/textarea";
 import {
@@ -22,7 +24,10 @@ import {
 
 export type MediaSlashItem = Readonly<{
   description?: string | undefined;
+  /** Opaque Whistle render key. */
   id: string;
+  /** The command's typed Whistle identity; run it by this. */
+  command: WhistleCommandKey;
   slash: string;
   title: string;
 }>;
@@ -31,8 +36,10 @@ export type MediaSlashItem = Readonly<{
 const PROMPT_COUNTER_ID = "prints-prompt-counter";
 
 /**
- * The composer's send button. Over the model's prompt limit it is disabled and
- * names the counter's over-limit message as its reason.
+ * The composer's send key: Caps SendAction, the same key the chat composer
+ * sends with. Generating, the arrow gives way to a working indicator in the
+ * same key. Over the model's prompt limit it is disabled and names the
+ * counter's over-limit message as its reason.
  */
 export function GenerateButton({
   busy,
@@ -48,25 +55,16 @@ export function GenerateButton({
   promptOver: boolean;
 }): React.JSX.Element {
   return (
-    <Button
-      aria-busy={busy}
+    <SendAction
       aria-describedby={promptOver ? PROMPT_COUNTER_ID : undefined}
       aria-label={label}
       className="prints-generate"
       data-generation-submit
       disabled={disabled || promptOver}
       onClick={onGenerate}
-      size="sm"
+      state={busy ? "busy" : "ready"}
       title={label}
-      type="button"
-      variant="primary"
-    >
-      {busy ? (
-        <Loader decorative size="sm" />
-      ) : (
-        <ArrowUp aria-hidden="true" size={20} />
-      )}
-    </Button>
+    />
   );
 }
 /** Where the caret belongs once `value` has been written by a mention pick. */
@@ -77,6 +75,7 @@ export function MediaComposerTextarea({
   disabled,
   maxLength,
   addedLength = 0,
+  menu,
   mentionCount,
   onCaret,
   onChange,
@@ -96,6 +95,8 @@ export function MediaComposerTextarea({
   maxLength?: number | undefined;
   /** Characters the picked style and expanded `@characters` add; they count toward the limit. */
   addedLength?: number | undefined;
+  /** The completion menu drawn above the box, for the field's combobox semantics. */
+  menu: Readonly<{ open: boolean; listId: string; selected: number }>;
   mentionCount: number;
   onCaret: (caret: number) => void;
   onChange: (value: string) => void;
@@ -177,6 +178,7 @@ export function MediaComposerTextarea({
         aria-label="Image prompt"
         className="min-h-12 max-h-40 w-full resize-none !border-0 !bg-transparent !shadow-none focus:!outline-none"
         data-generation-prompt
+        {...completionFieldProps(menu)}
         disabled={disabled === true || sending}
         onChange={(event) => {
           onChange(event.currentTarget.value);
@@ -188,47 +190,29 @@ export function MediaComposerTextarea({
         }}
         onKeyDown={(event) => {
           if (isImeComposing(event)) return;
-          if (mentionCount > 0) {
-            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-              event.preventDefault();
-              onMentionMove(event.key === "ArrowUp" ? -1 : 1);
-              return;
-            }
-            if (
-              (event.key === "Enter" && !event.shiftKey) ||
-              event.key === "Tab"
-            ) {
-              event.preventDefault();
-              onMentionPick();
-              return;
-            }
-            if (event.key === "Escape") {
-              event.preventDefault();
-              onMentionDismiss();
-              return;
-            }
+          const action = completionKeyAction(event);
+          if (mentionCount > 0 && action !== null) {
+            event.preventDefault();
+            if (action === "next") onMentionMove(1);
+            else if (action === "previous") onMentionMove(-1);
+            else if (action === "accept") onMentionPick();
+            else onMentionDismiss();
+            return;
           }
-          if (value.startsWith("/")) {
-            if (event.key === "ArrowUp" && slashCount) {
-              event.preventDefault();
-              onSlashMove(-1);
-              return;
-            }
-            if (event.key === "ArrowDown" && slashCount) {
-              event.preventDefault();
-              onSlashMove(1);
-              return;
-            }
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              if (slashCount) onSlashPick();
-              return;
-            }
-            if (event.key === "Escape") {
-              event.preventDefault();
-              onChange(value.slice(1));
-              return;
-            }
+          // With no matching command only Enter (never sends a `/` draft) and
+          // Escape stay with the menu; Tab and arrows keep their field meaning.
+          const slashKey =
+            value.startsWith("/") &&
+            action !== null &&
+            (slashCount > 0 || action === "dismiss" || event.key === "Enter");
+          if (slashKey) {
+            event.preventDefault();
+            if (action === "dismiss") onChange(value.slice(1));
+            else if (!slashCount) return;
+            else if (action === "next") onSlashMove(1);
+            else if (action === "previous") onSlashMove(-1);
+            else onSlashPick();
+            return;
           }
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
@@ -283,35 +267,32 @@ export function MediaComposerTextarea({
 
 export function MediaSlashSheet({
   index,
+  listId,
   matches,
+  onHighlight,
   onPick,
 }: {
   index: number;
+  listId: string;
   matches: readonly MediaSlashItem[];
+  onHighlight: (index: number) => void;
   onPick: (index: number) => void;
 }): React.JSX.Element {
-  if (!matches.length)
-    return (
-      <Popover
-        open
-        side="top"
-        className="left-0 right-0 z-30 px-3 py-1.5 text-xs text-dim"
-      >
-        No matching commands
-      </Popover>
-    );
   return (
-    <CommandMenu
-      className="absolute bottom-full left-0 right-0 z-30 mb-1"
-      items={matches.map((item) => ({
-        description: item.description,
-        id: item.id,
-        label: `/${item.slash} ${item.title}`,
+    <CompletionMenu
+      open
+      rows={matches.map((item) => ({
+        key: item.id,
+        label: `/${item.slash}`,
+        detail: item.description ?? item.title,
       }))}
-      onSelect={(id) => {
-        onPick(matches.findIndex((item) => item.id === id));
-      }}
-      selected={matches[index]?.id}
+      selected={index}
+      listId={listId}
+      label="Commands"
+      kind="commands"
+      empty="No matching commands"
+      onHighlight={onHighlight}
+      onChoose={onPick}
     />
   );
 }
@@ -329,6 +310,7 @@ export function useMediaSlashSheet(
       items.map((item, order) => ({
         alias: item.slash,
         commandId: item.id,
+        command: item.command,
         title: item.title,
         description: item.description,
         category: "Prompt",
@@ -357,6 +339,7 @@ export function useMediaSlashSheet(
           : 0,
       );
     },
+    highlightSlash: setSlashIndex,
     resetSlash: () => {
       setSlashIndex(0);
     },
@@ -370,27 +353,29 @@ export function useMediaSlashSheet(
 export function MediaMentionSheet({
   images,
   index,
+  listId,
   matches,
+  onHighlight,
   onPick,
 }: {
   /** Prints-folder images by path, for each character's first reference. */
   images: readonly Readonly<{ path: string; url: string }>[];
   index: number;
+  listId: string;
   matches: readonly PromptCharacter[];
+  onHighlight: (index: number) => void;
   onPick: (index: number) => void;
 }): React.JSX.Element {
   return (
-    <CommandMenu
-      aria-label="Characters"
-      className="absolute bottom-full left-0 right-0 z-30 mb-1"
-      descriptionPlacement="inline"
-      items={matches.map((character) => {
+    <CompletionMenu
+      open
+      rows={matches.map((character) => {
         const first = character.references.at(0)?.path;
         const thumbnail = images.find((image) => image.path === first);
         return {
-          description: character.description || undefined,
-          id: String(character.id),
+          key: String(character.id),
           label: `@${character.name}`,
+          detail: character.description || undefined,
           media: (
             <span className="prints-character-thumb mask mask-squircle">
               {thumbnail ? <img src={thumbnail.url} alt="" /> : null}
@@ -398,10 +383,12 @@ export function MediaMentionSheet({
           ),
         };
       })}
-      onSelect={(id) => {
-        onPick(matches.findIndex((character) => String(character.id) === id));
-      }}
-      selected={matches[index] ? String(matches[index].id) : undefined}
+      selected={index}
+      listId={listId}
+      label="Characters"
+      kind="characters"
+      onHighlight={onHighlight}
+      onChoose={onPick}
     />
   );
 }
@@ -426,6 +413,7 @@ export function useCharacterMentions(
     matches,
     index,
     setCaret,
+    highlight: setIndex,
     dismiss: () => {
       setDismissed(draft);
     },

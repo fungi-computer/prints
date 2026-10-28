@@ -8,6 +8,8 @@ import {
   AppStatusItem as StatusReadout,
 } from "@fungi.computer/caps/blocks/app-status-bar";
 import { Button } from "@fungi.computer/caps/components/button";
+import { CountBadge } from "@fungi.computer/caps/components/count-badge";
+import { Status } from "@fungi.computer/caps/components/status";
 import { useState } from "react";
 
 /**
@@ -41,11 +43,26 @@ export function useWorkbenchStatusBar() {
             size="xs"
             variant="ghost"
             title={item.title}
+            data-status-item={item.id}
+            {...(item.expanded === undefined
+              ? {}
+              : { "aria-expanded": item.expanded })}
             onClick={() => {
               void channel.act(item.id);
             }}
           >
+            {item.tone !== undefined || item.busy === true ? (
+              <Status
+                size="compact"
+                aria-hidden="true"
+                tone={item.tone ?? "accent"}
+                motion={item.busy === true ? "pulse" : "none"}
+              />
+            ) : null}
             {item.text}
+            {item.count !== undefined && item.count > 0 ? (
+              <CountBadge count={item.count} />
+            ) : null}
           </Button>
         ) : (
           <StatusReadout key={item.id}>{item.text}</StatusReadout>

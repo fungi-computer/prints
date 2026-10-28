@@ -27,6 +27,8 @@ export const outputItemSchema = z.strictObject({
   }),
   /** Saved characters the prompt used, by the name they had at the time. */
   characters: z.array(z.string().min(1).max(32)).max(16),
+  /** Name of the saved style the prompt used at the time, or null for none. */
+  style: z.string().min(1).max(64).nullable(),
 });
 export const outputAtPathInputSchema = z.strictObject({
   path: z.string().startsWith("/").min(2).max(4096),

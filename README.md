@@ -24,9 +24,9 @@ Container.
 - **Download** an image from Image info. The download drops the prompt and
   lineage and keeps the AI marker and the print's id; the file on the Computer
   stays as it is.
-- Retry a failed attempt from its tile or from **Activity**. A retry resumes the
-  same attempt instead of generating again, and **Resume** picks up an
-  unfinished image after a reload.
+- Retry a failed attempt from its tile or from **Activity**, the key in the
+  window's status bar. A retry resumes the same attempt instead of generating
+  again, and **Resume** picks up an unfinished image after a reload.
 
 <img alt="Prints on a phone in the light theme: a two-column gallery above the prompt bar" src="docs/media/gallery-phone.png" width="300">
 
@@ -77,14 +77,16 @@ Agents call Prints through Oyster's MCP endpoint, or at
 `POST $OYSTER_URL/apps/prints/methods/<name>` with a key; see
 [Git, keys and MCP](https://github.com/fungi-computer/oyster#git-keys-and-mcp).
 
-| Method          | What it does                                                                                                                                 |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `listModels`    | Lists the image and video models, with their sizes, settings and how many references each takes.                                             |
-| `generateImage` | Generates one image from a prompt and saves it to the gallery folder. Optional `characters` names saved characters to keep consistent.       |
-| `generateVideo` | Generates one video. While it works, the method returns `{kind: "pending", retryAfterMs}`; call again with the same inputs after that delay. |
-| `listOutputs`   | Lists the prints this App made, newest first.                                                                                                |
-| `getOutput`     | Reads one print by file path: its prompt, model, characters and the reference images it used.                                                |
-| `openOutput`    | Reads up to 128 KiB of one print per call.                                                                                                   |
+| Method           | What it does                                                                                                                                 |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `listModels`     | Lists the image and video models, with their sizes, settings and how many references each takes.                                             |
+| `generateImage`  | Generates one image from a prompt and saves it to the gallery folder. Optional `characters` names saved characters to keep consistent.       |
+| `generateVideo`  | Generates one video. While it works, the method returns `{kind: "pending", retryAfterMs}`; call again with the same inputs after that delay. |
+| `listCharacters` | Lists the saved characters: name, description and reference image paths. Use the names as `characters` or `@name`.                           |
+| `listStyles`     | Lists the saved and built-in styles: name and text. Use a name as `style`.                                                                   |
+| `listOutputs`    | Lists the prints this App made, newest first.                                                                                                |
+| `getOutput`      | Reads one print by file path: its prompt, model, characters, style and the reference images it used.                                         |
+| `openOutput`     | Reads up to 128 KiB of one print per call.                                                                                                   |
 
 Each generation carries a request id (`media_request_` and 21 lowercase letters
 or digits). Retrying with the same id and inputs recovers the same generation
@@ -106,12 +108,13 @@ pnpm typecheck
 pnpm test
 ```
 
-[src/MediaPane.tsx](src/MediaPane.tsx) puts the composer, gallery and Activity
-together. [src/media-generation.ts](src/media-generation.ts) owns attempts and
-retries, [src/media-gallery.ts](src/media-gallery.ts) the gallery and uploads,
-and [backend/prints-index.ts](backend/prints-index.ts) records each finished
-print. The agent tools are in [backend/methods.ts](backend/methods.ts), and
-[package.json](package.json) declares the permissions the App asks for.
+[src/MediaPane.tsx](src/MediaPane.tsx) puts the composer, gallery and the
+Activity status key together. [src/media-generation.ts](src/media-generation.ts)
+owns attempts and retries, [src/media-gallery.ts](src/media-gallery.ts) the
+gallery and uploads, and [backend/prints-index.ts](backend/prints-index.ts)
+records each finished print. The agent tools are in
+[backend/methods.ts](backend/methods.ts), and [package.json](package.json)
+declares the permissions the App asks for.
 
 ## License
 

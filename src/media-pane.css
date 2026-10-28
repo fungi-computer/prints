@@ -44,12 +44,15 @@ body,
   padding-bottom: var(--spacing-xs);
 }
 .prints-composer {
+  /* The completion menu is placed inside the card's border; it steps out over it to meet the card's outer edge. */
+  --parakeet-completion-inset: calc(var(--border) * -1);
+  --parakeet-completion-face: var(--caps-card-resting-face);
+  --parakeet-completion-edge: var(--caps-card-edge);
   flex: 0 0 auto;
   padding: var(--spacing-sm);
 }
 
 .prints-prompt {
-  position: relative;
   min-width: 0;
   padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-md);
 }
@@ -187,6 +190,11 @@ span.prints-reference-role {
 .prints-composer-anchor {
   display: block;
 }
+/* An open completion menu sits on the card's top edge, so the card squares off to join it. */
+.prints-composer-anchor:has([data-parakeet-slash]) > .prints-composer {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
 .prints-composer-guidance {
   display: flex;
   flex-wrap: wrap;
@@ -196,25 +204,14 @@ span.prints-reference-role {
   font-size: var(--text-sm);
   color: var(--stipe-fg-muted);
 }
-.prints-composer-dock:has(
-  [data-status-tray-panel],
-  .prints-prompt [role="listbox"]
-) {
+.prints-composer-dock:has([data-status-tray-panel], [data-parakeet-slash]) {
   overflow: visible;
 }
 .prints-footer {
   padding: var(--spacing-xs);
-  --caps-status-tray-row-wrap: wrap;
-  --caps-status-tray-chips-display: contents;
-  --caps-status-tray-key-height: calc(var(--size-field) * 8);
-  --caps-status-tray-chip-height: var(--caps-status-tray-key-height);
+}
+.prints-activity-tray {
   --caps-status-tray-width: 28rem;
-}
-.prints-footer [data-status-tray-chip="activity"] {
-  margin-inline-start: auto;
-}
-.prints-footer:has([data-status-tray-chip="activity"]) .prints-generate {
-  margin-left: 0;
 }
 .prints-footer-note {
   color: var(--stipe-fg-muted);
@@ -275,36 +272,16 @@ span.prints-reference-role {
   min-width: var(--caps-status-tray-key-height);
 }
 
-/* Narrow composers keep one control row (upload, model, settings) and put
-   Generate full width on the next, so it is always in reach. */
+/* Narrow composers keep one control row (upload, model, settings, Send):
+   Send stays one key at the row's end, never a separate full-width bar. */
 @container (max-width: 34rem) {
   .prints-model {
-    flex: 1 1 9rem;
+    flex: 1 1 6rem;
   }
   .prints-footer [data-status-tray-chip="settings"] {
     flex: 0 1 auto;
     min-width: 0;
   }
-  .prints-footer [data-status-tray-chip="activity"] {
-    order: 2;
-    margin-inline-start: 0;
-  }
-  .prints-footer:has([data-status-tray-chip="activity"]) .prints-generate {
-    flex-basis: 0;
-  }
-  .prints-footer .prints-generate {
-    flex: 1 1 100%;
-    order: 2;
-    margin-left: 0;
-  }
-}
-
-/* The composer follows the same theme field-size grid as Caps select-sm. */
-.prints-footer
-  .caps-status-tray-row
-  :is(.caps-keycap-button, .caps-status-tray-chip, .caps-select) {
-  height: var(--caps-status-tray-key-height);
-  min-height: var(--caps-status-tray-key-height);
 }
 
 .prints-gallery-region {
@@ -339,15 +316,52 @@ span.prints-reference-role {
   }
 }
 
+/* Even columns: one fixed label column (Sigil and name) for every fact. */
+.prints-info-facts > .list-row {
+  --list-grid-cols: 6.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--spacing-sm);
+}
+/* Row rules run the full width of the columns they divide. */
+.prints-info-facts > .list-row::after {
+  inset-inline: 0;
+}
+.prints-info-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  min-height: 1lh;
+  color: var(--stipe-fg-muted);
+}
+.prints-info-label > svg {
+  flex: none;
+}
+.prints-info-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* A long file name gives way in the middle and keeps its extension. */
+.prints-info-file {
+  display: flex;
+  min-width: 0;
+}
+.prints-info-file-head {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prints-info-file-tail {
+  flex: none;
+  white-space: pre;
+}
 .prints-info-references {
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
   gap: var(--spacing-xs);
-  overflow-wrap: anywhere;
 }
 .prints-info-references img {
   display: block;
@@ -356,10 +370,17 @@ span.prints-reference-role {
   object-fit: cover;
   border-radius: var(--radius-field);
 }
+/* One tight control panel: equal keys, two to a row. Caps KeycapButton owns
+   the key material and states. */
 .prints-info-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-xs);
+  --caps-keycap-face: var(--color-base-100);
+  --caps-keycap-height: 2.25rem;
+  --caps-keycap-justify: center;
+  --caps-keycap-font-size: var(--text-sm);
+  --caps-keycap-font-weight: 600;
 }
 
 /* Saved characters: thumbnails in the list and the reference picker. */

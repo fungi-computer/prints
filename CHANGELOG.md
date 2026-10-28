@@ -1,5 +1,44 @@
 # @fungi.computer/prints
 
+## 0.4.0
+
+### Minor Changes
+
+- Changes since 0.3.0:
+
+  - fix(prints): run panels one after another so none outlives its deadline
+  - fix(prints): steer the panel recipe to the default model and a results array
+  - refactor(whistle)!: execute commands by their typed key; only Whistle mints
+    ids
+  - feat(composer): one Caps composer surface for chat and Prints
+  - fix(prints): tighten Image info into a key panel and an even fact table
+  - fix(parakeet): join the completion menu to the composer surface
+  - fix(caps): status bar counts read as quiet numerals, not pills
+  - fix(prints): move Activity to the window footer as a key with a status dot
+  - fix(prints): say plainly when AI Gateway credits run out
+  - fix(prints): keep Tab and arrows in the prompt when no command matches
+  - fix(prints): share Grove's completion menu so arrow keys work
+  - fix(prints): leave headroom in the generateImage description
+  - feat(prints): teach Agents the multi-panel generateImage recipe
+  - fix(prints): say which result generateImage's read-back returns
+  - feat(grove): show a Prints panel in chat with Open in Prints
+  - fix(prints): keep the generateImage description under the Mycelium operation
+    limit
+  - fix(prints): say an unsaved @word stays plain text in generateImage
+  - feat(prints): let Agents list saved characters and styles
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.5.0
+  - @fungi.computer/caps@0.4.0
+  - @fungi.computer/parakeet@0.5.0
+  - @fungi.computer/whistle@0.3.0
+  - @fungi.computer/darkroom@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes

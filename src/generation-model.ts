@@ -2,6 +2,7 @@ import {
   describeAppError,
   type ErrorDescription,
 } from "@fungi.computer/agar/errors";
+import { MediaGenerationError } from "@fungi.computer/agar/media";
 import type {
   MediaGenerationInput,
   MediaGenerationResult,
@@ -65,10 +66,36 @@ export type GenerationState =
       kind: "error";
       message: string;
       action?: ErrorDescription["action"];
+      /** False when the same request cannot succeed again; absent for local validation. */
+      retryable?: boolean;
     }>;
 
 /** Prints retains its own recovery copy while F5 owns the typed action. */
+/**
+ * AI Gateway's refusal when the Cloudflare account has no Unified Billing
+ * credits. Partner models (Seedance, Veo, MiniMax, GPT Image) are billed
+ * through those credits, so every Prints video model depends on them.
+ */
+const AI_GATEWAY_INSUFFICIENT_CREDITS = 2021;
+
+function needsGatewayCredits(cause: unknown): boolean {
+  return (
+    cause instanceof MediaGenerationError &&
+    cause.stage === "provider" &&
+    cause.provider !== undefined &&
+    "code" in cause.provider &&
+    cause.provider.code === AI_GATEWAY_INSUFFICIENT_CREDITS
+  );
+}
+
 export function describeGenerationError(cause: unknown): ErrorDescription {
+  if (needsGatewayCredits(cause))
+    return {
+      title: "Out of AI Gateway credits",
+      message:
+        "This model is paid with Cloudflare AI Gateway credits, and the account has none left. Add credits in the Cloudflare dashboard under AI Gateway, or choose a Workers AI model such as Flux. Nothing was charged.",
+      retryable: false,
+    };
   return describeAppError(cause, {
     INSUFFICIENT_CREDIT: {
       title: "Couldn’t create image",

@@ -1,7 +1,10 @@
 import { useAppCommandCatalog } from "@fungi.computer/agar/react";
 import { type AppRoot } from "@fungi.computer/agar";
 import { slashRegistry } from "@fungi.computer/parakeet/slash";
-import { type WhistleCommand } from "@fungi.computer/whistle";
+import {
+  type WhistleCommand,
+  type WhistleCommandKey,
+} from "@fungi.computer/whistle";
 import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 
 import { SIZE_MODES, SIZE_PRESETS } from "./generation-model.js";
@@ -79,7 +82,7 @@ export function mediaPromptCommands(
 /** The prompt box's slash rows and the one door that runs them. */
 export type PromptCommands = Readonly<{
   items: readonly MediaSlashItem[];
-  run: (commandId: string) => void;
+  run: (command: WhistleCommandKey) => void;
 }>;
 
 export function usePromptCommands(
@@ -106,6 +109,7 @@ export function usePromptCommands(
     () =>
       slashRegistry(snapshot).map((command): MediaSlashItem => ({
         id: command.commandId,
+        command: command.command,
         slash: command.alias,
         title: command.title,
         description: command.description,
@@ -114,8 +118,8 @@ export function usePromptCommands(
   );
   return {
     items,
-    run: (commandId) => {
-      void runtime.execute(commandId, { origin: "slash" });
+    run: (command) => {
+      void runtime.execute(command, { origin: "slash" });
     },
   };
 }
