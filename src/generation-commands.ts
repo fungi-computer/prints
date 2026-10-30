@@ -11,6 +11,7 @@ const draftPatchSchema = Schema.Struct({
   references: Schema.optionalKey(
     Schema.Array(
       Schema.Struct({
+        computerId: Schema.optionalKey(Schema.String),
         path: Schema.String,
         role: Schema.optionalKey(
           Schema.Literals(["first-frame", "last-frame", "reference"]),
@@ -108,10 +109,14 @@ export function registerGenerationCommands(
         model: draft.model,
         prompt: draft.prompt,
         generateAudio: draft.generateAudio ?? null,
-        references: draft.references.map((reference) => ({
-          path: reference.path,
-          role: reference.role ?? null,
-        })),
+        references: draft.references.map((reference) => {
+          const selected = {
+            path: reference.path,
+            role: reference.role ?? null,
+          };
+          if (reference.computerId === undefined) return selected;
+          return { ...selected, computerId: reference.computerId };
+        }),
         steps: draft.steps ?? null,
         style: draft.style ?? null,
         width: draft.width,

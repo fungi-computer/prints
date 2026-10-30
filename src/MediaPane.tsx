@@ -15,23 +15,21 @@ import { Button } from "@fungi.computer/caps/components/button";
 import { KeycapButton } from "@fungi.computer/caps/components/keycap";
 import { ScrollArea } from "@fungi.computer/caps/components/scroll-area";
 import { Input } from "@fungi.computer/caps/components/input";
+import { Toaster, toast } from "@fungi.computer/caps/components/toaster";
 import { Field } from "@fungi.computer/caps/components/field";
 import { Select } from "@fungi.computer/caps/components/select";
 import { Switch } from "@fungi.computer/caps/components/switch";
 import { EmptyState } from "@fungi.computer/caps/blocks/empty-state";
 import { useWindowStatus } from "@fungi.computer/agar/react";
 import { folderStatusItem } from "./folder-status.js";
-import { Card } from "@fungi.computer/caps/components/card";
-import { Composer } from "@fungi.computer/caps/blocks/composer";
-import { PopoverAnchor } from "@fungi.computer/caps/components/popover";
+import { ComposerShell } from "@fungi.computer/parakeet";
+import { GenerationModelKey } from "./generation-model-key.js";
 import { useMediaFolder } from "./media-folder.js";
 import {
   PrintsFolderDialog,
   PrintsActivityTray,
-  PrintsFooter,
   activityStatusItem,
   type PrintsNotice,
-  type PrintsSettingsTray,
 } from "./prints-activity.js";
 import { noticesFor } from "./prints-notices.js";
 import { useNoticeDismissals } from "./notice-dismissals.js";
@@ -73,8 +71,9 @@ import {
   defaultGenerationDraft,
   draftForModel,
   generateActionLabel,
+  generationPendingLabel,
+  isReferenceOnComputer,
   modelFor,
-  modelName,
   nextReferenceRole,
   REFERENCE_ROLE_LABELS,
   referenceRoleMessage,
@@ -103,6 +102,14 @@ const promptSuggestions = [
 ] as const;
 
 type GenerationSubmit = (draft: GenerationDraft) => Promise<boolean>;
+
+/** One generation-failure surface, using the existing Caps/Sonner owner. */
+function notifyGenerationFailure(message: string) {
+  toast.error(message, {
+    id: "prints-generation-error",
+    toasterId: "prints-generation-notices",
+  });
+}
 
 function useGenerationForm(submit: { current: GenerationSubmit }) {
   const accepted = useRef(false);
@@ -371,7 +378,6 @@ function GenerationComposer({
   characters,
   characterDialog,
   onSubmit,
-  footer,
   styleControls,
   addedLength,
 }: {
@@ -387,11 +393,6 @@ function GenerationComposer({
     open: boolean;
     onOpenChange: (open: boolean) => void;
   }) => ReactNode;
-  footer: (
-    controls: ReactNode,
-    send: ReactNode,
-    settings: PrintsSettingsTray,
-  ) => ReactNode;
   actions: ReactNode;
   guidance: PrintsNotice | undefined;
   commandApp: AppRoot | undefined;
@@ -472,6 +473,7 @@ function GenerationComposer({
   const mentionListId = `${promptId}-characters`;
   // Show what the typed @names will add before the person sends.
   const usedCharacters = planCharacters({
+    computerId,
     prompt: values.prompt,
     saved: characters,
     references: values.references,
@@ -524,362 +526,352 @@ function GenerationComposer({
     />
   );
   return (
-    <PopoverAnchor className="prints-composer-anchor">
-      <Card
-        aria-label="Image generation"
-        className="prints-composer"
-        data-generation-form
-      >
-        <Composer
-          attachments={
-            values.references.length > 0 ? (
-              <div
-                className="prints-reference-tray"
-                aria-label="Image references"
-              >
-                {values.references.map((reference, index) => {
-                  const thumbnail = referenceImages.find(
-                    (image) => image.path === reference.path,
-                  );
-                  const role = shownReferences[index]?.role;
-                  const next = nextReferenceRole(roles, shownReferences, index);
-                  return (
-                    <div
-                      className="prints-reference-tile"
-                      key={reference.path}
-                      title={reference.path}
-                    >
-                      <div className="prints-reference-face mask mask-squircle">
-                        {thumbnail ? (
-                          <img
-                            src={thumbnail.url}
-                            alt={reference.path.split("/").at(-1)}
-                          />
-                        ) : (
-                          <span>Ref {index + 1}</span>
-                        )}
-                      </div>
-                      {role === undefined ? null : next === undefined ? (
-                        <span
-                          className="prints-reference-role"
-                          data-reference-role={role}
-                        >
-                          {REFERENCE_ROLE_LABELS[role]}
-                        </span>
-                      ) : (
-                        <Button
-                          size="xs"
-                          variant="ghost"
-                          type="button"
-                          className="prints-reference-role"
-                          data-reference-role={role}
-                          aria-label={`Reference ${String(index + 1)}: ${REFERENCE_ROLE_LABELS[role]}. Use as ${REFERENCE_ROLE_LABELS[next]}`}
-                          title={`Use as ${REFERENCE_ROLE_LABELS[next]}`}
-                          onClick={() => {
-                            form.setFieldValue(
-                              "references",
-                              shownReferences.map((item, at) =>
-                                at === index ? { ...item, role: next } : item,
-                              ),
-                            );
-                          }}
-                        >
-                          {REFERENCE_ROLE_LABELS[role]}
-                        </Button>
-                      )}
-                      <IconButton
-                        icon={<X />}
-                        className="prints-reference-remove"
-                        aria-label={`Remove reference ${String(index + 1)}`}
-                        onClick={() => {
-                          form.setFieldValue(
-                            "references",
-                            values.references.filter(
-                              (item) => item.path !== reference.path,
-                            ),
-                          );
-                        }}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            ) : undefined
-          }
-          input={
-            <>
-              <form
-                aria-busy={submitting}
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void onSubmit();
-                }}
-              >
-                <form.Field name="prompt">
-                  {(field) => (
-                    <div className="prints-prompt">
-                      {slash.slashOpen ? (
-                        <MediaSlashSheet
-                          index={slash.slashIndex}
-                          listId={slashListId}
-                          matches={slash.slashMatches}
-                          onHighlight={slash.highlightSlash}
-                          onPick={pickSlash}
-                        />
-                      ) : null}
-                      {!slash.slashOpen && mentions.matches.length > 0 ? (
-                        <MediaMentionSheet
-                          images={referenceImages}
-                          index={mentions.index}
-                          listId={mentionListId}
-                          matches={mentions.matches}
-                          onHighlight={mentions.highlight}
-                          onPick={(at) => {
-                            const next = mentions.complete(at);
-                            if (next !== null) field.handleChange(next);
-                          }}
-                        />
-                      ) : null}
-                      <MediaComposerTextarea
-                        caretRequest={mentions.caretRequest}
-                        menu={
-                          slash.slashOpen
-                            ? {
-                                open: slash.slashMatches.length > 0,
-                                listId: slashListId,
-                                selected: slash.slashIndex,
-                              }
-                            : {
-                                open: mentions.matches.length > 0,
-                                listId: mentionListId,
-                                selected: mentions.index,
-                              }
-                        }
-                        mentionCount={
-                          slash.slashOpen ? 0 : mentions.matches.length
-                        }
-                        onCaret={mentions.setCaret}
-                        onMentionDismiss={mentions.dismiss}
-                        onMentionMove={mentions.move}
-                        onMentionPick={() => {
-                          const next = mentions.complete(mentions.index);
-                          if (next !== null) field.handleChange(next);
-                        }}
-                        disabled={
-                          !mediaCapability ||
-                          modelsLoading ||
-                          models.length === 0 ||
-                          submitting
-                        }
-                        maxLength={selected?.maxPromptLength}
-                        addedLength={addedLength}
-                        onChange={(value) => {
-                          field.handleChange(value);
-                        }}
-                        onSend={onSubmit}
-                        onSlashMove={slash.moveSlash}
-                        onSlashPick={() => {
-                          pickSlash(slash.slashIndex);
-                        }}
-                        placeholder="What are we making?"
-                        slashCount={slash.slashMatches.length}
-                        value={field.state.value}
-                      />
-                      {values.references.length > 0 ||
-                      roleProblem !== undefined ||
-                      mentioned.length > 0 ? (
-                        <div className="prints-composer-notes">
-                          {values.references.length > 0 ? (
-                            <span
-                              className="prints-reference-count"
-                              data-generation-references
-                              data-over-limit={referencesOver ? "" : undefined}
-                              role={referencesOver ? "alert" : undefined}
-                            >
-                              {values.references.length} / {referenceLimit}{" "}
-                              references
-                              {referencesOver
-                                ? referenceLimit === 0
-                                  ? " — this model takes none; remove them or pick another model"
-                                  : " — over this model's limit; remove some to generate"
-                                : null}
-                            </span>
-                          ) : null}
-                          {roleProblem !== undefined ? (
-                            <span
-                              className="prints-reference-count"
-                              data-generation-reference-roles
-                              data-over-limit=""
-                              role="alert"
-                            >
-                              {roleProblem}
-                            </span>
-                          ) : null}
-                          {mentioned.length > 0 ? (
-                            <span
-                              className="prints-reference-count"
-                              data-generation-characters
-                              data-over-limit={
-                                usedCharacters.kind === "refused"
-                                  ? ""
-                                  : undefined
-                              }
-                              role={
-                                usedCharacters.kind === "refused"
-                                  ? "alert"
-                                  : undefined
-                              }
-                            >
-                              {usedCharacters.kind === "refused"
-                                ? usedCharacters.message
-                                : `Characters: ${mentioned.map((entry) => entry.name).join(", ")}`}
-                            </span>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
-                </form.Field>
-              </form>
-              {guidance ? (
+    <ComposerShell
+      aria-label="Image generation"
+      data-generation-form
+      attachments={
+        values.references.length > 0 ? (
+          <div className="prints-reference-tray" aria-label="Image references">
+            {values.references.map((reference, index) => {
+              const thumbnail =
+                computerId !== null &&
+                isReferenceOnComputer(reference, computerId)
+                  ? referenceImages.find(
+                      (image) => image.path === reference.path,
+                    )
+                  : undefined;
+              const role = shownReferences[index]?.role;
+              const next = nextReferenceRole(roles, shownReferences, index);
+              return (
                 <div
-                  className="prints-composer-guidance"
-                  role="status"
-                  data-composer-guidance
+                  className="prints-reference-tile"
+                  key={JSON.stringify([
+                    reference.computerId ?? computerId,
+                    reference.path,
+                  ])}
+                  title={
+                    reference.computerId === undefined
+                      ? reference.path
+                      : `${reference.computerId}:${reference.path}`
+                  }
                 >
-                  <span>
-                    {guidance.group === "Images" && guidance.detail ? (
-                      guidance.detail
+                  <div className="prints-reference-face mask mask-squircle">
+                    {thumbnail ? (
+                      <img
+                        src={thumbnail.url}
+                        alt={reference.path.split("/").at(-1)}
+                      />
                     ) : (
-                      <>
-                        {guidance.title}. {guidance.detail}
-                      </>
+                      <span>Ref {index + 1}</span>
                     )}
-                  </span>
-                  {guidance.actions?.map((action) => (
+                  </div>
+                  {role === undefined ? null : next === undefined ? (
+                    <span
+                      className="prints-reference-role"
+                      data-reference-role={role}
+                    >
+                      {REFERENCE_ROLE_LABELS[role]}
+                    </span>
+                  ) : (
                     <Button
-                      key={action.label}
-                      variant="ghost"
                       size="xs"
-                      onClick={action.run}
-                    >
-                      {action.label}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
-            </>
-          }
-          toolbar={footer(
-            <>
-              {actions}
-              <form.Field name="model">
-                {(field) => (
-                  <label className="prints-model">
-                    <span className="sr-only">Model</span>
-                    <Select
-                      aria-label="Generation model"
-                      data-generation-model
-                      className="select-sm"
-                      disabled={modelsLoading || !mediaCapability}
-                      onChange={(event) => {
-                        const next = modelFor(
-                          models,
-                          event.currentTarget.value,
-                        );
-                        field.handleChange(event.currentTarget.value);
-                        if (!next) return;
-                        const touched = form.store.state.fieldMeta;
-                        const nextDraft = draftForModel(values, next);
-                        const size = sizeForModel(values, next, selected);
-                        if (
-                          next.input.dimensions === "none" ||
-                          next.sizes !== null
-                        )
-                          setCustomSize(false);
-                        form.setFieldValue("width", size.width);
-                        form.setFieldValue("height", size.height);
+                      variant="ghost"
+                      type="button"
+                      className="prints-reference-role"
+                      data-reference-role={role}
+                      aria-label={`Reference ${String(index + 1)}: ${REFERENCE_ROLE_LABELS[role]}. Use as ${REFERENCE_ROLE_LABELS[next]}`}
+                      title={`Use as ${REFERENCE_ROLE_LABELS[next]}`}
+                      onClick={() => {
                         form.setFieldValue(
-                          "durationSeconds",
-                          nextDraft.durationSeconds,
+                          "references",
+                          shownReferences.map((item, at) =>
+                            at === index ? { ...item, role: next } : item,
+                          ),
                         );
-                        form.setFieldValue(
-                          "generateAudio",
-                          nextDraft.generateAudio,
-                        );
-                        if (
-                          next.input.steps === "fixed" ||
-                          !touched.steps?.isTouched
-                        )
-                          form.setFieldValue("steps", nextDraft.steps);
                       }}
-                      value={field.state.value}
                     >
-                      {models.length === 0 ? (
-                        <option value="">
-                          {computerId === null
-                            ? "Choose a Computer"
-                            : modelsLoading
-                              ? "Loading models…"
-                              : "Models unavailable"}
-                        </option>
-                      ) : null}
-                      {models.map((model) => (
-                        <option key={model.id} value={model.id}>
-                          {modelName(model)}
-                        </option>
-                      ))}
-                    </Select>
-                  </label>
-                )}
-              </form.Field>
-              {computerId && mediaDirectory ? (
-                <span
-                  className="sr-only"
-                  data-generation-computer
-                  title={`Saved to ${computerId}:${mediaDirectory}`}
-                >
-                  Saves to {mediaDirectory}
-                </span>
-              ) : null}
-            </>,
-            <GenerateButton
-              busy={submitting}
-              disabled={
-                !mediaCapability ||
-                modelsLoading ||
-                models.length === 0 ||
-                submitting
-              }
-              label={generateActionLabel(selected)}
-              onGenerate={() => {
-                void onSubmit();
-              }}
-              promptOver={promptOver}
-            />,
-            {
-              label: (
-                <span className="prints-settings-chip">
-                  <SlidersHorizontal
-                    aria-hidden="true"
-                    className="size-[var(--stipe-icon-size-sm)]"
+                      {REFERENCE_ROLE_LABELS[role]}
+                    </Button>
+                  )}
+                  <IconButton
+                    icon={<X />}
+                    className="prints-reference-remove"
+                    aria-label={`Remove reference ${String(index + 1)}`}
+                    onClick={() => {
+                      form.setFieldValue(
+                        "references",
+                        values.references.filter((_item, at) => at !== index),
+                      );
+                    }}
                   />
-                  {summary.length > 0 ? summary.join(" · ") : "Settings"}
-                </span>
-              ),
-              content: settings,
-              open: settingsOpen,
-              onOpenChange: setSettingsOpen,
-            },
-          )}
-        />
-        {style.dialog}
-        {characterDialog({
-          open: charactersOpen,
-          onOpenChange: setCharactersOpen,
-        })}
-      </Card>
-    </PopoverAnchor>
+                </div>
+              );
+            })}
+          </div>
+        ) : undefined
+      }
+      input={
+        <>
+          <form
+            aria-busy={submitting}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void onSubmit();
+            }}
+          >
+            <form.Field name="prompt">
+              {(field) => (
+                <div className="prints-prompt">
+                  {slash.slashOpen ? (
+                    <MediaSlashSheet
+                      index={slash.slashIndex}
+                      listId={slashListId}
+                      matches={slash.slashMatches}
+                      onHighlight={slash.highlightSlash}
+                      onPick={pickSlash}
+                    />
+                  ) : null}
+                  {!slash.slashOpen && mentions.matches.length > 0 ? (
+                    <MediaMentionSheet
+                      images={referenceImages}
+                      index={mentions.index}
+                      listId={mentionListId}
+                      matches={mentions.matches}
+                      onHighlight={mentions.highlight}
+                      onPick={(at) => {
+                        const next = mentions.complete(at);
+                        if (next !== null) field.handleChange(next);
+                      }}
+                    />
+                  ) : null}
+                  <MediaComposerTextarea
+                    caretRequest={mentions.caretRequest}
+                    menu={
+                      slash.slashOpen
+                        ? {
+                            open: slash.slashMatches.length > 0,
+                            listId: slashListId,
+                            selected: slash.slashIndex,
+                          }
+                        : {
+                            open: mentions.matches.length > 0,
+                            listId: mentionListId,
+                            selected: mentions.index,
+                          }
+                    }
+                    mentionCount={slash.slashOpen ? 0 : mentions.matches.length}
+                    onCaret={mentions.setCaret}
+                    onMentionDismiss={mentions.dismiss}
+                    onMentionMove={mentions.move}
+                    onMentionPick={() => {
+                      const next = mentions.complete(mentions.index);
+                      if (next !== null) field.handleChange(next);
+                    }}
+                    disabled={
+                      !mediaCapability ||
+                      modelsLoading ||
+                      models.length === 0 ||
+                      submitting
+                    }
+                    maxLength={selected?.maxPromptLength}
+                    addedLength={addedLength}
+                    onChange={(value) => {
+                      field.handleChange(value);
+                    }}
+                    onSend={onSubmit}
+                    onSlashMove={slash.moveSlash}
+                    onSlashPick={() => {
+                      pickSlash(slash.slashIndex);
+                    }}
+                    placeholder="What are we making?"
+                    slashCount={slash.slashMatches.length}
+                    value={field.state.value}
+                  />
+                  {values.references.length > 0 ||
+                  roleProblem !== undefined ||
+                  mentioned.length > 0 ? (
+                    <div className="prints-composer-notes">
+                      {values.references.length > 0 ? (
+                        <span
+                          className="prints-reference-count"
+                          data-generation-references
+                          data-over-limit={referencesOver ? "" : undefined}
+                          role={referencesOver ? "alert" : undefined}
+                        >
+                          {values.references.length} / {referenceLimit}{" "}
+                          references
+                          {referencesOver
+                            ? referenceLimit === 0
+                              ? " — this model takes none; remove them or pick another model"
+                              : " — over this model's limit; remove some to generate"
+                            : null}
+                        </span>
+                      ) : null}
+                      {roleProblem !== undefined ? (
+                        <span
+                          className="prints-reference-count"
+                          data-generation-reference-roles
+                          data-over-limit=""
+                          role="alert"
+                        >
+                          {roleProblem}
+                        </span>
+                      ) : null}
+                      {mentioned.length > 0 ? (
+                        <span
+                          className="prints-reference-count"
+                          data-generation-characters
+                          data-over-limit={
+                            usedCharacters.kind === "refused" ? "" : undefined
+                          }
+                          role={
+                            usedCharacters.kind === "refused"
+                              ? "alert"
+                              : undefined
+                          }
+                        >
+                          {usedCharacters.kind === "refused"
+                            ? usedCharacters.message
+                            : `Characters: ${mentioned.map((entry) => entry.name).join(", ")}`}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </form.Field>
+          </form>
+          {guidance ? (
+            <div
+              className="prints-composer-guidance"
+              role="status"
+              data-composer-guidance
+            >
+              <span>
+                {guidance.group === "Images" && guidance.detail ? (
+                  guidance.detail
+                ) : (
+                  <>
+                    {guidance.title}. {guidance.detail}
+                  </>
+                )}
+              </span>
+              {guidance.actions?.map((action) => (
+                <Button
+                  key={action.label}
+                  variant="ghost"
+                  size="xs"
+                  onClick={action.run}
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+        </>
+      }
+      row={{
+        controls: (
+          <>
+            {actions}
+            <form.Field name="model">
+              {(field) => (
+                <GenerationModelKey
+                  models={models}
+                  emptyLabel={
+                    computerId === null
+                      ? "Choose a Computer"
+                      : modelsLoading
+                        ? "Loading models…"
+                        : "Models unavailable"
+                  }
+                  disabled={modelsLoading || !mediaCapability}
+                  onChange={(id) => {
+                    const next = modelFor(models, id);
+                    field.handleChange(id);
+                    if (!next) return;
+                    const touched = form.store.state.fieldMeta;
+                    const nextDraft = draftForModel(values, next);
+                    const size = sizeForModel(values, next, selected);
+                    if (next.input.dimensions === "none" || next.sizes !== null)
+                      setCustomSize(false);
+                    form.setFieldValue("width", size.width);
+                    form.setFieldValue("height", size.height);
+                    form.setFieldValue(
+                      "durationSeconds",
+                      nextDraft.durationSeconds,
+                    );
+                    form.setFieldValue(
+                      "generateAudio",
+                      nextDraft.generateAudio,
+                    );
+                    if (
+                      next.input.steps === "fixed" ||
+                      !touched.steps?.isTouched
+                    )
+                      form.setFieldValue("steps", nextDraft.steps);
+                  }}
+                  value={field.state.value}
+                />
+              )}
+            </form.Field>
+            {computerId && mediaDirectory ? (
+              <span
+                className="sr-only"
+                data-generation-computer
+                title={`Saved to ${computerId}:${mediaDirectory}`}
+              >
+                Saves to {mediaDirectory}
+              </span>
+            ) : null}
+          </>
+        ),
+        action: (
+          <GenerateButton
+            busy={submitting}
+            draft={values.prompt}
+            disabled={
+              !mediaCapability ||
+              modelsLoading ||
+              models.length === 0 ||
+              submitting
+            }
+            label={generateActionLabel(selected)}
+            onGenerate={() => {
+              void onSubmit();
+            }}
+            promptOver={promptOver}
+          />
+        ),
+        items: [
+          {
+            id: "settings",
+            accessibleLabel: "Generation settings",
+            title: "Settings",
+            label: (
+              <span className="prints-settings-chip">
+                <SlidersHorizontal
+                  aria-hidden="true"
+                  className="size-[var(--stipe-icon-size-sm)]"
+                />
+                {summary.length > 0 ? summary.join(" · ") : "Settings"}
+              </span>
+            ),
+            content: settings,
+          },
+        ],
+        openId: settingsOpen ? "settings" : null,
+        onOpenChange: (id) => {
+          setSettingsOpen(id === "settings");
+        },
+      }}
+    >
+      {style.dialog}
+      {characterDialog({
+        open: charactersOpen,
+        onOpenChange: setCharactersOpen,
+      })}
+    </ComposerShell>
   );
 }
 
@@ -920,6 +912,19 @@ export function MediaPane({
     uploads,
     uploadFiles,
   } = galleryMedia;
+  const [progressNow, setProgressNow] = useState(Date.now);
+  const hasVideoSlot = gallerySlots.some(
+    (slot) => slot.startedAt !== undefined && !slot.resolved && !slot.error,
+  );
+  useEffect(() => {
+    if (!hasVideoSlot) return;
+    const timer = setInterval(() => {
+      setProgressNow(Date.now());
+    }, 1_000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [hasVideoSlot]);
   const printNavigation = usePrintNavigation(
     connection,
     (path, action, selectedConnection, computerId) => {
@@ -956,6 +961,7 @@ export function MediaPane({
     effects: {
       reserve: reserveSlot,
       failed: failSlot,
+      notifyFailure: notifyGenerationFailure,
       saved: ({ result }, selectedConnection) => {
         if (canRead)
           void openComputerFile(
@@ -1132,6 +1138,7 @@ export function MediaPane({
         referenced: references.some(
           (reference) =>
             image.source.kind === "computer" &&
+            isReferenceOnComputer(reference, image.source.computerId) &&
             reference.path === image.source.path,
         ),
         referenceDisabled:
@@ -1139,6 +1146,7 @@ export function MediaPane({
           !references.some(
             (reference) =>
               image.source.kind === "computer" &&
+              isReferenceOnComputer(reference, image.source.computerId) &&
               reference.path === image.source.path,
           ),
         onToggleReference:
@@ -1146,13 +1154,20 @@ export function MediaPane({
             ? () => {
                 if (image.source.kind !== "computer") return;
                 const path = image.source.path;
+                const computerId = image.source.computerId;
                 const referenced = references.some(
-                  (reference) => reference.path === path,
+                  (reference) =>
+                    isReferenceOnComputer(reference, computerId) &&
+                    reference.path === path,
                 );
                 form.setFieldValue(
                   "references",
                   referenced
-                    ? references.filter((reference) => reference.path !== path)
+                    ? references.filter(
+                        (reference) =>
+                          !isReferenceOnComputer(reference, computerId) ||
+                          reference.path !== path,
+                      )
                     : [...references, { path }],
                 );
               }
@@ -1246,7 +1261,13 @@ export function MediaPane({
               ? "Loading preview…"
               : slot.uploadId
                 ? "Uploading image…"
-                : slot.pendingLabel,
+                : slot.startedAt !== undefined
+                  ? generationPendingLabel(
+                      models.find((model) => model.kind === "video"),
+                      progressNow - slot.startedAt,
+                      slot.resumed,
+                    )
+                  : slot.pendingLabel,
           onOpen: () => undefined,
           onRetry:
             error && (canRead || (upload && upload.status !== "complete"))
@@ -1280,7 +1301,15 @@ export function MediaPane({
             : undefined,
         };
       }),
-    [listedItems, gallerySlots, uploads.items, generationState.kind, canRead],
+    [
+      listedItems,
+      gallerySlots,
+      uploads.items,
+      generationState.kind,
+      canRead,
+      models,
+      progressNow,
+    ],
   );
   const generationBusy = submitting || hasPendingGeneration;
   const tileFailed = gallerySlots.some((slot) => slot.error !== undefined);
@@ -1291,6 +1320,7 @@ export function MediaPane({
     generationState.kind === "error" && modelsError === null
       ? {
           key: generation.errorKey,
+          mediaKind: generationState.mediaKind,
           message: generationState.message,
           billing:
             generationState.action === "billing" && connection
@@ -1480,6 +1510,7 @@ export function MediaPane({
         }
       }}
     >
+      <Toaster id="prints-generation-notices" />
       <div className="prints-gallery-region">
         <ScrollArea
           screen
@@ -1584,6 +1615,7 @@ export function MediaPane({
               if (infoImage.source.kind !== "computer") return null;
               const outcome = iterationDraft(action, {
                 lineage,
+                printComputerId: infoImage.source.computerId,
                 printPath: infoImage.source.path,
                 models,
                 styles: promptStyles.styles.map((entry) => entry.name),
@@ -1678,11 +1710,6 @@ export function MediaPane({
             visibleNotices.find(
               (notice) => notice.blocking && notice.group === "Setup",
             ) ??
-            (generationState.kind === "error"
-              ? visibleNotices.find(
-                  (notice) => notice.key === generationError?.key,
-                )
-              : undefined) ??
             (iterationNotice !== null && iterationNotice.model === values.model
               ? {
                   key: "iteration-model",
@@ -1703,9 +1730,6 @@ export function MediaPane({
               : undefined)
           }
           commandApp={commandApp}
-          footer={(controls, send, settings) => (
-            <PrintsFooter settings={settings} controls={controls} send={send} />
-          )}
           actions={
             <KeycapButton
               aria-label="Upload images"
@@ -1737,21 +1761,22 @@ export function MediaPane({
           mediaDirectory={mediaDirectory}
           referenceImages={composerImages}
         />
+        {/* The host tray has no footer row; its anchor must not add a pane gap. */}
+        {activityItem === null ? null : (
+          <PrintsActivityTray
+            notices={visibleNotices}
+            uploads={uploadQueueProps}
+            open={noticesOpen}
+            inset={activityInset}
+            onOpenChange={setNoticesOpen}
+            onDismiss={dismissed.dismiss}
+            onDismissAll={() => {
+              dismissed.dismissAll(notices);
+            }}
+            onLoadMore={generation.hasMore ? generation.loadMore : undefined}
+          />
+        )}
       </div>
-      {activityItem === null ? null : (
-        <PrintsActivityTray
-          notices={visibleNotices}
-          uploads={uploadQueueProps}
-          open={noticesOpen}
-          inset={activityInset}
-          onOpenChange={setNoticesOpen}
-          onDismiss={dismissed.dismiss}
-          onDismissAll={() => {
-            dismissed.dismissAll(notices);
-          }}
-          onLoadMore={generation.hasMore ? generation.loadMore : undefined}
-        />
-      )}
       <PrintsFolderDialog folder={folder} />
     </main>
   );

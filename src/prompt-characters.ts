@@ -1,7 +1,13 @@
 import { appBackend } from "@fungi.computer/agar/backend";
-import type { CapabilityDirectory } from "@fungi.computer/agar";
+import type {
+  CapabilityDirectory,
+  MediaGenerationInput,
+} from "@fungi.computer/agar";
 import * as Schema from "effect/Schema";
 import { composePrompt } from "./prompt-styles.js";
+type MediaReference = NonNullable<
+  MediaGenerationInput["settings"]["references"]
+>[number];
 
 export const MAX_CHARACTERS = 50;
 export const CHARACTER_NAME_LIMIT = 32;
@@ -126,15 +132,24 @@ export function mentionNames(prompt: string, names: readonly string[]): string {
     : `${missing.map((name) => `@${name}`).join(" ")} ${prompt}`;
 }
 
-/** The references plus each character's, in order, without repeating a file. */
+/**
+ * The references plus each character's, in order, without repeating a file.
+ * A character's references live on the selected Computer, so a bare path and
+ * an explicit reference naming that Computer are the same file; a reference
+ * on any other Computer stays distinct.
+ */
 function withCharacterReferences(
-  references: readonly { path: string }[],
+  references: readonly MediaReference[],
   characters: readonly PromptCharacter[],
-): readonly { path: string }[] {
-  const merged: { path: string }[] = [...references];
+  computerId: string | null,
+): readonly MediaReference[] {
+  const sameFile = (entry: MediaReference, path: string) =>
+    entry.path === path &&
+    (entry.computerId === undefined || entry.computerId === computerId);
+  const merged: MediaReference[] = [...references];
   for (const character of characters)
     for (const reference of character.references)
-      if (!merged.some((entry) => entry.path === reference.path))
+      if (!merged.some((entry) => sameFile(entry, reference.path)))
         merged.push({ path: reference.path });
   return merged;
 }
@@ -143,7 +158,7 @@ export type CharacterPlan =
   | Readonly<{
       kind: "ready";
       prompt: string;
-      references: readonly { path: string }[];
+      references: NonNullable<MediaGenerationInput["settings"]["references"]>;
       characters: readonly PromptCharacter[];
     }>
   | Readonly<{ kind: "refused"; message: string }>;
@@ -151,13 +166,16 @@ export type CharacterPlan =
 /**
  * Expand a prompt's characters and count their references against the model.
  * `names` are characters picked outside the prompt text (the agent tool).
+ * `computerId` is the selected Computer, whose explicit references dedupe
+ * against character paths; null when none is selected.
  */
 export function planCharacters(
   input: Readonly<{
     prompt: string;
     names?: readonly string[] | undefined;
     saved: readonly PromptCharacter[];
-    references: readonly { path: string }[];
+    references: NonNullable<MediaGenerationInput["settings"]["references"]>;
+    computerId: string | null;
     model: Readonly<{ label: string; maxReferences: number }> | undefined;
   }>,
 ): CharacterPlan {
@@ -168,6 +186,7 @@ export function planCharacters(
   const references = withCharacterReferences(
     input.references,
     expansion.characters,
+    input.computerId,
   );
   const added = references.length - input.references.length;
   if (

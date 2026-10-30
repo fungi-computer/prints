@@ -30,3 +30,5 @@ allowBuilds:
   tree-sitter-rust: true
   tree-sitter-typescript: true
   workerd: true
+patchedDependencies:
+  just-bash@3.4.2: patches/just-bash@3.4.2.patch

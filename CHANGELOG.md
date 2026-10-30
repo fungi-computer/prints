@@ -1,5 +1,42 @@
 # @fungi.computer/prints
 
+## 0.5.0
+
+### Minor Changes
+
+- Changes since 0.4.0:
+
+  - fix(prints): require charge proof in Gateway guidance
+  - fix(prints): make progress timer lint-clean
+  - fix(prints): resume video attempts on reopen with honest progress
+  - fix(prints): map provider failures to one error toast
+  - fix(prints): keep Activity anchor inside composer dock
+  - fix(caps): align menu checks in a right-edge column
+  - fix(prints): preserve gallery frame and track hierarchy
+  - fix(composer): align native keys, empty Send and usage readouts
+  - fix(prints): dedupe a selected-Computer reference against character paths
+  - feat(composer): finish native row controls and responsive parity
+  - feat(parakeet): share Grove and Prints composer geometry
+  - fix(prints): explain when character saving can resume
+  - fix(prints): clarify character names and save controls
+  - feat(prints): add authorized Agent media parity
+  - fix(prints): settle composer queries before assertions
+  - fix(prints): consume typed credits refusals and admitted media kind
+  - fix(prints): merge video recovery and charge-safe failures
+  - fix(composer): merge current integration contracts
+  - fix(prints): reconcile Agent media parity with integration
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.6.0
+  - @fungi.computer/caps@0.5.0
+  - @fungi.computer/darkroom@0.4.0
+  - @fungi.computer/parakeet@0.6.0
+
 ## 0.4.0
 
 ### Minor Changes

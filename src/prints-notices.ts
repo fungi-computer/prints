@@ -16,6 +16,7 @@ export type NoticeState = {
   canWrite: boolean;
   generationError: {
     key: string;
+    mediaKind: MediaModel["kind"] | null;
     message: string;
     retry?: () => void;
     billing?: () => void;
@@ -135,13 +136,18 @@ export function noticesFor({
       title: "Read-only Computer",
       detail: "Uploads and new prints are off.",
     });
-  if (generationError !== null)
+  if (generationError !== null) {
+    const kind = generationError.mediaKind ?? "media";
     notices.push({
       key: generationError.key,
       group: "Images",
       tone: "error",
-      short: "Image failed",
-      title: "Couldn’t create image",
+      short: {
+        image: "Image failed",
+        video: "Video failed",
+        media: "Media failed",
+      }[kind],
+      title: `Couldn’t create ${kind}`,
       detail: generationError.message,
       actions: generationError.billing
         ? [{ label: "Open Billing", run: generationError.billing }]
@@ -149,6 +155,7 @@ export function noticesFor({
           ? [{ label: "Retry", run: generationError.retry }]
           : [],
     });
+  }
   if (recoveryError !== null)
     notices.push({
       key: `recovery:${recoveryError}`,

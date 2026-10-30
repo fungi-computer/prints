@@ -41,36 +41,9 @@ body,
   flex: none;
   max-height: 55%;
   overflow-y: auto;
-  padding-bottom: var(--spacing-xs);
 }
-.prints-composer {
-  /* The completion menu is placed inside the card's border; it steps out over it to meet the card's outer edge. */
-  --parakeet-completion-inset: calc(var(--border) * -1);
-  --parakeet-completion-face: var(--caps-card-resting-face);
-  --parakeet-completion-edge: var(--caps-card-edge);
-  flex: 0 0 auto;
-  padding: var(--spacing-sm);
-}
-
 .prints-prompt {
   min-width: 0;
-  padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-md);
-}
-.prints-prompt textarea {
-  min-height: 64px;
-  padding: var(--spacing-xs);
-  font-size: var(--text-base);
-  line-height: 1.6;
-}
-.prints-model {
-  flex: 0 1 220px;
-  min-width: 0;
-}
-.prints-generate {
-  margin-left: auto;
-  flex: none;
-  width: auto;
-  min-width: var(--caps-status-tray-key-height);
 }
 .prints-gallery-tile {
   position: relative;
@@ -186,15 +159,6 @@ span.prints-reference-role {
   flex-shrink: 0;
 }
 
-/* Product layout; shared StatusTray owns every chip and panel surface. */
-.prints-composer-anchor {
-  display: block;
-}
-/* An open completion menu sits on the card's top edge, so the card squares off to join it. */
-.prints-composer-anchor:has([data-parakeet-slash]) > .prints-composer {
-  border-start-start-radius: 0;
-  border-start-end-radius: 0;
-}
 .prints-composer-guidance {
   display: flex;
   flex-wrap: wrap;
@@ -204,11 +168,16 @@ span.prints-reference-role {
   font-size: var(--text-sm);
   color: var(--stipe-fg-muted);
 }
-.prints-composer-dock:has([data-status-tray-panel], [data-parakeet-slash]) {
+.prints-composer-dock:has(
+  [data-status-tray-panel],
+  [data-parakeet-slash],
+  [data-generation-model-menu]
+) {
   overflow: visible;
 }
-.prints-footer {
-  padding: var(--spacing-xs);
+[data-generation-model-menu] {
+  max-width: var(--available-width);
+  white-space: normal;
 }
 .prints-activity-tray {
   --caps-status-tray-width: 28rem;
@@ -272,24 +241,22 @@ span.prints-reference-role {
   min-width: var(--caps-status-tray-key-height);
 }
 
-/* Narrow composers keep one control row (upload, model, settings, Send):
-   Send stays one key at the row's end, never a separate full-width bar. */
-@container (max-width: 34rem) {
-  .prints-model {
-    flex: 1 1 6rem;
-  }
-  .prints-footer [data-status-tray-chip="settings"] {
-    flex: 0 1 auto;
-    min-width: 0;
-  }
-}
-
 .prints-gallery-region {
+  /* Capture inherited material before the frame refines it, avoiding a variable
+     cycle. Unset material still uses Caps' own size fallback. */
+  --prints-gallery-frame-width: var(--stipe-surface-frame-width);
   position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
   gap: var(--spacing-xs);
+}
+.prints-gallery-region > .caps-scroll-area {
+  /* Quiet gallery material keeps the frame distinct from its one-border track. */
+  --stipe-surface-frame-width: max(
+    calc(var(--border) * 2),
+    var(--prints-gallery-frame-width)
+  );
 }
 .prints-info-drawer {
   flex: 0 0 var(--container-xs);

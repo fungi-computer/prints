@@ -9,6 +9,10 @@ import {
 import { completeSlash } from "@fungi.computer/parakeet/slash";
 import { Textarea } from "@fungi.computer/caps/components/textarea";
 import {
+  composerSendState,
+  useComposerTextareaSize,
+} from "@fungi.computer/parakeet";
+import {
   mentionAt,
   suggestCharacters,
   type PromptCharacter,
@@ -44,12 +48,14 @@ const PROMPT_COUNTER_ID = "prints-prompt-counter";
 export function GenerateButton({
   busy,
   disabled,
+  draft,
   label,
   onGenerate,
   promptOver,
 }: {
   busy: boolean;
   disabled: boolean;
+  draft: string;
   label: string;
   onGenerate: () => void;
   promptOver: boolean;
@@ -62,7 +68,7 @@ export function GenerateButton({
       data-generation-submit
       disabled={disabled || promptOver}
       onClick={onGenerate}
-      state={busy ? "busy" : "ready"}
+      state={composerSendState({ draft, busy })}
       title={label}
     />
   );
@@ -139,12 +145,7 @@ export function MediaComposerTextarea({
     textarea.focus({ preventScroll: true });
   }, [caretRequest, value]);
 
-  useLayoutEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.style.height = "auto";
-    textarea.style.height = `${String(Math.min(textarea.scrollHeight, 160))}px`;
-  }, [value]);
+  useComposerTextareaSize(textareaRef, value);
 
   const send = useCallback(async () => {
     const draft = latestValue.current.trim();
@@ -161,12 +162,13 @@ export function MediaComposerTextarea({
         previous.at(-1) === draft ? previous : [...previous, draft].slice(-20),
       );
       setHistoryIndex(-1);
-      onChange("");
+      // Admission is not completion. Keep the draft, like button submission,
+      // so a later provider or save failure cannot erase the creator's prompt.
     } finally {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [disabled, maxLength, onChange, onSend, addedLength]);
+  }, [disabled, maxLength, onSend, addedLength]);
 
   const typed = value.trim().length;
   const length = typed > 0 ? typed + addedLength : 0;
@@ -176,7 +178,7 @@ export function MediaComposerTextarea({
       <Textarea
         aria-invalid={over ? true : undefined}
         aria-label="Image prompt"
-        className="min-h-12 max-h-40 w-full resize-none !border-0 !bg-transparent !shadow-none focus:!outline-none"
+        className="w-full"
         data-generation-prompt
         {...completionFieldProps(menu)}
         disabled={disabled === true || sending}

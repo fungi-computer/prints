@@ -1,4 +1,6 @@
 import { resultRows } from "@fungi.computer/agar/method-presentation";
+import { formatMoney } from "@fungi.computer/caps/lib/format-money";
+import { mediaCatalogModelSchema } from "@fungi.computer/darkroom/app-media-contracts";
 import { recentOutputsGill } from "./gills.js";
 import {
   outputAtPathInputSchema,
@@ -23,7 +25,6 @@ import {
   MediaSettingsError,
   listMediaModels,
   validateMediaGenerationSelection,
-  mediaModelSchema,
 } from "@fungi.computer/darkroom";
 import { mediaRequestIdSchema } from "@fungi.computer/agar/media-request-id";
 import { mediaLibraryPathSchema } from "@fungi.computer/agar/media-library";
@@ -86,7 +87,7 @@ import {
 const empty = z.strictObject({});
 const id = z.string().min(1).max(256);
 const path = z.string().startsWith("/").min(2).max(4096);
-const catalogModel = mediaModelSchema.unwrap();
+const catalogModel = mediaCatalogModelSchema.unwrap();
 const catalogSizes = catalogModel.shape.sizes.unwrap().unwrap();
 const model = catalogModel
   .extend({
@@ -146,7 +147,32 @@ export type PrintsMethodContext = Readonly<{
 }>;
 const refusal = (
   error: "not_granted" | "unavailable" | "conflict" | "not_found",
-) => methodRefusalSchema.parse({ error });
+) => ({ error });
+
+function presentRefusal(value: z.output<typeof methodRefusalSchema>) {
+  if (
+    "provider" in value &&
+    value.stage === "provider" &&
+    value.provider !== undefined &&
+    "reason" in value.provider &&
+    value.provider.reason === "credits_exhausted"
+  )
+    return {
+      ...value,
+      message:
+        "Cloudflare AI Gateway couldn't fund this request. Check the account's credits and billing in the Cloudflare dashboard under AI Gateway, or choose a Workers AI model such as Flux. Nothing was charged.",
+      retryable: false,
+    };
+  return value;
+}
+
+/** Only the admitted Media charge belongs on a saved-image receipt. */
+function imageReceipt(result: z.output<typeof generatedImageSchema>): string {
+  const cost = formatMoney(result.costMilliunits / 100_000, {
+    precision: "exact",
+  });
+  return `Image saved to ${result.destination.computerId}:${result.destination.path} (${String(result.bytes)} bytes, ${String(result.width)}x${String(result.height)}, charge ${cost}).`;
+}
 
 const bindingNotGranted = z.object({
   code: z.literal("binding_not_granted"),
@@ -186,6 +212,7 @@ export function composeGeneration<
   },
 >(
   sql: SqlStorage,
+  computerId: string,
   choices: Readonly<{
     style: string | undefined;
     characters: readonly string[] | undefined;
@@ -215,6 +242,7 @@ export function composeGeneration<
     names: choices.characters,
     saved,
     references: settings.references ?? [],
+    computerId,
     model:
       model === undefined
         ? undefined
@@ -291,7 +319,9 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
       handler: async (input, context) => {
         const reply = await bindingCall(() => context.env.MEDIA.models(input));
         const refused = methodRefusalSchema.safeParse(reply);
-        return refused.success ? refused.data : models.parse({ models: reply });
+        return refused.success
+          ? presentRefusal(refused.data)
+          : models.parse({ models: reply });
       },
     }),
     listCharacters: defineAppMethod({
@@ -443,7 +473,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
           }),
         );
         const refused = methodRefusalSchema.safeParse(reply);
-        if (refused.success) return refused.data;
+        if (refused.success) return presentRefusal(refused.data);
         const bytes = byteRead.parse(reply);
         const decoded = Base64.decode(bytes.content);
         if (
@@ -499,6 +529,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
         const { style, characters: characterNames, ...videoInput } = input;
         const composed = composeGeneration(
           context.ctx.storage.sql,
+          caller.computerId,
           { style, characters: characterNames },
           videoInput.settings,
         );
@@ -530,7 +561,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
           context.env.MEDIA.generate(command),
         );
         const refused = methodRefusalSchema.safeParse(reply);
-        if (refused.success) return refused.data;
+        if (refused.success) return presentRefusal(refused.data);
         const working = pendingSchema.safeParse(reply);
         if (working.success) return pending(working.data.retryAfterMs);
         const result = generatedVideoSchema.parse(reply);
@@ -563,12 +594,21 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
     }),
     generateImage: defineAppMethod({
       description:
-        "One image; the host picks its path. requestId: media_request_ + 21 random [a-z0-9]; reuse it to recover. Input {requestId, characters, style, settings:{model, prompt, width, height}}. Call listCharacters and listStyles first. characters/@name add descriptions and references; style leads, so prompts hold only the scene. Use the listModels model labelled default unless asked for quality. For up to 8 panels, await one call per panel in turn in ONE execute (Prints makes one at a time), each with a new requestId and the same characters and style; on attachment_budget_exceeded retry after retryAfterMs with the same requestId, on expired/outcome-unknown once with a new one. Return the results array in panel order; if env.computers exists, files.read each destination.path first. Never fetch image bytes. Tell the user each panel's number, printId and the summed costMilliunits.",
+        "One image. Call listModels, listCharacters and listStyles first; prefer default. Input {requestId,characters,style,settings:{model,prompt,width,height,steps?,references?}}. steps: omit for fixed models; obey input.maxSteps. References {computerId?,path}: ANY attached Computer with its own read grant; omit computerId for selected. characters/style compose the prompt. priceEstimate is an estimate for stated settings, not the charge. requestId: media_request_ + 21 random [a-z0-9]; reuse for recovery. For up to 8 panels, await one call per panel in ONE execute, distinct ids, same characters/style. On attachment_budget_exceeded wait retryAfterMs, reuse id. Never retry retryable:false (AI Gateway credits). Return results in panel order, printId, receipt, summed costMilliunits; if env.computers exists, files.read destination.path first. Never fetch image bytes.",
       effect: "write",
       requires: ["media.generation", "computer.writeFile"],
       input: generateImageInputSchema,
       output: z.union([
-        generatedImageSchema.extend({ printId: id }),
+        generatedImageSchema.extend({
+          printId: id,
+          receipt: z
+            .string()
+            .min(1)
+            .max(4608)
+            .describe(
+              "Receipt for the saved image, including Media's admitted charge.",
+            ),
+        }),
         methodRefusalSchema,
       ]),
       present: {
@@ -603,6 +643,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
         const { style, characters: characterNames, ...imageInput } = input;
         const composed = composeGeneration(
           context.ctx.storage.sql,
+          caller.computerId,
           { style, characters: characterNames },
           imageInput.settings,
         );
@@ -645,7 +686,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
           context.env.MEDIA.generate(command),
         );
         const refused = methodRefusalSchema.safeParse(reply);
-        if (refused.success) return refused.data;
+        if (refused.success) return presentRefusal(refused.data);
         const result = generatedImageSchema.parse(reply);
         const completed = completeMethodGeneration(
           context.ctx.storage,
@@ -671,6 +712,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
         return {
           ...generatedImageSchema.parse(completed.result),
           printId: command.requestId,
+          receipt: imageReceipt(generatedImageSchema.parse(completed.result)),
         };
       },
     }),

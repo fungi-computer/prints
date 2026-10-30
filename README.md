@@ -90,9 +90,30 @@ Agents call Prints through Oyster's MCP endpoint, or at
 
 Each generation carries a request id (`media_request_` and 21 lowercase letters
 or digits). Retrying with the same id and inputs recovers the same generation
-instead of paying for another. References are paths on the Computer, such as
-`[{ path: "/canon/style.png" }]`; callers never pass image bytes, URLs or a
-Computer id.
+instead of paying for another. References are file paths, such as
+`[{ path: "/canon/style.png" }]`. In a host with Agent Computer attachments,
+`{ computerId: "computer-b", path: "/canon/style.png" }` reads from any attached
+Computer using that Computer's own read authorization. Omit `computerId` for the
+selected Computer; the output still saves there. Revoked or denied reads stop
+generation before provider dispatch. Callers never pass image bytes or URLs.
+Reference reads are not confined to the App's library folder: the Computer grant
+is the boundary.
+
+`listModels` includes a labelled `priceEstimate` for its stated default settings
+(including the example prompt and no references). `basis: "team-price"` includes
+the host's current Team markup; `"provider-cost"` is an unmarked provider
+estimate. The image result's `costMilliunits` and human-readable `receipt` use
+Media's admitted charge, not the catalogue hint. The receipt states that charge
+plainly; only `priceEstimate` is an estimate. Changing dimensions, steps, prompt
+or references can change the charge.
+
+Set optional `settings.steps` only for models whose `input.steps` is not
+`"fixed"`; obey `input.maxSteps` where present. Omission uses the model default.
+Refusals retain Media's bounded provider diagnostic. The typed
+`provider.reason === "credits_exhausted"` means Cloudflare AI Gateway couldn't
+fund the request, not a Team credit refusal. Check the account's credits and
+billing in the Cloudflare dashboard under AI Gateway or choose a Workers AI
+model; do not retry a `retryable: false` result.
 
 ## Build and check
 

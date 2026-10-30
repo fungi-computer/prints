@@ -1,5 +1,6 @@
 import {
   draftForModel,
+  isReferenceOnComputer,
   modelFor,
   modelName,
   sizeForModel,
@@ -17,7 +18,7 @@ export type PrintLineage = Readonly<{
   model: string;
   /** The prompt as typed, with saved characters, and how many references were the person's own. */
   typed: Readonly<{ prompt: string; references: number }>;
-  references: readonly Readonly<{ path: string }>[];
+  references: readonly Readonly<{ path: string; computerId?: string }>[];
   /** The style block it was made with, by name. */
   style: string | null;
   steps: number | null;
@@ -81,6 +82,7 @@ export function iterationDraft(
   action: Iteration,
   input: Readonly<{
     lineage: PrintLineage;
+    printComputerId: string;
     printPath: string;
     models: readonly MediaModel[];
     /** Names of the styles that still exist. */
@@ -113,7 +115,14 @@ export function iterationDraft(
     action === "animate"
       ? { path: printPath, role: "first-frame" }
       : { path: printPath };
-  const withPrint = [print, ...own.filter((entry) => entry.path !== printPath)];
+  const withPrint = [
+    print,
+    ...own.filter(
+      (entry) =>
+        !isReferenceOnComputer(entry, input.printComputerId) ||
+        entry.path !== printPath,
+    ),
+  ];
   if (action !== "reuse" && model.input.maxReferences === 0)
     return {
       kind: "refused",

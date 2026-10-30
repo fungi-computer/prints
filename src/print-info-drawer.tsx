@@ -16,7 +16,12 @@ import { DataList, DataRow } from "@fungi.computer/caps/components/data-list";
 import { Sigil, type SigilName } from "@fungi.computer/sigils";
 import { Clapperboard, Download, RotateCcw, Shuffle, X } from "lucide-react";
 import type { Iteration, PrintLineage } from "./print-iteration.js";
-import { modelFor, modelName, type MediaModel } from "./generation-model.js";
+import {
+  isReferenceOnComputer,
+  modelFor,
+  modelName,
+  type MediaModel,
+} from "./generation-model.js";
 import type { GalleryImage, GallerySource } from "./media-gallery.js";
 import {
   preparePrintDownload,
@@ -36,7 +41,9 @@ const outputDetailsSchema = z.object({
     createdAt: z.number(),
   }),
   typed: z.object({ prompt: z.string(), references: z.number() }),
-  references: z.array(z.object({ path: z.string() })),
+  references: z.array(
+    z.object({ path: z.string(), computerId: z.string().optional() }),
+  ),
   characters: z.array(z.string()),
 });
 type OutputDetails = z.output<typeof outputDetailsSchema>;
@@ -323,9 +330,13 @@ export function PrintInfoDrawer({
             >
               {details.references.map((reference, index) => {
                 const name = reference.path.split("/").at(-1);
-                const thumbnail = referenceImages.find(
-                  (entry) => entry.path === reference.path,
-                );
+                const thumbnail =
+                  image.source.kind === "computer" &&
+                  isReferenceOnComputer(reference, image.source.computerId)
+                    ? referenceImages.find(
+                        (entry) => entry.path === reference.path,
+                      )
+                    : undefined;
                 return (
                   <li
                     key={`${String(index)}:${reference.path}`}

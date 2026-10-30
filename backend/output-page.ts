@@ -10,6 +10,8 @@ const printReferencesSchema = z
   .array(
     z.strictObject({
       path: z.string().min(1).max(4096),
+      /** Explicit source Computer, absent for a selected-Computer reference. */
+      computerId: z.string().min(1).max(256).optional(),
       /** The reference's own print id, or null for an upload or older file. */
       printId: printRecordSchema.shape.printId.nullable(),
     }),

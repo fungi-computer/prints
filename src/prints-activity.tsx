@@ -26,7 +26,6 @@ import {
   StatusTrayList,
   StatusTrayNote,
   StatusTrayRow,
-  type StatusTrayItem,
 } from "@fungi.computer/caps/blocks/status-tray";
 import {
   UploadQueue,
@@ -133,49 +132,6 @@ const noticeIcons = {
     <Upload aria-hidden="true" className="size-[var(--stipe-icon-size-sm)]" />
   ),
 } satisfies Record<PrintsNotice["group"], ReactNode>;
-
-/** The composer's settings tray: a readout of the current choices and the panel that changes them. */
-export type PrintsSettingsTray = Readonly<{
-  label: ReactNode;
-  content: ReactNode;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}>;
-
-/** The composer's settings, seated in its Caps footer. */
-export function PrintsFooter({
-  controls,
-  send,
-  settings,
-}: {
-  send: ReactNode;
-  controls: ReactNode;
-  /** The composer's tucked-away choices, one tray in the footer. */
-  settings?: PrintsSettingsTray | undefined;
-}) {
-  const items: StatusTrayItem[] = [];
-  if (settings)
-    items.push({
-      id: "settings",
-      label: settings.label,
-      accessibleLabel: "Generation settings",
-      title: "Settings",
-      content: settings.content,
-    });
-  return (
-    <StatusTray
-      className="prints-footer"
-      items={items}
-      align={settings?.open ? "start" : "end"}
-      openId={settings?.open ? "settings" : null}
-      onOpenChange={(id) => {
-        settings?.onOpenChange(id === "settings");
-      }}
-      leading={controls}
-      trailing={send}
-    />
-  );
-}
 
 /**
  * The Activity panel. The window's status bar draws the Activity key; this

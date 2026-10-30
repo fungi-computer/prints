@@ -6,11 +6,11 @@ import {
 } from "@fungi.computer/darkroom/media-binding";
 import * as z from "zod";
 import {
-  mediaFailureStageSchema,
   validateMediaVideoSelection,
   MediaSettingsError,
 } from "@fungi.computer/darkroom";
 import { mediaRequestIdSchema } from "@fungi.computer/agar/media-request-id";
+import { appMediaBrokerFailureSchema } from "@fungi.computer/darkroom/app-media-contracts";
 
 const id = z.string().min(1).max(256);
 export const methodActorSchema = z.strictObject({
@@ -117,15 +117,5 @@ export const methodRefusalSchema = z.union([
     kind: z.enum(["media", "write", "exec"]),
     retryAfterMs: z.number().int().positive().max(86400000),
   }),
-  z.strictObject({
-    error: z.enum([
-      "CAPABILITY_DENIED",
-      "INSUFFICIENT_CREDIT",
-      "HOST_FAILURE",
-      "INVALID_ARGUMENT",
-    ]),
-    message: z.string().min(1).max(512),
-    stage: mediaFailureStageSchema,
-    retryable: z.boolean(),
-  }),
+  appMediaBrokerFailureSchema,
 ]);

@@ -16,6 +16,16 @@ export type MediaReference = NonNullable<
   MediaGenerationInput["settings"]["references"]
 >[number];
 
+/** An omitted selector means the selected Computer, not a global path. */
+export function isReferenceOnComputer(
+  reference: MediaReference,
+  computerId: string,
+): boolean {
+  return (
+    reference.computerId === undefined || reference.computerId === computerId
+  );
+}
+
 export const DEFAULT_MODEL_ID = "@cf/black-forest-labs/flux-2-klein-4b";
 export const GENERATION_UNAVAILABLE_REASON =
   "Image creation is unavailable for this Computer right now.";
@@ -64,36 +74,34 @@ export type GenerationState =
   | Readonly<{ kind: "completed"; record: GenerationRecord }>
   | Readonly<{
       kind: "error";
+      /** The failed attempt's model kind; null before a model is known. */
+      mediaKind: MediaModel["kind"] | null;
       message: string;
       action?: ErrorDescription["action"];
       /** False when the same request cannot succeed again; absent for local validation. */
       retryable?: boolean;
     }>;
 
-/** Prints retains its own recovery copy while F5 owns the typed action. */
-/**
- * AI Gateway's refusal when the Cloudflare account has no Unified Billing
- * credits. Partner models (Seedance, Veo, MiniMax, GPT Image) are billed
- * through those credits, so every Prints video model depends on them.
- */
-const AI_GATEWAY_INSUFFICIENT_CREDITS = 2021;
-
-function needsGatewayCredits(cause: unknown): boolean {
+function needsGatewayCredits(cause: unknown): cause is MediaGenerationError {
   return (
     cause instanceof MediaGenerationError &&
     cause.stage === "provider" &&
     cause.provider !== undefined &&
-    "code" in cause.provider &&
-    cause.provider.code === AI_GATEWAY_INSUFFICIENT_CREDITS
+    "reason" in cause.provider &&
+    cause.provider.reason === "credits_exhausted"
   );
 }
 
+/** Prints owns recovery copy; the provider owns classification and F5 the typed action. */
 export function describeGenerationError(cause: unknown): ErrorDescription {
   if (needsGatewayCredits(cause))
     return {
-      title: "Out of AI Gateway credits",
-      message:
-        "This model is paid with Cloudflare AI Gateway credits, and the account has none left. Add credits in the Cloudflare dashboard under AI Gateway, or choose a Workers AI model such as Flux. Nothing was charged.",
+      title: "AI Gateway credits unavailable",
+      message: `Cloudflare AI Gateway couldn't fund this request. Check the account's credits and billing in the Cloudflare dashboard under AI Gateway, or choose a Workers AI model such as Flux.${
+        cause.code === "MEDIA_PROVIDER_FAILURE_UNCHARGED"
+          ? " You weren't charged."
+          : ""
+      }`,
       retryable: false,
     };
   return describeAppError(cause, {
@@ -169,9 +177,17 @@ export function generateActionLabel(model: MediaModel | undefined): string {
 }
 
 /** Missing registry metadata must not relabel a restored attempt as an image. */
-export function generationPendingLabel(model: MediaModel | undefined): string {
+export function generationPendingLabel(
+  model: MediaModel | undefined,
+  elapsedMs?: number,
+  resumed = false,
+): string {
   if (model === undefined) return "Creating media…";
-  return model.kind === "video" ? "Creating video…" : "Creating image…";
+  if (model.kind !== "video") return "Creating image…";
+  if (elapsedMs === undefined)
+    return "Creating video… Videos take about 2 minutes";
+  const seconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  return `Creating video… ${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, "0")} elapsed${resumed ? " since reopening" : ""} · Videos take about 2 minutes`;
 }
 
 /** One size the composer offers: a catalog size or a generic preset. */
@@ -391,7 +407,9 @@ export function resolveReferenceRoles(
 ): readonly MediaReference[] {
   const supported = referenceRolesFor(model);
   if (model?.video == null)
-    return references.map((reference) => ({ path: reference.path }));
+    return references.map(({ path, computerId }) =>
+      computerId === undefined ? { path } : { path, computerId },
+    );
   const chosen = references.map((reference) =>
     reference.role !== undefined && supported.includes(reference.role)
       ? reference.role
@@ -415,7 +433,7 @@ export function resolveReferenceRoles(
       else role = supported.includes("reference") ? "reference" : "first-frame";
       chosen[index] = role;
     }
-    return { path: reference.path, role };
+    return { ...reference, role };
   });
 }
 

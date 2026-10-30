@@ -88,10 +88,20 @@ export function ensurePrintsIndexTables(sql: SqlStorage): void {
       print_id TEXT NOT NULL,
       position INTEGER NOT NULL,
       path TEXT NOT NULL,
+      computer_id TEXT,
       ref_print_id TEXT,
       PRIMARY KEY(print_id, position)
     ) STRICT`,
   );
+  // Existing local indexes retain path-only (selected-Computer) references.
+  // Add the optional selector before accepting cross-Computer generations.
+  if (
+    !sql
+      .exec<{ name: string }>("PRAGMA table_info(print_references)")
+      .toArray()
+      .some((column) => column.name === "computer_id")
+  )
+    sql.exec("ALTER TABLE print_references ADD COLUMN computer_id TEXT");
   sql.exec(
     `CREATE TABLE IF NOT EXISTS print_typed (
       print_id TEXT PRIMARY KEY,
@@ -253,10 +263,11 @@ export function recordCompletedPrint(
   const referencePrintIds = input.references ?? [];
   referencePaths.forEach((reference, position) => {
     sql.exec(
-      "INSERT INTO print_references (print_id,position,path,ref_print_id) VALUES (?,?,?,?)",
+      "INSERT INTO print_references (print_id,position,path,computer_id,ref_print_id) VALUES (?,?,?,?,?)",
       printId,
       position,
       reference.path,
+      reference.computerId ?? null,
       referencePrintIds[position] ?? null,
     );
   });
@@ -296,17 +307,29 @@ export function indexedOutput(
 export function printReferences(
   sql: SqlStorage,
   printId: string,
-): readonly Readonly<{ path: string; printId: string | null }>[] {
+): readonly Readonly<{
+  path: string;
+  computerId?: string;
+  printId: string | null;
+}>[] {
   return sql
-    .exec<{ path: string; ref_print_id: string | null }>(
-      "SELECT path, ref_print_id FROM print_references WHERE print_id=? ORDER BY position",
+    .exec<{
+      path: string;
+      computer_id: string | null;
+      ref_print_id: string | null;
+    }>(
+      "SELECT path, computer_id, ref_print_id FROM print_references WHERE print_id=? ORDER BY position",
       printId,
     )
     .toArray()
-    .map((row) => ({
-      path: text(4096).parse(row.path),
-      printId: text(256).nullable().parse(row.ref_print_id),
-    }));
+    .map((row) => {
+      const reference = {
+        path: text(4096).parse(row.path),
+        printId: text(256).nullable().parse(row.ref_print_id),
+      };
+      if (row.computer_id === null) return reference;
+      return { ...reference, computerId: text(256).parse(row.computer_id) };
+    });
 }
 
 /** Read one indexed output by its file path in this Installation's library. */

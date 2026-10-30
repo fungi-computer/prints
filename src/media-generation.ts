@@ -58,6 +58,8 @@ export type GenerationEffects = {
   reserve: (slot: GallerySlot) => void;
   saved: (record: GenerationRecord, connection: MediaConnection) => void;
   failed: (key: string, message: string) => void;
+  /** One presentation owner for admission, execution and recovery failures. */
+  notifyFailure: (message: string) => void;
 };
 type RecoveryPage = Awaited<ReturnType<typeof listGenerations>>;
 type RecoveryPages = InfiniteData<RecoveryPage, string | null>;
@@ -74,6 +76,7 @@ type Command = {
   characters?: readonly string[] | undefined;
 };
 type Run = Command & {
+  resumed?: boolean;
   session: MediaGenerationSession;
   controller: AbortController;
   recoveryKey: QueryKey;
@@ -155,6 +158,7 @@ export function useMediaGeneration({
     [pending.data],
   );
   const active = useRef(new Map<string, AbortController>());
+  const autoResumed = useRef(new Set<string>());
   const ticket = useRef(0);
   const retry = useRef<Command | null>(null);
   const [admissionError, setAdmissionError] = useState<Extract<
@@ -162,6 +166,23 @@ export function useMediaGeneration({
     { kind: "error" }
   > | null>(null);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const refuseAdmission = (
+    failure: Extract<GenerationState, { kind: "error" }>,
+  ) => {
+    setAdmissionError(failure);
+    callbacks.current.notifyFailure(failure.message);
+  };
+  const failRecovery = (message: string) => {
+    setRecoveryError(message);
+    callbacks.current.notifyFailure(message);
+  };
+  const reportedRecoveryQueryError = useRef<Error | null>(null);
+  useEffect(() => {
+    if (reportedRecoveryQueryError.current === pending.error) return;
+    reportedRecoveryQueryError.current = pending.error;
+    if (pending.error)
+      callbacks.current.notifyFailure(describeAppError(pending.error).message);
+  }, [pending.error]);
   const selected = (command: Command) =>
     current.current === command.connection &&
     command.connection.app.context.get().computerId ===
@@ -212,16 +233,20 @@ export function useMediaGeneration({
     },
     onMutate: (run) => {
       if (!selected(run) || run.controller.signal.aborted) return;
-      callbacks.current.reserve({
+      const model = modelFor(run.session.models, run.input.settings.model);
+      const slot: GallerySlot = {
         key: `${run.reference.computerId}:${run.input.destination.path}`,
         computerId: run.reference.computerId,
         path: run.input.destination.path,
         width: run.draft.width,
         height: run.draft.height,
-        pendingLabel: generationPendingLabel(
-          modelFor(run.session.models, run.input.settings.model),
-        ),
-      });
+        pendingLabel: generationPendingLabel(model),
+      };
+      if (model?.kind === "video") {
+        slot.startedAt = Date.now();
+        slot.resumed = run.resumed === true;
+      }
+      callbacks.current.reserve(slot);
     },
     onSuccess: (record, run) => {
       removeRecord(run.recoveryKey, run.reference.requestId);
@@ -234,10 +259,12 @@ export function useMediaGeneration({
       reportCatchFailure("generate-media", cause);
       if (!selected(run) || run.controller.signal.aborted) return;
       folder.recheck();
+      const message = describeGenerationError(cause).message;
       callbacks.current.failed(
         `${run.reference.computerId}:${run.input.destination.path}`,
-        describeGenerationError(cause).message,
+        message,
       );
+      callbacks.current.notifyFailure(message);
     },
     onSettled: (_result, _cause, run) => {
       if (active.current.get(run.reference.requestId) === run.controller)
@@ -257,7 +284,7 @@ export function useMediaGeneration({
         retry.current = null;
     },
     onError: (cause, run) => {
-      if (selected(run)) setRecoveryError(describeAppError(cause).message);
+      if (selected(run)) failRecovery(describeAppError(cause).message);
     },
     onSettled: (_result, _cause, run) => {
       if (active.current.get(run.reference.requestId) === run.controller)
@@ -272,6 +299,7 @@ export function useMediaGeneration({
   });
   const activeGenerations = new Set(running.filter((id) => id !== undefined));
   useEffect(() => {
+    autoResumed.current.clear();
     setAdmissionError(null);
     setRecoveryError(null);
     retry.current = null;
@@ -313,19 +341,15 @@ export function useMediaGeneration({
       stop();
     };
   }, [app, computerId, connection, client]);
-  const run = (command: Command) => {
+  const run = (command: Command & { resumed?: boolean }) => {
     const id = command.reference.requestId;
     if (active.current.has(id)) return false;
     if (!selected(command)) {
-      setRecoveryError(
-        "Select the original Computer to retry this generation.",
-      );
+      failRecovery("Select the original Computer to retry this generation.");
       return false;
     }
     if (session?.computerId !== command.reference.computerId) {
-      setRecoveryError(
-        "Media access is unavailable for the original Computer.",
-      );
+      failRecovery("Media access is unavailable for the original Computer.");
       return false;
     }
     const controller = new AbortController();
@@ -343,6 +367,31 @@ export function useMediaGeneration({
     });
     return true;
   };
+  useEffect(() => {
+    if (!connection || !session || !pending.isSuccess) return;
+    for (const record of records) {
+      const id = record.reference.requestId;
+      if (
+        autoResumed.current.has(id) ||
+        record.reference.computerId !== computerId ||
+        modelFor(session.models, record.input.settings.model)?.kind !== "video"
+      )
+        continue;
+      if (
+        run({
+          connection,
+          ...record,
+          resumed: true,
+          draft: {
+            ...record.input.settings,
+            references: record.input.settings.references ?? [],
+            destination: record.input.destination.path,
+          },
+        })
+      )
+        autoResumed.current.add(id);
+    }
+  }, [connection, computerId, session, pending.isSuccess, records]);
   const submit = async (draft: GenerationDraft) => {
     if (!connection?.app.capabilities.has(computerWriteFile) || !canGenerate)
       return false;
@@ -353,8 +402,9 @@ export function useMediaGeneration({
     retry.current = null;
     const model = modelFor(models, draft.model);
     if (model === undefined) {
-      setAdmissionError({
+      refuseAdmission({
         kind: "error",
+        mediaKind: null,
         message: "Choose a model from the granted registry.",
       });
       return false;
@@ -363,10 +413,15 @@ export function useMediaGeneration({
       prompt: draft.prompt,
       saved: characters,
       references: draft.references,
+      computerId,
       model: { label: model.label, maxReferences: model.input.maxReferences },
     });
     if (plan.kind === "refused") {
-      setAdmissionError({ kind: "error", message: plan.message });
+      refuseAdmission({
+        kind: "error",
+        mediaKind: model.kind,
+        message: plan.message,
+      });
       return false;
     }
     // The typed prompt with the characters' references; the expanded prompt's
@@ -376,7 +431,11 @@ export function useMediaGeneration({
       model,
     );
     if (invalid) {
-      setAdmissionError({ kind: "error", message: invalid });
+      refuseAdmission({
+        kind: "error",
+        mediaKind: model.kind,
+        message: invalid,
+      });
       return false;
     }
     const style =
@@ -384,8 +443,9 @@ export function useMediaGeneration({
         ? undefined
         : styles.find((entry) => entry.name === draft.style);
     if (draft.style !== undefined && style === undefined) {
-      setAdmissionError({
+      refuseAdmission({
         kind: "error",
+        mediaKind: model.kind,
         message: `The "${draft.style}" style no longer exists. Pick another or none.`,
       });
       return false;
@@ -399,7 +459,11 @@ export function useMediaGeneration({
       characterNames,
     );
     if (tooLong !== undefined) {
-      setAdmissionError({ kind: "error", message: tooLong });
+      refuseAdmission({
+        kind: "error",
+        mediaKind: model.kind,
+        message: tooLong,
+      });
       return false;
     }
     if (!mediaCapability || !session) {
@@ -420,7 +484,11 @@ export function useMediaGeneration({
     try {
       const folderError = await folder.ensureCreated();
       if (folderError) {
-        setAdmissionError({ kind: "error", message: folderError });
+        refuseAdmission({
+          kind: "error",
+          mediaKind: model.kind,
+          message: folderError,
+        });
         return false;
       }
       if (
@@ -437,8 +505,13 @@ export function useMediaGeneration({
         ticket.current === admissionTicket &&
         current.current === captured &&
         captured.app.context.get().computerId === id
-      )
-        setAdmissionError({ kind: "error", ...describeGenerationError(cause) });
+      ) {
+        refuseAdmission({
+          kind: "error",
+          mediaKind: model.kind,
+          ...describeGenerationError(cause),
+        });
+      }
       return false;
     }
     if (
@@ -467,7 +540,13 @@ export function useMediaGeneration({
       ? generate.isPending
         ? { kind: "pending", draft: latest.draft }
         : generate.isError
-          ? { kind: "error", ...describeGenerationError(generate.error) }
+          ? {
+              kind: "error",
+              mediaKind:
+                modelFor(latest.session.models, latest.input.settings.model)
+                  ?.kind ?? null,
+              ...describeGenerationError(generate.error),
+            }
           : { kind: "completed", record: generate.data }
       : null);
   const state: GenerationState =
@@ -497,7 +576,7 @@ export function useMediaGeneration({
       recoveryError ??
       (pending.error ? describeAppError(pending.error).message : null),
     reportRecoveryError: (cause: unknown) => {
-      setRecoveryError(describeAppError(cause).message);
+      failRecovery(describeAppError(cause).message);
     },
     hasMore: pending.hasNextPage,
     loadMore: () => {
@@ -505,9 +584,7 @@ export function useMediaGeneration({
     },
     resume: (record: PendingGeneration) => {
       if (!connection || session?.computerId !== record.reference.computerId) {
-        setRecoveryError(
-          "Select the original Computer to retry this generation.",
-        );
+        failRecovery("Select the original Computer to retry this generation.");
         return;
       }
       run({

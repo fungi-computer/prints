@@ -9,6 +9,9 @@ export type GallerySlot = {
   height: number;
   /** Captured display copy for this reservation, independent of composer edits. */
   pendingLabel?: string;
+  /** Local display clock; reopening does not pretend to know the server start time. */
+  startedAt?: number;
+  resumed?: boolean;
   previewFile?: File;
   resolved?: boolean;
   uploadId?: string;

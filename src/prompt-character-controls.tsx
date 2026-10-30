@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Upload } from "lucide-react";
 import * as Schema from "effect/Schema";
 import { Button } from "@fungi.computer/caps/components/button";
@@ -83,11 +83,31 @@ export function PromptCharactersDialog({
   onDelete: (character: PromptCharacter, done: () => void) => void;
 }): React.JSX.Element {
   const [editing, setEditing] = useState<EditingCharacter | null>(null);
+  const saveHintId = useId();
   const trimmed = editing?.name.trim() ?? "";
-  const nameProblem =
-    trimmed !== "" && !validName(trimmed)
-      ? "Use letters, numbers, - and _ only, so you can type @name."
-      : null;
+  const name = trimmed.startsWith("@") ? trimmed.slice(1) : trimmed;
+  const saveProblems: string[] = [];
+  if (name === "") {
+    saveProblems.push("Enter a character name.");
+  } else if (name.length > CHARACTER_NAME_LIMIT) {
+    saveProblems.push(
+      `Use ${String(CHARACTER_NAME_LIMIT)} characters or fewer for the name.`,
+    );
+  } else if (!validName(name)) {
+    saveProblems.push(
+      "Use only letters, numbers, hyphens (-) and underscores (_).",
+    );
+  }
+  if (editing?.references.length === 0) {
+    saveProblems.push("Select at least one reference image.");
+  }
+  if (busy) {
+    saveProblems.push(
+      "Wait for the current character change to finish, then save.",
+    );
+  }
+  const saveDisabled = saveProblems.length > 0;
+  const describedBy = saveDisabled ? saveHintId : undefined;
   return (
     <Dialog
       open={open}
@@ -163,18 +183,15 @@ export function PromptCharactersDialog({
             <div className="flex flex-col gap-sm">
               <Input
                 aria-label="Character name"
-                maxLength={CHARACTER_NAME_LIMIT}
+                aria-invalid={!validName(name)}
+                aria-describedby={describedBy}
+                maxLength={CHARACTER_NAME_LIMIT + 1}
                 placeholder="Name, typed as @name"
                 value={editing.name}
                 onChange={(event) => {
                   setEditing({ ...editing, name: event.currentTarget.value });
                 }}
               />
-              {nameProblem ? (
-                <p role="alert" className="text-xs">
-                  {nameProblem}
-                </p>
-              ) : null}
               <Textarea
                 aria-label="Character description"
                 maxLength={CHARACTER_DESCRIPTION_LIMIT}
@@ -190,8 +207,8 @@ export function PromptCharactersDialog({
               />
               <div className="flex items-center justify-between gap-sm">
                 <span className="text-xs">
-                  Reference images ({editing.references.length} /{" "}
-                  {MAX_CHARACTER_REFERENCES})
+                  Reference images · {editing.references.length} selected, up to{" "}
+                  {MAX_CHARACTER_REFERENCES}
                 </span>
                 <Button
                   size="xs"
@@ -252,17 +269,23 @@ export function PromptCharactersDialog({
                   })}
                 </ul>
               )}
+              {saveDisabled ? (
+                <p id={saveHintId} role="status" className="text-xs">
+                  {saveProblems.join(" ")}
+                </p>
+              ) : null}
               <div className="flex gap-xs">
                 <Button
                   size="xs"
                   variant="primary"
                   type="button"
-                  disabled={busy || !validName(trimmed)}
+                  disabled={saveDisabled}
+                  aria-describedby={describedBy}
                   onClick={() => {
                     onSave(
                       {
                         id: editing.id,
-                        name: trimmed,
+                        name,
                         description: editing.description.trim(),
                         references: editing.references,
                       },

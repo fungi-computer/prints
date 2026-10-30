@@ -1,4 +1,5 @@
 @import "@fungi.computer/caps/tailwind.css";
 @import "@fungi.computer/parakeet/completion-menu.css";
+@import "@fungi.computer/parakeet/composer-shell.css";
 @import "./media-pane.css";
 @source "./";
