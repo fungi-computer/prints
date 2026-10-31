@@ -18,7 +18,6 @@ export function usePrintNavigation(
   connection: MediaConnection | null,
   load: (
     path: string,
-    action: "add",
     connection: MediaConnection,
     computerId: string,
   ) => Promise<void>,
@@ -89,7 +88,7 @@ export function usePrintNavigation(
     )
       return;
     loaded.current = target;
-    void loadRef.current(target.path, "add", connection, target.computerId);
+    void loadRef.current(target.path, connection, target.computerId);
   }, [connection, lookup.data]);
   return { target: lookup.data ?? null, error: lookup.error };
 }

@@ -1,6 +1,8 @@
 import { usePrintNavigation } from "./print-navigation.js";
 import { PrintInfoDrawer } from "./print-info-drawer.js";
+import { PrintViewer } from "./print-viewer.js";
 import {
+  galleryImageKey,
   useGalleryMedia,
   type GalleryImage,
   type MediaConnection,
@@ -45,7 +47,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { MediaMosaic, type MediaMasonryItem } from "./media-masonry.js";
+import {
+  MediaMosaic,
+  type MediaFocus,
+  type MediaMasonryItem,
+} from "./media-masonry.js";
 import { galleryWithSlots } from "./gallery-slots.js";
 import {
   MediaComposerTextarea,
@@ -890,9 +896,14 @@ export function MediaPane({
     folder.computerId,
   );
   const [infoImage, setInfoImage] = useState<GalleryImage | null>(null);
+  const [viewerKey, setViewerKey] = useState<string | null>(null);
+  const [viewerFocus, setViewerFocus] = useState<MediaFocus>();
+  const viewerCloseSequence = useRef(0);
   useEffect(() => {
     setInfoImage(null);
-  }, [connection, folder.computerId]);
+    setViewerKey(null);
+    setViewerFocus(undefined);
+  }, [connection, folder.computerId, folder.path]);
   const mediaDirectory = folder.path;
   const galleryMedia = useGalleryMedia(connection, folder);
   const {
@@ -908,7 +919,8 @@ export function MediaPane({
     failSlot,
     clearSlotError,
     removeSlot,
-    openComputerFile,
+    addComputerFile,
+    retryFile,
     uploads,
     uploadFiles,
   } = galleryMedia;
@@ -927,11 +939,14 @@ export function MediaPane({
   }, [hasVideoSlot]);
   const printNavigation = usePrintNavigation(
     connection,
-    (path, action, selectedConnection, computerId) => {
+    (path, selectedConnection, computerId) => {
       gallery.refresh();
-      return openComputerFile(path, action, selectedConnection, computerId);
+      return addComputerFile(path, selectedConnection, computerId);
     },
   );
+  useEffect(() => {
+    setViewerFocus(undefined);
+  }, [printNavigation.target?.requestId]);
   const navigationListed = gallery.entries.some(
     (entry) => entry.path === printNavigation.target?.path,
   );
@@ -964,9 +979,8 @@ export function MediaPane({
       notifyFailure: notifyGenerationFailure,
       saved: ({ result }, selectedConnection) => {
         if (canRead)
-          void openComputerFile(
+          void addComputerFile(
             result.destination.path,
-            "add",
             selectedConnection,
             result.destination.computerId,
           );
@@ -1106,31 +1120,23 @@ export function MediaPane({
   // Keep gallery data stable while the composer changes. Actions still use
   // the current connection and operation callbacks when invoked.
   const galleryActions = useRef({
-    openComputerFile,
+    addComputerFile,
     retryPath: generation.retryPath,
     uploads,
   });
   galleryActions.current = {
-    openComputerFile,
+    addComputerFile,
     retryPath: generation.retryPath,
     uploads,
   };
   const selectedImageKey = navigationImage
-    ? navigationImage.source.kind === "computer"
-      ? `${navigationImage.source.computerId}:${navigationImage.source.path}`
-      : navigationImage.file.name
+    ? galleryImageKey(navigationImage)
     : null;
   const items = useMemo<MediaMasonryItem[]>(
     () =>
       images.map((image) => ({
-        key:
-          image.source.kind === "computer"
-            ? `${image.source.computerId}:${image.source.path}`
-            : image.file.name,
-        selected:
-          (image.source.kind === "computer"
-            ? `${image.source.computerId}:${image.source.path}`
-            : image.file.name) === selectedImageKey,
+        key: galleryImageKey(image),
+        selected: galleryImageKey(image) === selectedImageKey,
         path:
           image.source.kind === "computer"
             ? image.source.path
@@ -1179,14 +1185,8 @@ export function MediaPane({
         width: image.width,
         height: image.height,
         onOpen: () => {
-          if (image.source.kind === "computer")
-            void galleryActions.current.openComputerFile(
-              image.source.path,
-              "open",
-              image.source.connection,
-              image.source.computerId,
-            );
-          else window.open(image.url, "_blank", "noopener,noreferrer");
+          setInfoImage(null);
+          setViewerKey(galleryImageKey(image));
         },
       })),
     [images, references, referenceLimit, form, selectedImageKey],
@@ -1202,24 +1202,28 @@ export function MediaPane({
     );
     const rows = listed.map((entry) => {
       const key = `${computerId}:${entry.path}`;
-      return (
-        ready.get(key) ?? {
-          key,
-          path: entry.path,
-          width: 1,
-          height: 1,
-          url: "",
-          pending: true,
-          pendingLabel: "Loading print…",
-          onOpen: () => undefined,
-          onVisible: () => {
-            gallery.loadFile(entry.path);
-          },
-          error: gallery.failures.includes(entry.name)
-            ? "Could not load this print."
-            : undefined,
-        }
-      );
+      const row = ready.get(key) ?? {
+        key,
+        path: entry.path,
+        width: 1,
+        height: 1,
+        url: "",
+        pending: true,
+        pendingLabel: "Loading print…",
+        onOpen: () => undefined,
+        onVisible: () => {
+          gallery.loadFile(entry.path);
+        },
+        error: failed.includes(entry.name)
+          ? "Could not load this print."
+          : undefined,
+      };
+      return {
+        ...row,
+        onRetry: () => {
+          retryFile(entry.path);
+        },
+      };
     });
     const keys = new Set(rows.map((item) => item.key));
     // A navigated output belongs to its directory page, never an appended tail.
@@ -1233,7 +1237,8 @@ export function MediaPane({
     items,
     gallery.entries,
     gallery.loadFile,
-    gallery.failures,
+    retryFile,
+    failed,
     folder.computerId,
     selectedImageKey,
   ]);
@@ -1283,9 +1288,8 @@ export function MediaPane({
                   ) {
                     return;
                   } else if (connectionRef.current) {
-                    void galleryActions.current.openComputerFile(
+                    void galleryActions.current.addComputerFile(
                       slot.path,
-                      "add",
                       connectionRef.current,
                       slot.computerId,
                     );
@@ -1487,6 +1491,52 @@ export function MediaPane({
       ? [{ path: image.source.path, url: image.url }]
       : [],
   );
+  const closeViewer = (lastKey: string) => {
+    setViewerKey(null);
+    viewerCloseSequence.current += 1;
+    setViewerFocus({
+      key: lastKey,
+      requestId: `viewer-close-${String(viewerCloseSequence.current)}`,
+      onFocus: () => undefined,
+    });
+  };
+  const renderPrintInfo = (
+    image: GalleryImage,
+    onClose: () => void,
+    download?: ReactNode,
+  ) => (
+    <PrintInfoDrawer
+      key={image.url}
+      image={image}
+      app={connection?.app ?? null}
+      referenceImages={composerImages}
+      models={models}
+      canAnimate={animateModelFor(models) !== undefined}
+      download={download}
+      onIterate={(action, lineage) => {
+        if (image.source.kind !== "computer") return null;
+        const outcome = iterationDraft(action, {
+          lineage,
+          printComputerId: image.source.computerId,
+          printPath: image.source.path,
+          models,
+          styles: promptStyles.styles.map((entry) => entry.name),
+          current: form.store.state.values,
+        });
+        if (outcome.kind === "refused") return outcome.message;
+        loadDraft(outcome.draft);
+        setIterationNotice(
+          outcome.notice === null
+            ? null
+            : { model: outcome.draft.model, message: outcome.notice },
+        );
+        setInfoImage(null);
+        if (viewerKey !== null) closeViewer(galleryImageKey(image));
+        return null;
+      }}
+      onClose={onClose}
+    />
+  );
   return (
     <main
       className="h-full w-full flex flex-col overflow-hidden"
@@ -1536,15 +1586,18 @@ export function MediaPane({
                 items={wallItems}
                 scrollRef={scrollRef}
                 focus={
-                  navigationImage && printNavigation.target
-                    ? {
-                        key: `${printNavigation.target.computerId}:${printNavigation.target.path}`,
-                        requestId: printNavigation.target.requestId,
-                        onFocus: () => {
-                          setInfoImage(navigationImage);
-                        },
-                      }
-                    : undefined
+                  viewerKey !== null
+                    ? undefined
+                    : (viewerFocus ??
+                      (navigationImage && printNavigation.target
+                        ? {
+                            key: `${printNavigation.target.computerId}:${printNavigation.target.path}`,
+                            requestId: printNavigation.target.requestId,
+                            onFocus: () => {
+                              setInfoImage(navigationImage);
+                            },
+                          }
+                        : undefined))
                 }
               />
             ) : !(loading || gallery.loading) ? (
@@ -1603,40 +1656,21 @@ export function MediaPane({
         {infoImage &&
         (infoImage.source.kind === "local" ||
           (infoImage.source.connection === connection &&
-            infoImage.source.computerId === folder.computerId)) ? (
-          <PrintInfoDrawer
-            key={infoImage.url}
-            image={infoImage}
-            app={connection?.app ?? null}
-            referenceImages={composerImages}
-            models={models}
-            canAnimate={animateModelFor(models) !== undefined}
-            onIterate={(action, lineage) => {
-              if (infoImage.source.kind !== "computer") return null;
-              const outcome = iterationDraft(action, {
-                lineage,
-                printComputerId: infoImage.source.computerId,
-                printPath: infoImage.source.path,
-                models,
-                styles: promptStyles.styles.map((entry) => entry.name),
-                current: form.store.state.values,
-              });
-              if (outcome.kind === "refused") return outcome.message;
-              loadDraft(outcome.draft);
-              setIterationNotice(
-                outcome.notice === null
-                  ? null
-                  : { model: outcome.draft.model, message: outcome.notice },
-              );
+            infoImage.source.computerId === folder.computerId))
+          ? renderPrintInfo(infoImage, () => {
               setInfoImage(null);
-              return null;
-            }}
-            onClose={() => {
-              setInfoImage(null);
-            }}
-          />
-        ) : null}
+            })
+          : null}
       </div>
+      <PrintViewer
+        items={wallItems}
+        images={images}
+        viewerKey={viewerKey}
+        app={connection?.app ?? null}
+        onNavigate={setViewerKey}
+        onClose={closeViewer}
+        renderInfo={(image, onClose) => renderPrintInfo(image, onClose, null)}
+      />
       <div className="prints-composer-dock">
         <section aria-label="Computer uploads" className="prints-uploads">
           <input

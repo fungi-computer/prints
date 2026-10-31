@@ -152,6 +152,13 @@ export function useMediaGallery(
     },
     [computerId],
   );
+  const retryFile = useCallback(
+    (filePath: string) => {
+      loadFile(filePath);
+      void client.resetQueries({ queryKey: galleryKeys.file(app, filePath) });
+    },
+    [app, client, loadFile],
+  );
   const listingOptions = galleryListingQuery(app, path);
   const listing = useInfiniteQuery(listingOptions);
   const entries = useMemo(
@@ -221,6 +228,7 @@ export function useMediaGallery(
   return {
     entries,
     loadFile,
+    retryFile,
     files: files.files,
     failures: files.failures,
     error: listing.error,

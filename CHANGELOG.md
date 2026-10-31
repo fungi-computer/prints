@@ -1,5 +1,29 @@
 # @fungi.computer/prints
 
+## 0.6.0
+
+### Minor Changes
+
+- Changes since 0.5.0:
+
+  - feat(prints): view images at actual size with native scrolling
+  - feat(prints): handle viewer loading, generation and retry
+  - fix(prints): keep interrupted video playback out of the failure state
+  - feat(prints): play videos and permit App fullscreen
+  - feat(prints): open images in a full-window viewer
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/caps@0.6.0
+  - @fungi.computer/darkroom@0.4.1
+  - @fungi.computer/parakeet@0.6.1
+  - @fungi.computer/sigils@0.2.1
+  - @fungi.computer/agar@0.6.1
+
 ## 0.5.0
 
 ### Minor Changes

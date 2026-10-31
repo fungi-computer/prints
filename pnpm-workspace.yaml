@@ -15,6 +15,8 @@ allowBuilds:
   "@parcel/watcher": false
   "@swc/core": false
   better-sqlite3: true
+  bigint-buffer: false
+  bufferutil: false
   bun: true
   core-js: false
   esbuild: true
@@ -29,6 +31,7 @@ allowBuilds:
   tree-sitter-python: true
   tree-sitter-rust: true
   tree-sitter-typescript: true
+  utf-8-validate: false
   workerd: true
 patchedDependencies:
   just-bash@3.4.2: patches/just-bash@3.4.2.patch

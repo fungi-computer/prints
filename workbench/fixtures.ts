@@ -91,7 +91,11 @@ export type Scenario =
   | "gallery-loading"
   | "images-loading"
   | "images-progressive"
-  | "gill-navigate";
+  | "gill-navigate"
+  | "viewer-images"
+  | "viewer-actual-size"
+  | "viewer-video"
+  | "viewer-resumed";
 export type CaptureOptions = {
   onRead?: (path: string) => void;
   imageCopies?: number;
@@ -110,11 +114,22 @@ export type CaptureOptions = {
   computerSelected?: boolean;
   insufficientCredits?: boolean;
   openTeamBilling?: AppRoot["ui"]["openTeamBilling"];
+  requestBrowserAction?: AppRoot["ui"]["requestBrowserAction"];
   /** The window's status bar; a story without a shell drops its items. */
   status?: Pick<AppRoot["ui"], "reportStatus" | "onStatusAction">;
   writeFails?: boolean;
   finishUpload?: () => Promise<void>;
+  /** Keep the real pending UI visible without an unfinishable fake job. */
+  generationDelayMs?: number;
+  finishGeneration?: () => Promise<void>;
+  /** Controlled Computer response availability for loading/error stories. */
+  beforeRead?: (path: string) => Promise<void>;
 };
+async function videoFixture(url: URL): Promise<Blob> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Video fixture unavailable");
+  return response.blob();
+}
 const pause = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
     if (signal.aborted) {
@@ -224,6 +239,69 @@ export function createPrintsFixture(
       );
     }
   }
+  if (
+    scenario === "viewer-images" ||
+    scenario === "viewer-actual-size" ||
+    scenario === "viewer-video" ||
+    scenario === "viewer-resumed"
+  ) {
+    // Browser-native PNG encoding makes Download exercise the real export path.
+    // No network, generated-product claim or handwritten image encoder.
+    const count = scenario === "viewer-images" ? 40 : 3;
+    for (let index = 0; index < count; index += 1) {
+      if (scenario !== "viewer-images" && index === 1) {
+        files.set("/media/print-01.mp4", () =>
+          videoFixture(
+            new URL("./fixtures/viewer-testsrc.mp4", import.meta.url),
+          ),
+        );
+        continue;
+      }
+      const path = `/media/print-${String(index).padStart(2, "0")}.png`;
+      let encoded: Promise<Blob> | undefined;
+      files.set(path, () => {
+        opt.onRead?.(path);
+        return (encoded ??= new Promise<Blob>((resolve, reject) => {
+          const canvas = document.createElement("canvas");
+          const portrait = index % 2 === 1;
+          canvas.width =
+            scenario === "viewer-actual-size" && index === 0
+              ? 2048
+              : portrait
+                ? 600
+                : 1200;
+          canvas.height =
+            scenario === "viewer-actual-size" && index === 0
+              ? 1536
+              : portrait
+                ? 1000
+                : 700;
+          const context = canvas.getContext("2d");
+          if (!context) {
+            reject(new Error("Canvas unavailable"));
+            return;
+          }
+          context.fillStyle = index % 3 === 0 ? "#7ab8a4" : "#edd8ac";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.fillStyle = "#415e65";
+          context.beginPath();
+          context.arc(canvas.width / 2, canvas.height / 2, 180, 0, Math.PI * 2);
+          context.fill();
+          context.fillStyle = "#ffffff";
+          context.font = "48px sans-serif";
+          context.fillText(
+            `Fixture print ${String(index)}`,
+            40,
+            canvas.height - 40,
+          );
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("PNG encoding failed"));
+          }, "image/png");
+        }));
+      });
+    }
+  }
   const capabilities = createCapabilityRegistry();
   const register = capabilities.provide;
   const folders = new Set(scenario === "folder-missing" ? [] : ["/media"]);
@@ -235,6 +313,22 @@ export function createPrintsFixture(
       : opt.folder;
   if (opt.folderExists === false) folders.clear();
   const pendingGenerations = new Map<string, PendingGeneration>();
+  const resumedRequestId = "fixture-resumed-video";
+  if (scenario === "viewer-resumed")
+    pendingGenerations.set(resumedRequestId, {
+      reference: { requestId: resumedRequestId, computerId },
+      input: {
+        destination: { path: "/media/resumed-video.mp4" },
+        settings: {
+          model: "bytedance/seedance-2.0",
+          prompt: "Recovered fixture video",
+          width: 1280,
+          height: 720,
+          durationSeconds: 5,
+        },
+      },
+      typed: { prompt: "Recovered fixture video", references: 0 },
+    });
   const savedStyles: PromptStyle[] = [
     {
       id: 1,
@@ -278,7 +372,8 @@ export function createPrintsFixture(
     });
   register(appMethods, {
     call: (method, input) =>
-      method === "getOutput" && scenario === "studio"
+      method === "getOutput" &&
+      (scenario === "studio" || scenario === "viewer-images")
         ? Promise.resolve({
             print: {
               kind: "image",
@@ -467,6 +562,7 @@ export function createPrintsFixture(
           new RpcStub(
             new (class extends RpcTarget {
               async response() {
+                await opt.beforeRead?.(path);
                 const read = files.get(path);
                 return Object.assign(
                   new Response(read ? await read() : null, {
@@ -541,6 +637,92 @@ export function createPrintsFixture(
     });
   const attempts = new Map<string, MediaGenerationAttemptHandle>();
   const generations = new Map<string, AbortController>();
+  const createFixtureAttempt = (requestId: string) => {
+    const controller = new AbortController();
+    generations.set(requestId, controller);
+    let tries = 0;
+    const attempt: MediaGenerationAttemptHandle = {
+      reference: () => Promise.resolve({ requestId, computerId }),
+      async generate(input) {
+        await opt.finishGeneration?.();
+        await pause(opt.generationDelayMs ?? 1800, controller.signal);
+        tries += 1;
+        if (opt.insufficientCredits)
+          return {
+            kind: "failed",
+            failure: {
+              code: "INSUFFICIENT_CREDIT",
+              message:
+                "Media generation needs Team credits. Add credits in Billing, then retry.",
+              retryable: false,
+            },
+          } satisfies MediaGenerationOutcome;
+        if (opt.fail === "error")
+          return {
+            kind: "failed" as const,
+            failure: {
+              code: "HOST_FAILURE" as const,
+              message: "Fixture: the model rejected this prompt.",
+              retryable: false,
+            },
+          };
+        if (scenario === "retry" && tries === 1)
+          return {
+            kind: "failed" as const,
+            failure: {
+              code: "HOST_FAILURE" as const,
+              message:
+                "Fixture: saving was interrupted. Retry this same generation.",
+              retryable: true,
+            },
+          };
+        const video =
+          listMediaModels().find((model) => model.id === input.settings.model)
+            ?.kind === "video";
+        if (
+          video &&
+          (input.settings.width !== 1280 ||
+            input.settings.height !== 720 ||
+            input.settings.durationSeconds !== 5 ||
+            input.settings.generateAudio === true)
+        )
+          return {
+            kind: "failed" as const,
+            failure: {
+              code: "INVALID_ARGUMENT" as const,
+              message:
+                "The local video fixture supports silent 1280×720 for 5 seconds.",
+              retryable: false,
+            },
+          };
+        const blob = video
+          ? await videoFixture(
+              new URL("./fixtures/viewer-generation.mp4", import.meta.url),
+            )
+          : await photograph(
+              samples[0].photo,
+              input.settings.width,
+              input.settings.height,
+            );
+        files.set(input.destination.path, () => Promise.resolve(blob));
+        return {
+          kind: "succeeded" as const,
+          result: {
+            destination: { computerId, path: input.destination.path },
+            model: input.settings.model,
+            width: input.settings.width,
+            height: input.settings.height,
+            bytes: blob.size,
+            costMilliunits: 0,
+            format: video ? ("mp4" as const) : ("jpeg" as const),
+          },
+        };
+      },
+    };
+    attempts.set(requestId, attempt);
+    return attempt;
+  };
+  if (scenario === "viewer-resumed") createFixtureAttempt(resumedRequestId);
   if (
     scenario !== "unavailable" &&
     opt.mediaGen !== false &&
@@ -571,68 +753,12 @@ export function createPrintsFixture(
         generations.get(reference.requestId)?.abort();
         return Promise.resolve();
       },
-      createAttempt: () => {
-        const requestId = `fixture-generation-${String(attempts.size + 1)}`;
-        const controller = new AbortController();
-        generations.set(requestId, controller);
-        let tries = 0;
-        const attempt: MediaGenerationAttemptHandle = {
-          reference: () => Promise.resolve({ requestId, computerId }),
-          async generate(input) {
-            await pause(1800, controller.signal);
-            tries += 1;
-            if (opt.insufficientCredits)
-              return {
-                kind: "failed",
-                failure: {
-                  code: "INSUFFICIENT_CREDIT",
-                  message:
-                    "Media generation needs Team credits. Add credits in Billing, then retry.",
-                  retryable: false,
-                },
-              } satisfies MediaGenerationOutcome;
-            if (opt.fail === "error")
-              return {
-                kind: "failed" as const,
-                failure: {
-                  code: "HOST_FAILURE" as const,
-                  message: "Fixture: the model rejected this prompt.",
-                  retryable: false,
-                },
-              };
-            if (scenario === "retry" && tries === 1)
-              return {
-                kind: "failed" as const,
-                failure: {
-                  code: "HOST_FAILURE" as const,
-                  message:
-                    "Fixture: saving was interrupted. Retry this same generation.",
-                  retryable: true,
-                },
-              };
-            const blob = await photograph(
-              samples[0].photo,
-              input.settings.width,
-              input.settings.height,
-            );
-            files.set(input.destination.path, () => Promise.resolve(blob));
-            return {
-              kind: "succeeded" as const,
-              result: {
-                destination: { computerId, path: input.destination.path },
-                model: input.settings.model,
-                width: input.settings.width,
-                height: input.settings.height,
-                bytes: blob.size,
-                costMilliunits: 0,
-                format: "jpeg" as const,
-              },
-            };
-          },
-        };
-        attempts.set(requestId, attempt);
-        return Promise.resolve(attempt);
-      },
+      createAttempt: () =>
+        Promise.resolve(
+          createFixtureAttempt(
+            `fixture-generation-${String(attempts.size + 1)}`,
+          ),
+        ),
     });
   const context: ReturnType<AppRoot["context"]["get"]> = {
     computerId: opt.computerSelected === false ? null : computerId,
@@ -664,9 +790,11 @@ export function createPrintsFixture(
       requestAppPermissions: () => Promise.resolve("declined" as const),
       openTeamBilling: opt.openTeamBilling ?? (() => Promise.resolve()),
       requestComputerChoice: () => Promise.reject(new Error("No picker")),
-      requestBrowserAction: () => {
-        throw new Error("Unexpected browser action");
-      },
+      requestBrowserAction:
+        opt.requestBrowserAction ??
+        (() => {
+          throw new Error("Unexpected browser action");
+        }),
       openDesktopSettings: () => Promise.resolve(),
       reportAgentSessionSelection: () => Promise.resolve(),
       showToast: () => Promise.resolve(),

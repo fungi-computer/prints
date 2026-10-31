@@ -27,6 +27,23 @@ export type GallerySource =
 
 export type GalleryImage = LocalImage & { source: GallerySource };
 
+/** Gallery identity survives replacement of the file bytes and blob URL. */
+export function galleryImageKey(image: GalleryImage): string {
+  return image.source.kind === "computer"
+    ? `${image.source.computerId}:${image.source.path}`
+    : image.file.name;
+}
+
+/** Editing is an explicit viewer action, not a side effect of selecting a tile. */
+export function openInInkcap(
+  source: Extract<GallerySource, { kind: "computer" }>,
+): Promise<void> {
+  return source.connection.app.ui.openNavigation({
+    computerId: source.computerId,
+    path: source.path,
+  });
+}
+
 export function useGalleryMedia(
   connection: MediaConnection | null,
   folder: ReturnType<typeof useMediaFolder>,
@@ -142,95 +159,97 @@ export function useGalleryMedia(
     setGallerySlots([]);
     setFiles((current) => current.filter((source) => source.kind === "local"));
   }, [computerId]);
-  const openComputerFile = async (
-    path: string,
-    action: "add" | "open",
-    selectedConnection: MediaConnection,
-    selectedComputerId?: string,
-  ) => {
-    const capturedComputerId =
-      selectedComputerId ?? selectedConnection.app.context.get().computerId;
-    if (!capturedComputerId) {
-      setFailed(["The selected Computer is unavailable"]);
-      return;
-    }
-    if (action === "open") {
-      try {
-        // Navigation belongs to the current shell. The captured Computer ID
-        // remains the request payload even if this Media connection changed.
-        const navigation = connectionRef.current ?? selectedConnection;
-        await navigation.app.ui.openNavigation({
-          computerId: capturedComputerId,
-          path,
-        });
-      } catch (cause) {
-        reportCatchFailure("open-computer-file", cause);
-        setFailed([`Could not open ${path} in Inkcap`]);
-      }
-      return;
-    }
-    if (connectionRef.current !== selectedConnection) {
-      setFailed(["Computer selection changed"]);
-      return;
-    }
-    if (
-      selectedConnection.app.context.get().computerId !== capturedComputerId
-    ) {
-      setFailed(["Computer selection changed before the preview was loaded"]);
-      return;
-    }
-    const captured = readGeneration.current;
-    const controller = new AbortController();
-    reads.current.add(controller);
-    try {
-      const file = await readComputerFile(
-        selectedConnection.app.capabilities,
-        { path },
-        { signal: controller.signal },
-      );
-      if (controller.signal.aborted || captured !== readGeneration.current)
+  const addComputerFile = useCallback(
+    async (
+      path: string,
+      selectedConnection: MediaConnection,
+      selectedComputerId?: string,
+    ) => {
+      const capturedComputerId =
+        selectedComputerId ?? selectedConnection.app.context.get().computerId;
+      if (!capturedComputerId) {
+        setFailed(["The selected Computer is unavailable"]);
         return;
-      setGallerySlots((slots) =>
-        slots.map((slot) =>
-          slot.key === `${capturedComputerId}:${path}`
-            ? { ...slot, previewFile: file }
-            : slot,
-        ),
-      );
-      setFiles((current) => [
-        ...current.filter(
-          (entry) =>
-            entry.kind !== "computer" ||
-            entry.path !== path ||
-            entry.computerId !== capturedComputerId,
-        ),
-        {
-          kind: "computer",
-          computerId: capturedComputerId,
-          file,
-          path,
-          connection: selectedConnection,
-        },
-      ]);
-    } catch (cause) {
-      if (!controller.signal.aborted) {
-        reportCatchFailure("read-computer-file", cause);
-        setFailed([`Could not read ${path}`]);
+      }
+      if (connectionRef.current !== selectedConnection) {
+        setFailed(["Computer selection changed"]);
+        return;
+      }
+      if (
+        selectedConnection.app.context.get().computerId !== capturedComputerId
+      ) {
+        setFailed(["Computer selection changed before the preview was loaded"]);
+        return;
+      }
+      const captured = readGeneration.current;
+      const controller = new AbortController();
+      reads.current.add(controller);
+      try {
+        const file = await readComputerFile(
+          selectedConnection.app.capabilities,
+          { path },
+          { signal: controller.signal },
+        );
+        if (controller.signal.aborted || captured !== readGeneration.current)
+          return;
         setGallerySlots((slots) =>
           slots.map((slot) =>
             slot.key === `${capturedComputerId}:${path}`
-              ? {
-                  ...slot,
-                  error: "Saved; preview unavailable. Retry loading it.",
-                }
+              ? { ...slot, previewFile: file }
               : slot,
           ),
         );
+        setFiles((current) => [
+          ...current.filter(
+            (entry) =>
+              entry.kind !== "computer" ||
+              entry.path !== path ||
+              entry.computerId !== capturedComputerId,
+          ),
+          {
+            kind: "computer",
+            computerId: capturedComputerId,
+            file,
+            path,
+            connection: selectedConnection,
+          },
+        ]);
+      } catch (cause) {
+        if (!controller.signal.aborted) {
+          reportCatchFailure("read-computer-file", cause);
+          setFailed([`Could not read ${path}`]);
+          setGallerySlots((slots) =>
+            slots.map((slot) =>
+              slot.key === `${capturedComputerId}:${path}`
+                ? {
+                    ...slot,
+                    error: "Saved; preview unavailable. Retry loading it.",
+                  }
+                : slot,
+            ),
+          );
+        }
+      } finally {
+        reads.current.delete(controller);
       }
-    } finally {
-      reads.current.delete(controller);
-    }
-  };
+    },
+    [],
+  );
+  const retryFile = useCallback(
+    (path: string) => {
+      const added = files.find(
+        (source) =>
+          source.kind === "computer" &&
+          source.connection === connection &&
+          source.computerId === computerId &&
+          source.path === path,
+      );
+      if (added?.kind === "computer")
+        void addComputerFile(path, added.connection, added.computerId);
+      else gallery.retryFile(path);
+    },
+    [files, connection, computerId, addComputerFile, gallery.retryFile],
+  );
 
   const ownedUrls = useRef(new Set<string>());
   const displayedUrls = useRef(new Set<string>());
@@ -350,7 +369,7 @@ export function useGalleryMedia(
           ? current
           : null;
       if (selected) {
-        await openComputerFile(path, "add", selected, computerId);
+        await addComputerFile(path, selected, computerId);
       }
     },
     (upload) => {
@@ -410,7 +429,8 @@ export function useGalleryMedia(
     canRead,
     canWrite,
     reserveSlot,
-    openComputerFile,
+    addComputerFile,
+    retryFile,
     uploads,
     uploadFiles,
     failSlot: (key: string, error: string) => {

@@ -18,12 +18,28 @@ Container.
   otherwise, MP4 for video.
 - Add your own images as style references, on models that accept them.
 - Upload files into the same folder, or choose another folder for the gallery.
-- Browse the gallery newest first, open a picture in
-  [Inkcap](https://github.com/fungi-computer/inkcap), or open its **Image info**
-  panel (press **I**).
-- **Download** an image from Image info. The download drops the prompt and
-  lineage and keeps the AI marker and the print's id; the file on the Computer
-  stays as it is.
+- Browse the gallery newest first. Click a picture to see it fitted inside
+  Prints; **Left** and **Right** step through the loaded wall, and **Esc**
+  returns to the last-viewed tile. **Open in Inkcap** is an explicit editing
+  action for files on a Computer.
+- Open a video to play with sound and native playback controls; stepping away
+  stops it. If the browser refuses autoplay, press Play. Video-focused arrow
+  keys seek rather than changing prints. Hub and Oyster permit App-window
+  fullscreen.
+- Step into a loading file or a pending generation without leaving the viewer.
+  Video jobs show their live elapsed time; a video that finishes while you are
+  watching its placeholder stays paused. A fresh visit to the ready video plays
+  it. Retry a failed file read/preview or retry and dismiss a failed job in
+  place. Changing the folder, Computer or connection closes the viewer.
+- Open **Image info** in the viewer or from a focused gallery tile (press
+  **I**).
+- Toggle **Actual size** to see an image at its natural pixel dimensions. Scroll
+  the image with the browser's native scrolling; focused scroll-viewport arrows
+  pan instead of stepping prints. Toggle it off to fit again. Stepping to
+  another print or reopening the viewer starts fitted.
+- **Download** an image from the viewer or Image info. The download drops the
+  prompt and lineage and keeps the AI marker and the print's id; the file on the
+  Computer stays as it is.
 - Retry a failed attempt from its tile or from **Activity**, the key in the
   window's status bar. A retry resumes the same attempt instead of generating
   again, and **Resume** picks up an unfinished image after a reload.

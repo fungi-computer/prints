@@ -270,6 +270,19 @@ span.prints-reference-role {
   align-items: stretch;
   gap: var(--spacing-md);
 }
+.prints-viewer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+  --caps-keycap-width: auto;
+  --caps-keycap-justify: center;
+}
+.prints-viewer-actions > [role="alert"] {
+  flex-basis: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 @container (max-width: 40rem) {
   .prints-info-drawer {
     position: absolute;

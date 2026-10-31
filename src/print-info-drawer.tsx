@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type {
-  AppRoot,
-  AppBrowserAction,
-  AppBrowserActionOutcome,
-} from "@fungi.computer/agar";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import type { AppRoot } from "@fungi.computer/agar";
+import { useQuery } from "@tanstack/react-query";
 import { capabilityQuery, queryKeys } from "@fungi.computer/agar/query";
 import { appMethods } from "@fungi.computer/agar/backend";
 import * as z from "zod";
@@ -14,7 +10,7 @@ import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Surface } from "@fungi.computer/caps/components/surface";
 import { DataList, DataRow } from "@fungi.computer/caps/components/data-list";
 import { Sigil, type SigilName } from "@fungi.computer/sigils";
-import { Clapperboard, Download, RotateCcw, Shuffle, X } from "lucide-react";
+import { Clapperboard, RotateCcw, Shuffle, X } from "lucide-react";
 import type { Iteration, PrintLineage } from "./print-iteration.js";
 import {
   isReferenceOnComputer,
@@ -22,13 +18,8 @@ import {
   modelName,
   type MediaModel,
 } from "./generation-model.js";
-import type { GalleryImage, GallerySource } from "./media-gallery.js";
-import {
-  preparePrintDownload,
-  describePrintDownloadError,
-  describePrintDownloadRefusal,
-} from "./prints-download.js";
-import { reportCatchFailure } from "./log-event.js";
+import type { GalleryImage } from "./media-gallery.js";
+import { PrintDownloadButton } from "./print-download-button.js";
 
 // Only the generation facts the drawer shows; getOutput's owner validates the rest.
 const outputDetailsSchema = z.object({
@@ -97,93 +88,6 @@ function useOutputDetails(image: GalleryImage, app: AppRoot | null) {
   });
 }
 
-function usePrintDownload(source: GallerySource, app: AppRoot | null) {
-  const active = useRef<AbortController | null>(null);
-  const preparation = useMutation({
-    gcTime: 0,
-    mutationFn: async (controller: AbortController) => {
-      const file = await preparePrintDownload(source, controller.signal);
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      controller.signal.throwIfAborted();
-      return {
-        kind: "saveFile",
-        name: file.name,
-        mime: file.type,
-        bytes,
-      } satisfies AppBrowserAction;
-    },
-    onError: (cause, controller) => {
-      if (!controller.signal.aborted)
-        reportCatchFailure("prepare-print-download", cause);
-    },
-  });
-  const { mutate: prepare, reset } = preparation;
-  useEffect(() => {
-    const controller = new AbortController();
-    active.current = controller;
-    const cancel = () => {
-      controller.abort();
-      reset();
-    };
-    const context = app?.context.subscribe((value) => {
-      if (source.kind === "computer" && value.computerId !== source.computerId)
-        cancel();
-    });
-    const lifecycle = app?.lifecycle.subscribe((state) => {
-      if (
-        state === "disconnected" ||
-        state === "disposing" ||
-        state === "disposed"
-      )
-        cancel();
-    });
-    prepare(controller);
-    return () => {
-      context?.();
-      lifecycle?.();
-      controller.abort();
-      if (active.current === controller) active.current = null;
-    };
-  }, [source, app, prepare, reset]);
-  const download = useMutation({
-    gcTime: 0,
-    mutationFn: (outcome: Promise<AppBrowserActionOutcome>) => outcome,
-    onError: (cause) => {
-      reportCatchFailure("download-print", cause);
-    },
-  });
-  const cause = preparation.error ?? download.error;
-  const failure = cause
-    ? describePrintDownloadError(cause)
-    : download.data?.kind === "refused"
-      ? describePrintDownloadRefusal(download.data)
-      : null;
-  const preparing = preparation.isIdle || preparation.isPending;
-  return {
-    preparing,
-    isPending: download.isPending,
-    disabled: !preparation.data || download.isPending,
-    failure,
-    start: () => {
-      if (
-        preparation.data &&
-        !download.isPending &&
-        !active.current?.signal.aborted
-      ) {
-        // Start the prepared host request in the click, before mutation
-        // bookkeeping can yield or disable the focused button.
-        const outcome = app
-          ? app.ui.requestBrowserAction(preparation.data)
-          : Promise.resolve<AppBrowserActionOutcome>({
-              kind: "refused",
-              reason: "unavailable",
-            });
-        download.mutate(outcome);
-      }
-    },
-  };
-}
-
 /** One fact row: a fixed label column (Sigil and name) and a wrapping value. */
 function Fact({
   sigil,
@@ -223,6 +127,7 @@ const fileNameTail = 10;
 export function PrintInfoDrawer({
   image,
   app,
+  download = <PrintDownloadButton source={image.source} app={app} />,
   referenceImages,
   models,
   canAnimate,
@@ -231,6 +136,8 @@ export function PrintInfoDrawer({
 }: {
   image: GalleryImage;
   app: AppRoot | null;
+  /** A viewer can place Download outside this panel; null leaves it out here. */
+  download?: ReactNode;
   /** Gallery images by path, for the reference thumbnails. */
   referenceImages: readonly { path: string; url: string }[];
   /** The granted catalog, for the recorded model's display name. */
@@ -243,8 +150,6 @@ export function PrintInfoDrawer({
 }) {
   const [refusal, setRefusal] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const download = usePrintDownload(image.source, app);
-  const failure = download.failure;
   const style = useQuery(
     printStyleQuery(
       app,
@@ -390,29 +295,11 @@ export function PrintInfoDrawer({
             ) : null}
           </>
         ) : null}
-        <KeycapButton
-          label="Download"
-          icon={<Download />}
-          title={
-            download.preparing
-              ? "Preparing download…"
-              : download.isPending
-                ? "Downloading…"
-                : undefined
-          }
-          onClick={download.start}
-          disabled={download.disabled}
-          aria-busy={download.preparing || download.isPending}
-        />
+        {download}
       </div>
       {refusal ? (
         <p role="alert" className="text-sm">
           {refusal}
-        </p>
-      ) : null}
-      {failure ? (
-        <p role="alert" className="text-sm">
-          {failure.title}. {failure.message}
         </p>
       ) : null}
     </Surface>
