@@ -38,43 +38,38 @@ import {
   computerWriteFile,
 } from "@fungi.computer/agar/computer";
 import { listMediaModels } from "@fungi.computer/darkroom";
+import { mediaShare, type MediaShareStatus } from "@fungi.computer/agar/media";
 import { RpcStub, RpcTarget } from "@fungi.computer/capnweb";
 
-// Unsplash sample photography. Workbench-only; never a product gallery or generated output claim.
+// Locally painted samples. Workbench-only; never a product gallery or generated output claim.
 const samples = [
   {
     name: "alpine-lake",
-    photo: "photo-1464822759023-fed622ff2c3b",
     width: 960,
     height: 640,
   },
   {
     name: "forest-light",
-    photo: "photo-1441974231531-c6227db76b6e",
     width: 640,
     height: 900,
   },
   {
     name: "coast",
-    photo: "photo-1476514525535-07fb3b4ae5f1",
     width: 960,
     height: 640,
   },
   {
     name: "desert",
-    photo: "photo-1509316785289-025f5b846b35",
     width: 720,
     height: 900,
   },
   {
     name: "night-sky",
-    photo: "photo-1462331940025-496dfbfc7564",
     width: 960,
     height: 640,
   },
   {
     name: "mountain-air",
-    photo: "photo-1454496522488-7a8e488e8606",
     width: 720,
     height: 900,
   },
@@ -108,6 +103,8 @@ export type CaptureOptions = {
   canGenerate?: boolean;
   writable?: boolean;
   mediaGen?: boolean;
+  /** False leaves the App without public links, as on a standalone host. */
+  mediaShare?: boolean;
   fail?: "error" | null;
   pending?: boolean;
   modelsError?: boolean;
@@ -150,16 +147,19 @@ const pause = (ms: number, signal: AbortSignal) =>
     };
     signal.addEventListener("abort", abort, { once: true });
   });
-async function photograph(
-  photo: string,
-  width: number,
-  height: number,
-): Promise<Blob> {
-  const response = await fetch(
-    `https://images.unsplash.com/${photo}?fit=crop&w=${String(width)}&h=${String(height)}&q=80&fm=jpg`,
+/** Draw a deterministic sample locally so the workbench needs no network. */
+function photograph(name: string, width: number, height: number): Blob {
+  let hue = 0;
+  for (const character of name)
+    hue = (hue * 31 + character.charCodeAt(0)) % 360;
+  const from = `hsl(${String(hue)} 60% 38%)`;
+  const to = `hsl(${String((hue + 70) % 360)} 70% 68%)`;
+  return new Blob(
+    [
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${String(width)}" height="${String(height)}" viewBox="0 0 ${String(width)} ${String(height)}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/></svg>`,
+    ],
+    { type: "image/svg+xml" },
   );
-  if (!response.ok) throw new Error("Unsplash sample could not be loaded");
-  return response.blob();
 }
 
 const outputPathRequest = z.object({ path: z.string() });
@@ -182,14 +182,10 @@ export function createPrintsFixture(
       return Promise.resolve({ keys: merged });
     });
   const files = new Map<string, () => Promise<Blob>>();
-  // Release the initial sample set together so network timing is not layout data.
-  let photographs: Promise<Blob[]> | undefined;
-  const readPhotographs = () =>
-    (photographs ??= Promise.all(
-      samples.map((sample) =>
-        photograph(sample.photo, sample.width, sample.height),
-      ),
-    ));
+  const photographs = samples.map((sample) =>
+    photograph(sample.name, sample.width, sample.height),
+  );
+  const readPhotographs = () => Promise.resolve(photographs);
   if (
     scenario === "studio" ||
     scenario === "retry" ||
@@ -376,6 +372,8 @@ export function createPrintsFixture(
       (scenario === "studio" || scenario === "viewer-images")
         ? Promise.resolve({
             print: {
+              printId: "fixture-print-mira",
+              source: "recorded",
               kind: "image",
               model: "openai/gpt-image-2",
               width: 1024,
@@ -699,8 +697,8 @@ export function createPrintsFixture(
           ? await videoFixture(
               new URL("./fixtures/viewer-generation.mp4", import.meta.url),
             )
-          : await photograph(
-              samples[0].photo,
+          : photograph(
+              samples[0].name,
               input.settings.width,
               input.settings.height,
             );
@@ -759,6 +757,26 @@ export function createPrintsFixture(
             `fixture-generation-${String(attempts.size + 1)}`,
           ),
         ),
+    });
+  // Public links: one live share per Print, off until turned on.
+  const shares = new Map<string, MediaShareStatus>();
+  if (scenario !== "unavailable" && opt.mediaShare !== false)
+    register(mediaShare, {
+      status: (requestId) =>
+        Promise.resolve(shares.get(requestId) ?? { shared: false }),
+      share: ({ requestId, showPrompt }) => {
+        const live = shares.get(requestId) ?? {
+          shared: true as const,
+          url: `https://fungi.computer/p/${String(shares.size + 1).padStart(22, "x")}`,
+          showPrompt,
+        };
+        shares.set(requestId, live);
+        return Promise.resolve(live);
+      },
+      stop: (requestId) => {
+        shares.delete(requestId);
+        return Promise.resolve({ shared: false as const });
+      },
     });
   const context: ReturnType<AppRoot["context"]["get"]> = {
     computerId: opt.computerSelected === false ? null : computerId,

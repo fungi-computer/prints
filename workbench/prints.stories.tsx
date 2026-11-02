@@ -67,11 +67,8 @@ function Workbench({
   return (
     <div className="prints-study" data-image-reads={imageReads}>
       <div className="prints-study-note">
-        Real Prints UI · local fixture ·{" "}
-        <a href="https://unsplash.com" target="_blank" rel="noreferrer">
-          Unsplash
-        </a>{" "}
-        samples, not AI output · no generation charges.
+        Real Prints UI · local fixture · painted samples, not AI output · no
+        generation charges.
         {navigation ? (
           <output> Open in editor requested: {navigation}</output>
         ) : null}

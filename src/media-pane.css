@@ -398,3 +398,19 @@ span.prints-reference-role {
   top: var(--spacing-xs);
   right: var(--spacing-xs);
 }
+
+/* Share rows: the switch, then its readout or key, on one line, with the
+   label centred on the switch. */
+.prints-info-facts > .list-row:has(> .prints-share-value) {
+  align-items: center;
+}
+.prints-share-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+.prints-share-note {
+  color: var(--stipe-fg-muted);
+  font-size: var(--text-xs);
+}

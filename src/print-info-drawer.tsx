@@ -20,10 +20,14 @@ import {
 } from "./generation-model.js";
 import type { GalleryImage } from "./media-gallery.js";
 import { PrintDownloadButton } from "./print-download-button.js";
+import { PrintShareRows } from "./print-share.js";
+import { mediaShare } from "@fungi.computer/agar/media";
 
 // Only the generation facts the drawer shows; getOutput's owner validates the rest.
 const outputDetailsSchema = z.object({
   print: z.object({
+    printId: z.string(),
+    source: z.enum(["recorded", "file"]),
     kind: z.enum(["image", "video"]),
     model: z.string(),
     width: z.number().nullable(),
@@ -258,6 +262,11 @@ export function PrintInfoDrawer({
           <Fact sigil="schedule" label="Made">
             {madeAt.format(details.print.createdAt)}
           </Fact>
+        ) : null}
+        {app &&
+        details?.print.source === "recorded" &&
+        app.capabilities.has(mediaShare) ? (
+          <PrintShareRows app={app} printId={details.print.printId} />
         ) : null}
       </DataList>
       <div

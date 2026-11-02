@@ -1,5 +1,26 @@
 # @fungi.computer/prints
 
+## 0.8.0
+
+### Minor Changes
+
+- Changes since 0.7.0:
+
+  - feat(prints): share one Print with a public, read-only link
+  - fix(prints): draw workbench samples as SVG so unit tests need no canvas
+  - fix(tourtois): workbench proof follows the 32px bar, phone switcher and
+    offline samples
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.7.0
+  - @fungi.computer/caps@0.7.0
+  - @fungi.computer/darkroom@0.5.0
+  - @fungi.computer/parakeet@0.7.1
+
 ## 0.7.0
 
 ### Minor Changes
