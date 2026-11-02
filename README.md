@@ -22,6 +22,9 @@ Container.
   Prints; **Left** and **Right** step through the loaded wall, and **Esc**
   returns to the last-viewed tile. **Open in Inkcap** is an explicit editing
   action for files on a Computer.
+- **Open output** from an Agent or a recent-output row opens that same viewer. A
+  new open request selects its output even while you are viewing another print;
+  **Image info** remains an explicit action.
 - Open a video to play with sound and native playback controls; stepping away
   stops it. If the browser refuses autoplay, press Play. Video-focused arrow
   keys seek rather than changing prints. Hub and Oyster permit App-window

@@ -42,6 +42,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -944,9 +945,14 @@ export function MediaPane({
       return addComputerFile(path, selectedConnection, computerId);
     },
   );
-  useEffect(() => {
+  useLayoutEffect(() => {
     setViewerFocus(undefined);
-  }, [printNavigation.target?.requestId]);
+    if (printNavigation.target) {
+      // Reset before Mosaic's passive focus callback opens a cached output.
+      setInfoImage(null);
+      setViewerKey(null);
+    }
+  }, [printNavigation.target]);
   const navigationListed = gallery.entries.some(
     (entry) => entry.path === printNavigation.target?.path,
   );
@@ -1594,7 +1600,8 @@ export function MediaPane({
                             key: `${printNavigation.target.computerId}:${printNavigation.target.path}`,
                             requestId: printNavigation.target.requestId,
                             onFocus: () => {
-                              setInfoImage(navigationImage);
+                              setInfoImage(null);
+                              setViewerKey(galleryImageKey(navigationImage));
                             },
                           }
                         : undefined))

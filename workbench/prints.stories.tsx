@@ -194,9 +194,10 @@ export const ImagesProgressive = () => (
 
 /** A host navigate request selects an output beyond the first directory page. */
 export function GillNavigate() {
+  const [navigation, setNavigation] = useState("");
   const [client] = useState(createQueryClient);
   const [fixture] = useState(() => {
-    const app = createPrintsFixture("gill-navigate", () => undefined);
+    const app = createPrintsFixture("gill-navigate", setNavigation);
     let context = app.context.get();
     const listeners = new Set<(value: typeof context) => void>();
     return {
@@ -240,6 +241,9 @@ export function GillNavigate() {
           Open fixture Gill output
         </button>{" "}
         · Local fixture, no generation charges.
+        {navigation ? (
+          <output> Open in editor requested: {navigation}</output>
+        ) : null}
       </div>
       <div className="prints-study-surface">
         <QueryClientProvider client={client}>

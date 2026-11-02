@@ -1,5 +1,21 @@
 # @fungi.computer/prints
 
+## 0.7.0
+
+### Minor Changes
+
+- Changes since 0.6.1:
+
+  - feat(prints): open agent outputs in the viewer
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/parakeet@0.7.0
+  - @fungi.computer/sigils@0.3.0
+  - @fungi.computer/caps@0.6.0
+
 ## 0.6.1
 
 ### Patch Changes
