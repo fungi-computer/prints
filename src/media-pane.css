@@ -48,6 +48,8 @@ body,
 .prints-gallery-tile {
   position: relative;
   height: 100%;
+  /* Hover tools' glyph ink must not widen the scroll viewport's content. */
+  overflow: clip;
 }
 .prints-gallery-tools {
   position: absolute;

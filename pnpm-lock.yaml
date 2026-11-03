@@ -21,23 +21,23 @@ importers:
   .:
     dependencies:
       '@fungi.computer/agar':
-        specifier: 0.7.0
-        version: 0.7.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+        specifier: 0.7.1
+        version: 0.7.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
       '@fungi.computer/cairn':
         specifier: 0.1.0
         version: 0.1.0
       '@fungi.computer/caps':
-        specifier: 0.7.0
-        version: 0.7.0(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.3)(effect@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@fungi.computer/darkroom':
-        specifier: 0.5.0
-        version: 0.5.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
-      '@fungi.computer/gills':
-        specifier: 0.2.0
-        version: 0.2.0
-      '@fungi.computer/parakeet':
         specifier: 0.7.1
-        version: 0.7.1(@aws-sdk/credential-provider-node@3.972.92)(@babel/core@7.29.7)(@babel/template@7.29.7)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/query-core@5.102.8)(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(@types/react@18.3.3)(effect@4.0.2)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
+        version: 0.7.1(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.3)(effect@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@fungi.computer/darkroom':
+        specifier: 0.5.1
+        version: 0.5.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@fungi.computer/gills':
+        specifier: 0.2.1
+        version: 0.2.1
+      '@fungi.computer/parakeet':
+        specifier: 0.7.2
+        version: 0.7.2(@aws-sdk/credential-provider-node@3.972.92)(@babel/core@7.29.7)(@babel/template@7.29.7)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/query-core@5.102.8)(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(@types/react@18.3.3)(effect@4.0.2)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
       '@fungi.computer/sigils':
         specifier: 0.3.0
         version: 0.3.0(react@18.3.1)
@@ -79,11 +79,11 @@ importers:
         specifier: 0.12.0
         version: 0.12.0
       '@fungi.computer/oyster':
-        specifier: 0.9.0
-        version: 0.9.0(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@pnpm/logger@1100.0.0)(@smithy/signature-v4@5.7.5)(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(@types/react@18.3.3)(debug@4.4.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
+        specifier: 0.10.0
+        version: 0.10.0(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@pnpm/logger@1100.0.0)(@smithy/signature-v4@5.7.5)(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(@types/react@18.3.3)(debug@4.4.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
       '@fungi.computer/puffball':
-        specifier: 0.5.0
-        version: 0.5.0
+        specifier: 0.5.1
+        version: 0.5.1
       '@ladle/react':
         specifier: 5.1.1
         version: 5.1.1(@types/node@24.13.3)(@types/react@18.3.3)(jiti@2.7.0)(lightningcss@1.33.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tsx@4.23.12)(typescript@5.9.3)(yaml@2.9.1)
@@ -317,8 +317,8 @@ packages:
     resolution: {integrity: sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/runtime@8.0.10':
-    resolution: {integrity: sha512-0QyWQOIhl2onOgg96BuOYV+oCgLINVDPC8RkVPCiQhLILVqpefDUmcY+aAsW6vp7fcuTZL6SXXlFrSDCTFIu1w==}
+  '@babel/runtime@8.1.0':
+    resolution: {integrity: sha512-MQye/pU7gzXerMzlhScFNH1u4Je6rR8cqJWSgAfD+rIwbbtwG8tVDegoI7sWfcXkfVRW09G7vk2vjxGIuKFfwg==}
 
   '@babel/template@7.29.7':
     resolution: {integrity: sha512-puq+Gf35oI24FeN11LkoUQFqv9uwNeWpxXZi/Ji3rRIoKAzKnxRaZ+Gkj0vKS9ZCiTESfng1N9LyOyXvo+m+Gg==}
@@ -812,8 +812,8 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
-  '@fungi.computer/agar@0.7.0':
-    resolution: {integrity: sha512-dWq3Vl2f7wOCOcmFgiDH7w+lZPcc5mkbGU+gU2G8IvwSi8FeHYMhxjeOYKKah4F04wf3/b9Hv372hm7qxqH0PQ==}
+  '@fungi.computer/agar@0.7.1':
+    resolution: {integrity: sha512-g8L9WepZM2RvSXeJtOJwrKWly8zNkYG19eYZfgn/2sVihEXf6p+Bg+9e19m8pUh1Ttg+Sm4FIO6IYYemUjqOpg==}
     engines: {node: '>=24.0.0'}
     peerDependencies:
       '@tanstack/react-query': ^5.102.8
@@ -825,21 +825,21 @@ packages:
       react-dom:
         optional: true
 
-  '@fungi.computer/almanac@0.2.0':
-    resolution: {integrity: sha512-LAnRq/Xiothrdh49jZhp6SPfTHOQinK8SrtDQd9SicdRsAsUvueU0f4/xAA2xJNwQlBgTKCRjT6KLycFxFhpqw==}
+  '@fungi.computer/almanac@0.2.1':
+    resolution: {integrity: sha512-+tF1qsFtA7EcdBNppKTkwhdmsOGxo24mhunHr8N5gDANY91HioYXVt3p0gl364oauMccvfSXeRT2PdAzlqLElQ==}
     engines: {node: '>=24.0.0'}
 
   '@fungi.computer/approvals@0.2.0':
     resolution: {integrity: sha512-daK4+QQYZRAsjtQZPrVZ0zG88s3FgdWchRUo+Ue3V+pLzmYbxCpN6PvPqcFLvgXeC+5nM2DRWeQR/doLQz+8SA==}
 
-  '@fungi.computer/bird-dog@0.3.1':
-    resolution: {integrity: sha512-mcyAUAApoo4jTjnu1c1o/OTHKypI/Pm/ReSGrGD+ANVf47Nsli/RPHOTsX2EO1RHgCW4+JiFlHx03JrHMkyx0g==}
+  '@fungi.computer/bird-dog@0.3.2':
+    resolution: {integrity: sha512-29ZFMI8xY1CH0D7fOf49+VkRwWalfrA9AWMXHhEfBPhxtt1Ty2zJkMXesXhU9bDUIZXArr7yVzWcH5MkGHRbrw==}
 
-  '@fungi.computer/braid@0.4.2':
-    resolution: {integrity: sha512-C90r7RilbY8hH94OThLcP6+5J3bc86IF8/CH272ozWCCgMI0tSOOtpebdMKV8nnatoeC3fnAy+eSnzZJtc9XLw==}
+  '@fungi.computer/braid@0.4.3':
+    resolution: {integrity: sha512-VQHl/udAE9/nhQidwgwsqvoBXQ3Z+7+NOydO2T2V86/gjz33Hl95ogRboxPytjn4F2ARDbh4WB4AoTsH3xaF4g==}
 
-  '@fungi.computer/burrow@0.2.0':
-    resolution: {integrity: sha512-5VYtM6iX4++VXvEd+yF6jmXDoI0KMtammhvEOPJrXsoMY6lWqxnpYmGPMFacafS/TM1nTNmNW/BpIKkUylg+OA==}
+  '@fungi.computer/burrow@0.2.1':
+    resolution: {integrity: sha512-iHNwanEnbLuQA4DD1wtoNsELj/8scgUXEINZC33D2AtgQ9PG3sY9W8R/6zTSHR9qlQLEsAKIYL6ZLOGfJESk9Q==}
 
   '@fungi.computer/cairn@0.1.0':
     resolution: {integrity: sha512-BcxeFYqXSX1yikikAh9RerGAycT32oQpf+5EaiyolBn/aUJHwJjpGzoPdnVU+OEIq4xgDbVVtua6GHd2B5L/gg==}
@@ -847,8 +847,8 @@ packages:
   '@fungi.computer/capnweb@0.12.0':
     resolution: {integrity: sha512-hxWEihijFLY5zMNIodUpNyOYT2zjRpOf+PXeGibDzxmB+WPTYuPsiTYRNOTDEprnMKqMv48fYHCQ+WM0XPBdOg==}
 
-  '@fungi.computer/caps@0.7.0':
-    resolution: {integrity: sha512-F5Pt7UL4Q/thJOQRsi6X7SucS9OM+X79m63DM0MwcCVQOp2Gh5iCW9wyTwbFiQXlksuFs/6d5cdD+dr9mA6oLA==}
+  '@fungi.computer/caps@0.7.1':
+    resolution: {integrity: sha512-XWRd7j0yAMgRAd+aMO/p4271bRhUZAbGbUyJM5FbSHDsxZ+3LcdrHy6C/lirbCQ3dZmfcMMHvgVBVKaP3zsLUA==}
     peerDependencies:
       '@tanstack/react-form': ^1.33.2
       effect: 4.0.2
@@ -858,8 +858,8 @@ packages:
       effect:
         optional: true
 
-  '@fungi.computer/carrier@0.2.0':
-    resolution: {integrity: sha512-Mp9r8qKs2VP8qHAdLnOEWcXD97cpHpOtKV97ByswibOti6DAWQMlji3qMBj1X+VnOPbhb8lNMgrSrYWV5Y26+g==}
+  '@fungi.computer/carrier@0.2.1':
+    resolution: {integrity: sha512-NzcAY1tzikJpxdEJc4nFLlTcWkCk5PouTj5NvEkGUs4Gyq0+9mWTt0Adyvy7xO4bsoCDGVKd2wek6Y8sI0D3Vg==}
 
   '@fungi.computer/cloudflare-computer@0.2.1-fungi.2':
     resolution: {integrity: sha512-qEpnq+8Q/YQml0b2QoTmZCuj2rH9BEIMCdL3Eyg2MUYYUbx1XYjlrWacYCRyIg5ekgqil9kUNT8mxT41DsXaJw==}
@@ -879,43 +879,43 @@ packages:
     resolution: {integrity: sha512-vWCn2RbbBHzfSuSFAK2oD5Xh9p1vnhZKVC6oA4ppdSMTsuy3nYyhjFjefB/vxJjdUw8pT2B2+bZQpR+rTKTyNA==}
     engines: {node: '>=22'}
 
-  '@fungi.computer/computer-contract@0.0.9':
-    resolution: {integrity: sha512-TTg4MKjG6cbEmIhevH23NeKGpsPVrkXNrM1aQMSIziYjFEIOrmNwQk0PnibOwm02wRbSktO9bwnupmXCzPG/jg==}
+  '@fungi.computer/computer-contract@0.0.10':
+    resolution: {integrity: sha512-A29cRhzDDvPpoiR9GQvcwqd8eO6r28e9RVjjnNQYRuaL9mJprrpeIhJifYbYZV4kpZgO45u0KLCRCry1/47VMA==}
 
-  '@fungi.computer/computer@0.5.0':
-    resolution: {integrity: sha512-Jo0WOZ9uO/Mksz+TwYD4YqtF5fE/QUmx3ji/HpgZlML11rkSVQ0TOeHPwHrX8FNm9vGv/rqqUHUnlxUiGUV+cg==}
+  '@fungi.computer/computer@0.6.0':
+    resolution: {integrity: sha512-h79EfzeL5wv3LZY+6a+qAQXj7aFD6OEeE4l39XYfrgoqlpUXz21sBzTorHQlr3pYouGNIdl5TQpNA1+4k7GV9Q==}
 
   '@fungi.computer/cordyceps@0.4.0':
     resolution: {integrity: sha512-X/yXajdAp3Vw5mp0Zi1TufpuWC+xQ3vnhXMZSknzKXECKE5xbQ2d/uzHlay0wscMprujcP/Gmwn4/U9PBh2PhQ==}
     engines: {node: '>=22.13'}
     hasBin: true
 
-  '@fungi.computer/darkroom@0.5.0':
-    resolution: {integrity: sha512-vFfdxsJB00ggkFfoUXLaeXvwuN9IvVrhg03pjQgNPWF0aliPH84v0e0VedkX0qhK1q8+ZOu8mNyB1U3AZ9V2yg==}
+  '@fungi.computer/darkroom@0.5.1':
+    resolution: {integrity: sha512-19v0QYWT9Bgx82BdjIP3XGRdfQsBxiAYi8taLwivOU0iLC0AMy38x+GJsHDKUXfLRJTw9vnx2qUpN471xJYvPA==}
 
   '@fungi.computer/ear-tag@0.1.0':
     resolution: {integrity: sha512-/x7kb2uQjMhBsLav0XWakFxf5JblQ49CZLM+BvZ3/DlFKlLRzHjQYinBdEye4nEj7SGuVtAYVkYVuCx8DeOnhQ==}
 
-  '@fungi.computer/forage@0.3.0':
-    resolution: {integrity: sha512-B/RDOlIJ5SQnt+dbeEc9INX44dVWcTN/mYQuX8QkEdHjYPxhkYp7Rae2ZUYl0Z1+d/G/dNj3f01OkkzuF/9VCw==}
+  '@fungi.computer/forage@0.3.1':
+    resolution: {integrity: sha512-MCuA77Ydg4oItrrMv7Fs9PK1ZtykCOQ/i+ZYK0iENUh9VAMoesPMD2qU7xDkGGpccHYzkDQekj626gvBVeGYfA==}
 
-  '@fungi.computer/gills@0.2.0':
-    resolution: {integrity: sha512-DxGJF9cEhTE/Sr1ACf1+Uqr6tsd4foETdtVcUE2mFI6Xs4TZujiYrFsTBX1GmrkxRuevTRFl2duVSpKZpRsnxQ==}
+  '@fungi.computer/gills@0.2.1':
+    resolution: {integrity: sha512-8EWeIUZ/aGD79q98RukEAQYYyuuBNUEih/S8VqOUzQo6GsyDUg0Y40LHnRflGAyg358Qqzrksu/dLr9QHEzfCA==}
 
-  '@fungi.computer/knapsack@0.4.4':
-    resolution: {integrity: sha512-sVZ07k/jY7UjUww5VZ+rY4J2EO1M7LVAjLUSc/NcOhrLZLJ4jIrXvo3rNyq8biA/q1/hZOhDJSmUdjMFGsQ1Sg==}
+  '@fungi.computer/knapsack@0.4.5':
+    resolution: {integrity: sha512-t9fK8fUmqbtuV9sPSxQ5ZzwBrV7T5XgQeY+Tqmk0C7PCEL2qxeQ6O7aaioPo3yT06/1e3GgXqhqrrGohyJo5rA==}
 
   '@fungi.computer/mule@0.2.2':
     resolution: {integrity: sha512-5dHAntfU1ZqYSRUSFbcyr8K3/F0H4Di7M2x+FCDVbT5ZBHvuo2w88kOziwXQDzm+O8jeuZccyCtfdcPvZc5djA==}
 
-  '@fungi.computer/mycelium@0.3.3':
-    resolution: {integrity: sha512-KROpWH/tr3dXAavCJnnac/ZGoXk9DPaYnzp0f1+qa5QkUZYkrve2Pzlj6EStJsws1lpIsY1oQ2qSpubGWwzznw==}
+  '@fungi.computer/mycelium@0.3.4':
+    resolution: {integrity: sha512-gQa2vdfHQ5/B7ft3tBY6hQcO3po55BvY4u+6ExCR3QsNB4WwcEo6RPZChPHeCGB/KsifngWP0myad5qHdTL0Tg==}
 
-  '@fungi.computer/nacre@0.1.3':
-    resolution: {integrity: sha512-/XMJQtwZ1Vj2bfx3T8fFUOt6fZPw4gtlNIn8hhuF9Kv3uCD5bLemYQbqU0UroDKxtx6PbaZszZ/cuPyG8lBveg==}
+  '@fungi.computer/nacre@0.1.4':
+    resolution: {integrity: sha512-yO64oSBlvnVvcrHmQWEQjlHisjwE86QkPyvTlT6aFrJUDQvxf77zvZOXDRxso9rVUKyvLaLEDBjSZnjgqOvYjQ==}
 
-  '@fungi.computer/oyster@0.9.0':
-    resolution: {integrity: sha512-jvCGOGu7+EdS0nY7IpLrsvNtlh3nfHymffHlEVeb7MCrAHxj6eIYi8TPR9crGLK41koBrZ62E7EEC3/ew/BM5A==}
+  '@fungi.computer/oyster@0.10.0':
+    resolution: {integrity: sha512-vscGs0CkbrlAXQyTqWYIpgxrOjyjj/2d5XgT4pObV3YgOw3yWRwjIjPPN9LgQva8EUYFAooUmFIiiUnDpMCA1Q==}
     hasBin: true
     peerDependencies:
       react: ^18.3.1 || ^19.2.0
@@ -925,24 +925,24 @@ packages:
       wrangler:
         optional: true
 
-  '@fungi.computer/parakeet@0.7.1':
-    resolution: {integrity: sha512-i47/afgUGOApFXN6mthcTEOThnrS0+KzduVOdEmQSV6LIMBeLpVaIp+8NckRLI/KoG7L9uca6rTUj2HJxCBBYw==}
+  '@fungi.computer/parakeet@0.7.2':
+    resolution: {integrity: sha512-CPENxDm+Rlj/yARA4twNKNHhd2Ka/YY4KyMAX6/iCk8kzMqgRTAEqMRaamVtPgCEfnX0baD2J6IZhh4VYchIew==}
     peerDependencies:
       '@tanstack/react-query': ^5.102.8
       react: ^18.2.0 || ^19.2.0
       react-dom: ^18.2.0 || ^19.2.0
 
-  '@fungi.computer/puffball@0.5.0':
-    resolution: {integrity: sha512-WHA64pexg5ABkwfk1fH1H/Z0VoAeAlViI0yd3xcowM+medPK8c72vXZz6PdBzqje+/zSmehiPyb97gJPmzihZA==}
+  '@fungi.computer/puffball@0.5.1':
+    resolution: {integrity: sha512-e3dxTwpcR1vPI5a62CkHhsUHLVqdJPqQFZSeFm9BXQjAsGQgptcQE2PGkX06z/asnw5K0zwtYWox7EokFiMIGA==}
 
-  '@fungi.computer/seam@0.2.0':
-    resolution: {integrity: sha512-jYKHnGxY5wjfC6NBVlW5EQLr7VB8Un/e6uIkP89mMbT+oezT/5Bge/EGvdCksfBSo2paBxYkYd5F7mElS7cS8A==}
+  '@fungi.computer/seam@0.2.1':
+    resolution: {integrity: sha512-Oyhp742DwKDC0Kq/IV3mRt71OWX06ECYM4t+SSgId1EHc+wUC/EXNgfal8LR+sxC3Cazf1jMTWKBYD1m3iPkDQ==}
 
-  '@fungi.computer/shiitake-extensions@0.6.2':
-    resolution: {integrity: sha512-OPnHptBBuoWaRa5AWd3DwNIBTFqxZJVEehdFM/nn7aBJhJqaBi7/Xk3s+s8LLAOneoS9goPi86jPtBiKdGf5Bw==}
+  '@fungi.computer/shiitake-extensions@0.6.3':
+    resolution: {integrity: sha512-W43qj14CGF1atE0f4GU1/RUIatJe/FLn7LPSwDi53OU2FcfsF07ySRXtxrH9eUap8YAiVLfja9iALpX3TjRfpQ==}
 
-  '@fungi.computer/shiitake@0.9.1':
-    resolution: {integrity: sha512-Y0kSqC97ZeyMJXefU59oahpopDyE6PKNJIfZsbCLj65mh+6v01f6eoLycYnlp6CQ3hgyVk2W7hETetEHfqJ8yQ==}
+  '@fungi.computer/shiitake@0.9.2':
+    resolution: {integrity: sha512-yk255F7vHKGIwpoTMqBCnFkAJJr4/mMAe8bvZl+DGJM6VKlUC3mFMChqVF+PpU2Yiei2+2aL8hJ22yiV8ChmTg==}
     engines: {node: '>=22.13'}
     peerDependencies:
       hono: ^4.13.5
@@ -969,8 +969,8 @@ packages:
   '@fungi.computer/ts-webp@0.1.6':
     resolution: {integrity: sha512-1KbylrMZgVgSk8a1rOWj3lNIm7iEL9VoPoD6lAde8+eyn23xx6ElkzgO6KUF7xrDGYxihpMruWD6lRajeL6N2w==}
 
-  '@fungi.computer/veil@0.3.0':
-    resolution: {integrity: sha512-y3xuMSheIJObXEbGGm7QYw+uL2j0Shwo1DpD7RgCa5d2kztFNBuw+TubDxDMByyOSckZ8fCtYWYAGmzyHZVp9Q==}
+  '@fungi.computer/veil@0.4.0':
+    resolution: {integrity: sha512-dA4GhOVtVxnQEk2+JNF9zh5HK6EpT9AB8jxxz1XU1DLGo6zsF41M8cze6Po0bjIpEO3WSwL9GNwx9xuXyhGfxA==}
 
   '@fungi.computer/watchdog@0.1.0':
     resolution: {integrity: sha512-dGl8VqFRL7iNaW8sAPo9Z34b2yyIZLXpma1qBt0CRTH2gshYklLxZYkK+vdFOFDB+6oGZ9UGNskt0d+kHq2Qlg==}
@@ -983,11 +983,11 @@ packages:
       '@opentui/keymap':
         optional: true
 
-  '@fungi.computer/workflows-wire@0.4.2':
-    resolution: {integrity: sha512-im5j321PUMsnRu0yeubdnjSf9hm8ToN13u478oJOE4bpXUVniSbATrDFJBSzv0mQjx1Se0CAGxS7KR5xJpB/ig==}
+  '@fungi.computer/workflows-wire@0.4.3':
+    resolution: {integrity: sha512-EXRToJ2XOGWCA7incgLlMvDmtGcsrqswDEGrFC8C2K8i/7Uqq+wHWNnQr+ckpMK1VkDzmtgESu2H068AZvF4kA==}
 
-  '@fungi.computer/zookeeper@0.0.9':
-    resolution: {integrity: sha512-q0kVCnqnZdsrvL8cpw0kOq+SwWRdTW8heiDw0ZoSfN5Gra7J/OsGaHtkouoq3AJMY9rlTUbUw9Ds/OgDMLdltw==}
+  '@fungi.computer/zookeeper@0.0.10':
+    resolution: {integrity: sha512-aEgMF8c8YLO2dyL8CFIB038CJEYusT1U4pf7UYHVkAVY+lohPHRtOHpJJ+y31lkf9VjfbL1Li4vutIuW4twIJg==}
 
   '@google/genai@2.21.0':
     resolution: {integrity: sha512-+PDtco2/Z0ONdzCGekCoCT+O1VJS9xJQNN4XzQpXG/t3El/SWWMkCWlFRO1KmivOHPa4Q0VjUYu1HBKCZ/v33Q==}
@@ -2733,8 +2733,8 @@ packages:
     resolution: {integrity: sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g==}
     engines: {node: '>=0.12'}
 
-  entities@8.1.0:
-    resolution: {integrity: sha512-kxL7msIffSuh9aaFAMD7rxAIuTRMAHMeBtgHW2yUdWw732ZNh4MehkF2gdjvtdmikkaIP9bFDDJOPlsvm7avrA==}
+  entities@8.0.0:
+    resolution: {integrity: sha512-zwfzJecQ/Uej6tusMqwAqU/6KL2XaB2VZ2Jg54Je6ahNBGNH6Ek6g3jjNCF0fG9EWQKGZNddNjU5F1ZQn/sBnA==}
     engines: {node: '>=20.19.0'}
 
   entities@9.0.0:
@@ -4454,6 +4454,11 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
+  semver@7.8.6:
+    resolution: {integrity: sha512-9lpSSU4Mly3mrtruwLs1eLK6+gzbzqeBFwRNjIjE+9LuDpWdYctrQlQ3ej1Ilgi7gknpsTRnPoLP8DpCHqHIJw==}
+    engines: {node: '>=10'}
+    hasBin: true
+
   set-cookie-parser@3.2.2:
     resolution: {integrity: sha512-df017qMeYuXo4emL09nlyMpi2i2MtEIKS/6jtXH3vmjFgIRsOi852/5RmhJ4EkvN3ZF8jXadM/EkTPXgc8yPIw==}
 
@@ -4613,8 +4618,8 @@ packages:
   strnum@2.5.1:
     resolution: {integrity: sha512-UM4nTLWzQiDBseVxUGxN0wJzIk0UU89Qi7pKXz9qISo+lhviJikTuikBsK/oFRlpvYHvSdz0TVoLyQ+sEpYwxA==}
 
-  strtok3@10.6.3:
-    resolution: {integrity: sha512-MD8mENgyXMr2mDaDfzP3RWYDSyYQxIIou7HhCiCJiBekrsoDtUG0id3vYnjDfY9ndOEbazFXe13Qw6u/1AB8ew==}
+  strtok3@10.7.0:
+    resolution: {integrity: sha512-iAqrCpp7UXD2FZiHWhLXqdJ6CmNeVzRkkHAyyhhKMVtbVm2KtPX3D/bJNonvtcyLTHS4rwqP2pz9fsjK1K4z0Q==}
     engines: {node: '>=18'}
 
   style-to-js@1.1.21:
@@ -4693,8 +4698,8 @@ packages:
     resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
     engines: {node: '>=0.6'}
 
-  token-types@6.1.2:
-    resolution: {integrity: sha512-dRXchy+C0IgK8WPC6xvCHFRIWYUbqqdEIKPaKo/AcTUNzwLTK6AH7RjdLWsEZcAN/TBdtfUw3PYEgPr5VPr6ww==}
+  token-types@6.2.0:
+    resolution: {integrity: sha512-s9euYHM//T3loJtbNUYdbAzsMlvKBeRS+XCLFy+UGosMQH19Hwjap5k19i4PPAEJJBsVIpMpVTxl4fIqCuNfUg==}
     engines: {node: '>=14.16'}
 
   tough-cookie@6.0.2:
@@ -5459,7 +5464,7 @@ snapshots:
 
   '@babel/runtime@7.29.10': {}
 
-  '@babel/runtime@8.0.10': {}
+  '@babel/runtime@8.1.0': {}
 
   '@babel/template@7.29.7':
     dependencies:
@@ -5486,7 +5491,7 @@ snapshots:
 
   '@base-ui/react@1.9.0(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 8.0.10
+      '@babel/runtime': 8.1.0
       '@base-ui/utils': 0.5.0(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@floating-ui/react-dom': 2.1.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@floating-ui/utils': 0.2.12
@@ -5498,7 +5503,7 @@ snapshots:
 
   '@base-ui/utils@0.5.0(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 8.0.10
+      '@babel/runtime': 8.1.0
       '@floating-ui/utils': 0.2.12
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -5792,13 +5797,13 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@fungi.computer/agar@0.7.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)':
+  '@fungi.computer/agar@0.7.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)':
     dependencies:
       '@fungi.computer/approvals': 0.2.0
       '@fungi.computer/cairn': 0.1.0
       '@fungi.computer/capnweb': 0.12.0
-      '@fungi.computer/gills': 0.2.0
-      '@fungi.computer/puffball': 0.5.0
+      '@fungi.computer/gills': 0.2.1
+      '@fungi.computer/puffball': 0.5.1
       '@fungi.computer/sprite': 0.2.0(react@18.3.1)
       '@fungi.computer/stipe': 0.1.0
       '@fungi.computer/whistle': 0.3.0(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))
@@ -5821,7 +5826,7 @@ snapshots:
       - typescript
       - web-tree-sitter
 
-  '@fungi.computer/almanac@0.2.0':
+  '@fungi.computer/almanac@0.2.1':
     dependencies:
       effect: 4.0.2
 
@@ -5832,23 +5837,23 @@ snapshots:
     transitivePeerDependencies:
       - pg-native
 
-  '@fungi.computer/bird-dog@0.3.1':
+  '@fungi.computer/bird-dog@0.3.2':
     dependencies:
-      '@fungi.computer/carrier': 0.2.0
+      '@fungi.computer/carrier': 0.2.1
       '@fungi.computer/watchdog': 0.1.0
       effect: 4.0.2
     transitivePeerDependencies:
       - pg-native
 
-  '@fungi.computer/braid@0.4.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
+  '@fungi.computer/braid@0.4.3(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
     dependencies:
       '@cfworker/json-schema': 4.1.1
-      '@fungi.computer/agar': 0.7.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
-      '@fungi.computer/almanac': 0.2.0
+      '@fungi.computer/agar': 0.7.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@fungi.computer/almanac': 0.2.1
       '@fungi.computer/cairn': 0.1.0
-      '@fungi.computer/gills': 0.2.0
-      '@fungi.computer/mycelium': 0.3.3(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
-      '@fungi.computer/puffball': 0.5.0
+      '@fungi.computer/gills': 0.2.1
+      '@fungi.computer/mycelium': 0.3.4(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/puffball': 0.5.1
       '@fungi.computer/watchdog': 0.1.0
       effect: 4.0.2
       jsonpointer: 5.0.1
@@ -5878,7 +5883,7 @@ snapshots:
       - web-tree-sitter
       - ws
 
-  '@fungi.computer/burrow@0.2.0':
+  '@fungi.computer/burrow@0.2.1':
     dependencies:
       effect: 4.0.2
       isomorphic-git: 1.42.2
@@ -5891,7 +5896,7 @@ snapshots:
 
   '@fungi.computer/capnweb@0.12.0': {}
 
-  '@fungi.computer/caps@0.7.0(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.3)(effect@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@fungi.computer/caps@0.7.1(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.3)(effect@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@base-ui/react': 1.9.0(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@fungi.computer/stipe': 0.1.0
@@ -5921,10 +5926,10 @@ snapshots:
       - octane
       - three
 
-  '@fungi.computer/carrier@0.2.0':
+  '@fungi.computer/carrier@0.2.1':
     dependencies:
       '@cloudflare/workers-types': 5.20260828.1
-      '@fungi.computer/almanac': 0.2.0
+      '@fungi.computer/almanac': 0.2.1
       '@fungi.computer/cairn': 0.1.0
       '@fungi.computer/watchdog': 0.1.0
       '@types/pg': 8.23.1
@@ -5958,10 +5963,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@fungi.computer/computer-contract@0.0.9(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)':
+  '@fungi.computer/computer-contract@0.0.10(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)':
     dependencies:
       '@fungi.computer/cairn': 0.1.0
-      '@fungi.computer/knapsack': 0.4.4(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/knapsack': 0.4.5(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
       zod: 4.4.3
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -5980,15 +5985,15 @@ snapshots:
       - utf-8-validate
       - ws
 
-  '@fungi.computer/computer@0.5.0(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)':
+  '@fungi.computer/computer@0.6.0(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)':
     dependencies:
       '@fungi.computer/cairn': 0.1.0
       '@fungi.computer/capnweb': 0.12.0
       '@fungi.computer/cloudflare-computer': 0.2.1-fungi.2(zod@4.4.3)
-      '@fungi.computer/computer-contract': 0.0.9(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/computer-contract': 0.0.10(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
       '@fungi.computer/cordyceps': 0.4.0
-      '@fungi.computer/knapsack': 0.4.4(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
-      '@fungi.computer/seam': 0.2.0
+      '@fungi.computer/knapsack': 0.4.5(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/seam': 0.2.1
       '@fungi.computer/watchdog': 0.1.0
       effect: 4.0.2
       just-bash: 3.4.2(patch_hash=035dbe96ffbc09ec9da52310d0385babd617d608dc320b212006f65fd87d3918)
@@ -6016,9 +6021,9 @@ snapshots:
       proper-lockfile: 4.1.2
       zod: 4.4.3
 
-  '@fungi.computer/darkroom@0.5.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)':
+  '@fungi.computer/darkroom@0.5.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)':
     dependencies:
-      '@fungi.computer/agar': 0.7.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@fungi.computer/agar': 0.7.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
       '@fungi.computer/cairn': 0.1.0
       '@fungi.computer/capnweb': 0.12.0
       '@fungi.computer/ts-webp': 0.1.6
@@ -6048,10 +6053,10 @@ snapshots:
       '@fungi.computer/cairn': 0.1.0
       zod: 4.4.3
 
-  '@fungi.computer/forage@0.3.0(@types/json-schema@7.0.15)':
+  '@fungi.computer/forage@0.3.1(@types/json-schema@7.0.15)':
     dependencies:
       '@apidevtools/json-schema-ref-parser': 16.0.3(@types/json-schema@7.0.15)
-      '@fungi.computer/puffball': 0.5.0
+      '@fungi.computer/puffball': 0.5.1
       yaml: 2.9.0
       zod: 4.4.3
     transitivePeerDependencies:
@@ -6059,16 +6064,16 @@ snapshots:
       - pg-native
       - supports-color
 
-  '@fungi.computer/gills@0.2.0':
+  '@fungi.computer/gills@0.2.1':
     dependencies:
       effect: 4.0.2
 
-  '@fungi.computer/knapsack@0.4.4(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)':
+  '@fungi.computer/knapsack@0.4.5(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)':
     dependencies:
       '@fungi.computer/cairn': 0.1.0
-      '@fungi.computer/forage': 0.3.0(@types/json-schema@7.0.15)
+      '@fungi.computer/forage': 0.3.1(@types/json-schema@7.0.15)
       '@fungi.computer/mule': 0.2.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1)(zod@4.4.3)
-      '@fungi.computer/mycelium': 0.3.3(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/mycelium': 0.3.4(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
       '@fungi.computer/whistle': 0.3.0(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))
       '@modelcontextprotocol/client': 2.0.0
       diff: 8.0.4
@@ -6111,13 +6116,13 @@ snapshots:
       - ws
       - zod
 
-  '@fungi.computer/mycelium@0.3.3(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)':
+  '@fungi.computer/mycelium@0.3.4(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)':
     dependencies:
       '@cloudflare/codemode': 0.5.1(zod@4.4.3)
       '@fungi.computer/cairn': 0.1.0
-      '@fungi.computer/forage': 0.3.0(@types/json-schema@7.0.15)
+      '@fungi.computer/forage': 0.3.1(@types/json-schema@7.0.15)
       '@fungi.computer/mule': 0.2.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1)(zod@4.4.3)
-      '@fungi.computer/puffball': 0.5.0
+      '@fungi.computer/puffball': 0.5.1
       '@modelcontextprotocol/server': 2.0.0
       acorn: 8.18.0
       effect: 4.0.2
@@ -6138,12 +6143,12 @@ snapshots:
       - utf-8-validate
       - ws
 
-  '@fungi.computer/nacre@0.1.3(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)':
+  '@fungi.computer/nacre@0.1.4(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)':
     dependencies:
-      '@fungi.computer/agar': 0.7.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@fungi.computer/agar': 0.7.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
       '@fungi.computer/ear-tag': 0.1.0
-      '@fungi.computer/gills': 0.2.0
-      '@fungi.computer/puffball': 0.5.0
+      '@fungi.computer/gills': 0.2.1
+      '@fungi.computer/puffball': 0.5.1
       '@fungi.computer/whistle': 0.3.0(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))
       effect: 4.0.2
       zod: 4.4.3
@@ -6160,43 +6165,44 @@ snapshots:
       - typescript
       - web-tree-sitter
 
-  '@fungi.computer/oyster@0.9.0(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@pnpm/logger@1100.0.0)(@smithy/signature-v4@5.7.5)(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(@types/react@18.3.3)(debug@4.4.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
+  '@fungi.computer/oyster@0.10.0(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@pnpm/logger@1100.0.0)(@smithy/signature-v4@5.7.5)(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(@types/react@18.3.3)(debug@4.4.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       '@earendil-works/pi-ai': 1.3.0(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1)(zod@4.4.3)
-      '@fungi.computer/agar': 0.7.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
-      '@fungi.computer/bird-dog': 0.3.1
-      '@fungi.computer/braid': 0.4.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
-      '@fungi.computer/burrow': 0.2.0
+      '@fungi.computer/agar': 0.7.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@fungi.computer/bird-dog': 0.3.2
+      '@fungi.computer/braid': 0.4.3(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
+      '@fungi.computer/burrow': 0.2.1
       '@fungi.computer/cairn': 0.1.0
       '@fungi.computer/capnweb': 0.12.0
-      '@fungi.computer/caps': 0.7.0(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.3)(effect@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@fungi.computer/carrier': 0.2.0
-      '@fungi.computer/computer': 0.5.0(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
-      '@fungi.computer/computer-contract': 0.0.9(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
-      '@fungi.computer/darkroom': 0.5.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@fungi.computer/caps': 0.7.1(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.3)(effect@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@fungi.computer/carrier': 0.2.1
+      '@fungi.computer/computer': 0.6.0(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/computer-contract': 0.0.10(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/darkroom': 0.5.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
       '@fungi.computer/ear-tag': 0.1.0
-      '@fungi.computer/forage': 0.3.0(@types/json-schema@7.0.15)
-      '@fungi.computer/gills': 0.2.0
-      '@fungi.computer/knapsack': 0.4.4(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
-      '@fungi.computer/mycelium': 0.3.3(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
-      '@fungi.computer/nacre': 0.1.3(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
-      '@fungi.computer/puffball': 0.5.0
-      '@fungi.computer/seam': 0.2.0
-      '@fungi.computer/shiitake': 0.9.1(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
-      '@fungi.computer/shiitake-extensions': 0.6.2(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
+      '@fungi.computer/forage': 0.3.1(@types/json-schema@7.0.15)
+      '@fungi.computer/gills': 0.2.1
+      '@fungi.computer/knapsack': 0.4.5(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/mycelium': 0.3.4(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/nacre': 0.1.4(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@fungi.computer/puffball': 0.5.1
+      '@fungi.computer/seam': 0.2.1
+      '@fungi.computer/shiitake': 0.9.2(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
+      '@fungi.computer/shiitake-extensions': 0.6.3(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
       '@fungi.computer/sigils': 0.3.0(react@18.3.1)
       '@fungi.computer/sprite': 0.2.0(react@18.3.1)
       '@fungi.computer/sprite-zdog': 0.3.0(react@18.3.1)
-      '@fungi.computer/veil': 0.3.0(debug@4.4.3)
+      '@fungi.computer/veil': 0.4.0(@types/json-schema@7.0.15)(debug@4.4.3)
       '@fungi.computer/watchdog': 0.1.0
       '@fungi.computer/whistle': 0.3.0(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))
-      '@fungi.computer/workflows-wire': 0.4.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
-      '@fungi.computer/zookeeper': 0.0.9(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
+      '@fungi.computer/workflows-wire': 0.4.3(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
+      '@fungi.computer/zookeeper': 0.0.10(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
       '@modelcontextprotocol/server': 2.0.0
       '@pnpm/lockfile.fs': 1100.2.13(@pnpm/logger@1100.0.0)
       '@pnpm/lockfile.pruner': 1100.0.27
       effect: 4.0.2
+      entities: 8.0.0
       esbuild: 0.28.2
       eventsource: 5.1.1
       hono: 4.13.5
@@ -6242,16 +6248,16 @@ snapshots:
       - web-tree-sitter
       - ws
 
-  '@fungi.computer/parakeet@0.7.1(@aws-sdk/credential-provider-node@3.972.92)(@babel/core@7.29.7)(@babel/template@7.29.7)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/query-core@5.102.8)(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(@types/react@18.3.3)(effect@4.0.2)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
+  '@fungi.computer/parakeet@0.7.2(@aws-sdk/credential-provider-node@3.972.92)(@babel/core@7.29.7)(@babel/template@7.29.7)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/query-core@5.102.8)(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(@types/react@18.3.3)(effect@4.0.2)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
     dependencies:
       '@earendil-works/pi-ai': 1.3.0(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1)(zod@4.4.3)
-      '@fungi.computer/agar': 0.7.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
-      '@fungi.computer/bird-dog': 0.3.1
+      '@fungi.computer/agar': 0.7.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@fungi.computer/bird-dog': 0.3.2
       '@fungi.computer/cairn': 0.1.0
-      '@fungi.computer/caps': 0.7.0(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.3)(effect@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@fungi.computer/gills': 0.2.0
-      '@fungi.computer/knapsack': 0.4.4(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
-      '@fungi.computer/shiitake': 0.9.1(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
+      '@fungi.computer/caps': 0.7.1(@tanstack/react-form@1.33.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.3)(effect@4.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@fungi.computer/gills': 0.2.1
+      '@fungi.computer/knapsack': 0.4.5(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/shiitake': 0.9.2(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
       '@fungi.computer/sigils': 0.3.0(react@18.3.1)
       '@fungi.computer/sprite': 0.2.0(react@18.3.1)
       '@fungi.computer/sprite-zdog': 0.3.0(react@18.3.1)
@@ -6302,11 +6308,11 @@ snapshots:
       - web-tree-sitter
       - ws
 
-  '@fungi.computer/puffball@0.5.0':
+  '@fungi.computer/puffball@0.5.1':
     dependencies:
       '@fungi.computer/cairn': 0.1.0
       '@fungi.computer/cloudflare-worker-bundler': 0.2.3-fungi.0
-      '@fungi.computer/gills': 0.2.0
+      '@fungi.computer/gills': 0.2.1
       '@fungi.computer/watchdog': 0.1.0
       effect: 4.0.2
       zod: 4.4.3
@@ -6314,21 +6320,21 @@ snapshots:
       - pg-native
       - supports-color
 
-  '@fungi.computer/seam@0.2.0':
+  '@fungi.computer/seam@0.2.1':
     dependencies:
-      '@fungi.computer/carrier': 0.2.0
+      '@fungi.computer/carrier': 0.2.1
       effect: 4.0.2
     transitivePeerDependencies:
       - pg-native
 
-  '@fungi.computer/shiitake-extensions@0.6.2(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
+  '@fungi.computer/shiitake-extensions@0.6.3(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
     dependencies:
-      '@fungi.computer/almanac': 0.2.0
+      '@fungi.computer/almanac': 0.2.1
       '@fungi.computer/cairn': 0.1.0
-      '@fungi.computer/gills': 0.2.0
-      '@fungi.computer/knapsack': 0.4.4(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
-      '@fungi.computer/mycelium': 0.3.3(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
-      '@fungi.computer/shiitake': 0.9.1(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
+      '@fungi.computer/gills': 0.2.1
+      '@fungi.computer/knapsack': 0.4.5(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/mycelium': 0.3.4(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/shiitake': 0.9.2(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
       '@fungi.computer/watchdog': 0.1.0
       '@fungi.computer/whistle': 0.3.0(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))
       effect: 4.0.2
@@ -6359,18 +6365,18 @@ snapshots:
       - web-tree-sitter
       - ws
 
-  '@fungi.computer/shiitake@0.9.1(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
+  '@fungi.computer/shiitake@0.9.2(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
     dependencies:
       '@earendil-works/pi-ai': 1.3.0(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1)(zod@4.4.3)
-      '@fungi.computer/agar': 0.7.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
-      '@fungi.computer/bird-dog': 0.3.1
+      '@fungi.computer/agar': 0.7.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@fungi.computer/bird-dog': 0.3.2
       '@fungi.computer/cairn': 0.1.0
-      '@fungi.computer/carrier': 0.2.0
-      '@fungi.computer/gills': 0.2.0
-      '@fungi.computer/knapsack': 0.4.4(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/carrier': 0.2.1
+      '@fungi.computer/gills': 0.2.1
+      '@fungi.computer/knapsack': 0.4.5(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
       '@fungi.computer/mule': 0.2.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1)(zod@4.4.3)
-      '@fungi.computer/mycelium': 0.3.3(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
-      '@fungi.computer/seam': 0.2.0
+      '@fungi.computer/mycelium': 0.3.4(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@types/json-schema@7.0.15)(undici@8.12.3)(ws@8.22.1)
+      '@fungi.computer/seam': 0.2.1
       '@fungi.computer/watchdog': 0.1.0
       effect: 4.0.2
       hono: 4.13.5
@@ -6432,16 +6438,20 @@ snapshots:
 
   '@fungi.computer/ts-webp@0.1.6': {}
 
-  '@fungi.computer/veil@0.3.0(debug@4.4.3)':
+  '@fungi.computer/veil@0.4.0(@types/json-schema@7.0.15)(debug@4.4.3)':
     dependencies:
       '@fungi.computer/cairn': 0.1.0
+      '@fungi.computer/forage': 0.3.1(@types/json-schema@7.0.15)
+      '@modelcontextprotocol/client': 2.0.0
       '@nangohq/node': 0.71.6(debug@4.4.3)
       effect: 4.0.2
       http-parser-js: 0.5.10
       ipaddr.js: 2.2.0
       zod: 4.4.3
     transitivePeerDependencies:
+      - '@types/json-schema'
       - debug
+      - pg-native
       - supports-color
 
   '@fungi.computer/watchdog@0.1.0':
@@ -6460,12 +6470,12 @@ snapshots:
     optionalDependencies:
       '@opentui/keymap': 0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
 
-  '@fungi.computer/workflows-wire@0.4.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
+  '@fungi.computer/workflows-wire@0.4.3(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
     dependencies:
-      '@fungi.computer/agar': 0.7.0(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
-      '@fungi.computer/braid': 0.4.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
+      '@fungi.computer/agar': 0.7.1(@tanstack/react-query@5.102.8(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@fungi.computer/braid': 0.4.3(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
       '@fungi.computer/cairn': 0.1.0
-      '@fungi.computer/puffball': 0.5.0
+      '@fungi.computer/puffball': 0.5.1
       effect: 4.0.2
       zod: 4.4.3
     transitivePeerDependencies:
@@ -6492,9 +6502,9 @@ snapshots:
       - web-tree-sitter
       - ws
 
-  '@fungi.computer/zookeeper@0.0.9(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
+  '@fungi.computer/zookeeper@0.0.10(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)':
     dependencies:
-      '@fungi.computer/shiitake': 0.9.1(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
+      '@fungi.computer/shiitake': 0.9.2(@aws-sdk/credential-provider-node@3.972.92)(@opentui/keymap@0.5.10(react@18.3.1)(typescript@5.9.3)(web-tree-sitter@0.25.10))(@smithy/signature-v4@5.7.5)(@tanstack/react-query@5.102.8(react@18.3.1))(@types/json-schema@7.0.15)(hono@4.13.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(undici@8.12.3)(web-tree-sitter@0.25.10)(ws@8.22.1)
       '@noble/hashes': 2.4.0
       effect: 4.0.2
     transitivePeerDependencies:
@@ -6949,7 +6959,7 @@ snapshots:
     dependencies:
       '@pnpm/crypto.hash': 1100.0.8
       '@pnpm/types': 1102.1.1
-      semver: 7.8.5
+      semver: 7.8.6
 
   '@pnpm/error@1100.2.2':
     dependencies:
@@ -6994,7 +7004,7 @@ snapshots:
       js-yaml: '@zkochan/js-yaml@0.0.11'
       normalize-path: 3.0.0
       ramda: '@pnpm/ramda@0.28.1'
-      semver: 7.8.5
+      semver: 7.8.6
       signal-exit: 4.1.0
       strip-bom: 5.0.0
       write-file-atomic: 7.0.1
@@ -7005,7 +7015,7 @@ snapshots:
       '@pnpm/types': 1102.1.1
       comver-to-semver: 2.0.0
       ramda: '@pnpm/ramda@0.28.1'
-      semver: 7.8.5
+      semver: 7.8.6
 
   '@pnpm/lockfile.pruner@1100.0.27':
     dependencies:
@@ -7054,7 +7064,7 @@ snapshots:
       '@pnpm/error': 1100.2.2
       '@pnpm/logger': 1100.0.0
       '@pnpm/patching.types': 1100.0.1
-      semver: 7.8.5
+      semver: 7.8.6
 
   '@pnpm/patching.types@1100.0.1': {}
 
@@ -7514,7 +7524,7 @@ snapshots:
   '@tokenizer/inflate@0.4.1':
     dependencies:
       debug: 4.4.3
-      token-types: 6.1.2
+      token-types: 6.2.0
     transitivePeerDependencies:
       - supports-color
 
@@ -8103,7 +8113,7 @@ snapshots:
 
   entities@6.0.1: {}
 
-  entities@8.1.0: {}
+  entities@8.0.0: {}
 
   entities@9.0.0: {}
 
@@ -8415,8 +8425,8 @@ snapshots:
   file-type@21.3.4:
     dependencies:
       '@tokenizer/inflate': 0.4.1
-      strtok3: 10.6.3
-      token-types: 6.1.2
+      strtok3: 10.7.0
+      token-types: 6.2.0
       uint8array-extras: 1.6.0
     transitivePeerDependencies:
       - supports-color
@@ -9719,7 +9729,7 @@ snapshots:
 
   node-abi@3.101.0:
     dependencies:
-      semver: 7.8.5
+      semver: 7.8.6
     optional: true
 
   node-addon-api@7.1.1: {}
@@ -9838,7 +9848,7 @@ snapshots:
 
   parse5@8.0.1:
     dependencies:
-      entities: 8.1.0
+      entities: 8.0.0
 
   parse5@8.1.0:
     dependencies:
@@ -10308,6 +10318,8 @@ snapshots:
 
   semver@7.8.5: {}
 
+  semver@7.8.6: {}
+
   set-cookie-parser@3.2.2: {}
 
   set-function-length@1.2.2:
@@ -10443,7 +10455,7 @@ snapshots:
     dependencies:
       anynum: 1.0.1
 
-  strtok3@10.6.3:
+  strtok3@10.7.0:
     dependencies:
       '@tokenizer/token': 0.3.0
 
@@ -10531,7 +10543,7 @@ snapshots:
 
   toidentifier@1.0.1: {}
 
-  token-types@6.1.2:
+  token-types@6.2.0:
     dependencies:
       '@borewit/text-codec': 0.2.3
       '@tokenizer/token': 0.3.0

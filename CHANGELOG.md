@@ -1,5 +1,22 @@
 # @fungi.computer/prints
 
+## 0.8.1
+
+### Patch Changes
+
+- Changes since 0.8.0:
+
+  - fix(workbench): repair the root browser proofs the nightly first ran
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/caps@0.7.1
+  - @fungi.computer/gills@0.2.1
+  - @fungi.computer/parakeet@0.7.2
+  - @fungi.computer/agar@0.7.1
+  - @fungi.computer/darkroom@0.5.1
+
 ## 0.8.0
 
 ### Minor Changes
