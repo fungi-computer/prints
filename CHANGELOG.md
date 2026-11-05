@@ -1,5 +1,17 @@
 # @fungi.computer/prints
 
+## 0.9.0
+
+### Minor Changes
+
+- Changes since 0.8.2:
+
+  - feat(front-doors): lead with the local try-it path and an install-now button
+
+### Patch Changes
+
+- @fungi.computer/parakeet@0.8.1
+
 ## 0.8.2
 
 ### Patch Changes
