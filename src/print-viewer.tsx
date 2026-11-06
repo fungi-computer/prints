@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { AppRoot } from "@fungi.computer/agar";
 import {
   Dialog,
@@ -30,7 +37,6 @@ import {
   type GalleryImage,
   type GallerySource,
 } from "./media-gallery.js";
-import { PrintDownloadButton } from "./print-download-button.js";
 import {
   resolveViewerKey,
   step,
@@ -38,6 +44,11 @@ import {
 } from "./print-viewer-model.js";
 import { isVideoPath } from "./local-images.js";
 import { reportCatchFailure } from "./log-event.js";
+
+const PrintDownloadButton = lazy(async () => {
+  const module = await import("./print-download-button.js");
+  return { default: module.PrintDownloadButton };
+});
 
 function ViewerVideo({
   url,
@@ -416,11 +427,13 @@ export function PrintViewer({
               />
             ) : null}
             {image ? (
-              <PrintDownloadButton
-                key={image.url}
-                source={image.source}
-                app={app}
-              />
+              <Suspense fallback={null}>
+                <PrintDownloadButton
+                  key={image.url}
+                  source={image.source}
+                  app={app}
+                />
+              </Suspense>
             ) : null}
             {image?.source.kind === "computer" ? (
               <InkcapAction key={key} source={image.source} />

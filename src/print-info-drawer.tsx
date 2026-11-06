@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { AppRoot } from "@fungi.computer/agar";
 import { useQuery } from "@tanstack/react-query";
 import { capabilityQuery, queryKeys } from "@fungi.computer/agar/query";
@@ -19,9 +26,13 @@ import {
   type MediaModel,
 } from "./generation-model.js";
 import type { GalleryImage } from "./media-gallery.js";
-import { PrintDownloadButton } from "./print-download-button.js";
 import { PrintShareRows } from "./print-share.js";
 import { mediaShare } from "@fungi.computer/agar/media";
+
+const PrintDownloadButton = lazy(async () => {
+  const module = await import("./print-download-button.js");
+  return { default: module.PrintDownloadButton };
+});
 
 // Only the generation facts the drawer shows; getOutput's owner validates the rest.
 const outputDetailsSchema = z.object({
@@ -131,7 +142,11 @@ const fileNameTail = 10;
 export function PrintInfoDrawer({
   image,
   app,
-  download = <PrintDownloadButton source={image.source} app={app} />,
+  download = (
+    <Suspense fallback={null}>
+      <PrintDownloadButton source={image.source} app={app} />
+    </Suspense>
+  ),
   referenceImages,
   models,
   canAnimate,

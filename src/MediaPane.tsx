@@ -1,5 +1,4 @@
 import { usePrintNavigation } from "./print-navigation.js";
-import { PrintInfoDrawer } from "./print-info-drawer.js";
 import { PrintViewer } from "./print-viewer.js";
 import {
   galleryImageKey,
@@ -39,6 +38,8 @@ import { reportCatchFailure } from "./log-event.js";
 import type { UploadQueueProps } from "@fungi.computer/caps/blocks/upload-queue";
 
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useId,
@@ -100,6 +101,11 @@ import {
   PromptStyleSelect,
   PromptStylesDialog,
 } from "./prompt-style-controls.js";
+
+const PrintInfoDrawer = lazy(async () => {
+  const module = await import("./print-info-drawer.js");
+  return { default: module.PrintInfoDrawer };
+});
 
 /** Starting points for an empty gallery; choosing one fills the composer. */
 const promptSuggestions = [
@@ -1511,37 +1517,39 @@ export function MediaPane({
     onClose: () => void,
     download?: ReactNode,
   ) => (
-    <PrintInfoDrawer
-      key={image.url}
-      image={image}
-      app={connection?.app ?? null}
-      referenceImages={composerImages}
-      models={models}
-      canAnimate={animateModelFor(models) !== undefined}
-      download={download}
-      onIterate={(action, lineage) => {
-        if (image.source.kind !== "computer") return null;
-        const outcome = iterationDraft(action, {
-          lineage,
-          printComputerId: image.source.computerId,
-          printPath: image.source.path,
-          models,
-          styles: promptStyles.styles.map((entry) => entry.name),
-          current: form.store.state.values,
-        });
-        if (outcome.kind === "refused") return outcome.message;
-        loadDraft(outcome.draft);
-        setIterationNotice(
-          outcome.notice === null
-            ? null
-            : { model: outcome.draft.model, message: outcome.notice },
-        );
-        setInfoImage(null);
-        if (viewerKey !== null) closeViewer(galleryImageKey(image));
-        return null;
-      }}
-      onClose={onClose}
-    />
+    <Suspense fallback={null}>
+      <PrintInfoDrawer
+        key={image.url}
+        image={image}
+        app={connection?.app ?? null}
+        referenceImages={composerImages}
+        models={models}
+        canAnimate={animateModelFor(models) !== undefined}
+        download={download}
+        onIterate={(action, lineage) => {
+          if (image.source.kind !== "computer") return null;
+          const outcome = iterationDraft(action, {
+            lineage,
+            printComputerId: image.source.computerId,
+            printPath: image.source.path,
+            models,
+            styles: promptStyles.styles.map((entry) => entry.name),
+            current: form.store.state.values,
+          });
+          if (outcome.kind === "refused") return outcome.message;
+          loadDraft(outcome.draft);
+          setIterationNotice(
+            outcome.notice === null
+              ? null
+              : { model: outcome.draft.model, message: outcome.notice },
+          );
+          setInfoImage(null);
+          if (viewerKey !== null) closeViewer(galleryImageKey(image));
+          return null;
+        }}
+        onClose={onClose}
+      />
+    </Suspense>
   );
   return (
     <main

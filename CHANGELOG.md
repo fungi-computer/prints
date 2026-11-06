@@ -1,5 +1,18 @@
 # @fungi.computer/prints
 
+## 0.9.1
+
+### Patch Changes
+
+- Changes since 0.9.0:
+
+  - fix(prints): defer details code and await cold controls in its proofs
+  - fix(prints): load image export codecs when a download is offered
+
+- Updated dependencies
+  - @fungi.computer/parakeet@0.8.2
+  - @fungi.computer/caps@0.7.1
+
 ## 0.9.0
 
 ### Minor Changes
