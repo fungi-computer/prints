@@ -1,7 +1,9 @@
 import {
+  appErrorCodes,
   describeAppError,
   type ErrorDescription,
 } from "@fungi.computer/agar/errors";
+import type { GenerationFailure } from "./media-recovery-contract.js";
 import { MediaGenerationError } from "@fungi.computer/agar/media";
 import type {
   MediaGenerationInput,
@@ -110,7 +112,56 @@ export function describeGenerationError(cause: unknown): ErrorDescription {
       message:
         "Media generation needs Team credits. Add credits in Billing, then retry.",
     },
+    // Each cause says what happened and what Retry changes, never a bare "failed".
+    MEDIA_PROVIDER_FAILURE: {
+      title: "Generation failed",
+      message:
+        "The model stopped before it finished. Retry, or pick another model.",
+    },
+    MEDIA_PROVIDER_FAILURE_UNCHARGED: {
+      title: "Generation failed",
+      message:
+        "The model stopped before it finished. You weren’t charged. Retry, or pick another model.",
+    },
+    SAFETY_FILTER_REFUSED: {
+      title: "Generation refused",
+      message:
+        "The model refused this prompt. Change the prompt or reference image, then retry.",
+    },
+    TIMEOUT: {
+      title: "Still waiting",
+      message: "The model didn’t answer in time. Retry to ask again.",
+    },
+    SETUP_REQUIRED: {
+      title: "Setup needed",
+      message:
+        "This model isn’t connected. Connect one in Settings, then retry.",
+    },
+    DISCONNECTED: {
+      title: "Connection lost",
+      message: "Prints lost its connection. Reopen it, then retry.",
+    },
+    HOST_FAILURE: {
+      title: "Couldn’t create image",
+      message: "The service couldn’t finish this just now. Retry in a moment.",
+    },
   });
+}
+
+/** The cause and sentence to remember for a failed generation. */
+export function generationFailureOf(cause: unknown): GenerationFailure {
+  const reason = Schema.decodeUnknownOption(
+    Schema.Struct({ code: Schema.Literals(appErrorCodes) }),
+  )(cause);
+  return {
+    reason:
+      reason._tag === "Some"
+        ? reason.value.code
+        : needsGatewayCredits(cause)
+          ? "INSUFFICIENT_CREDIT"
+          : "UNKNOWN",
+    message: describeGenerationError(cause).message,
+  };
 }
 
 export function defaultGenerationDraft(): GenerationDraft {

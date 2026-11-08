@@ -21,7 +21,8 @@ import { Field } from "@fungi.computer/caps/components/field";
 import { Select } from "@fungi.computer/caps/components/select";
 import { Switch } from "@fungi.computer/caps/components/switch";
 import { EmptyState } from "@fungi.computer/caps/blocks/empty-state";
-import { useWindowStatus } from "@fungi.computer/agar/react";
+import { useAppContext, useWindowStatus } from "@fungi.computer/agar/react";
+import { SetupNotice } from "@fungi.computer/caps/blocks/setup-notice";
 import { folderStatusItem } from "./folder-status.js";
 import { ComposerShell } from "@fungi.computer/parakeet";
 import { GenerationModelKey } from "./generation-model-key.js";
@@ -107,11 +108,11 @@ const PrintInfoDrawer = lazy(async () => {
   return { default: module.PrintInfoDrawer };
 });
 
-/** Starting points for an empty gallery; choosing one fills the composer. */
+/** Starting points for an empty gallery; choosing one makes that print. */
 const promptSuggestions = [
   "a mushroom knight",
   "moss on a keyboard",
-  "your Agent's selfie",
+  "a tiny house made of mushrooms",
 ] as const;
 
 type GenerationSubmit = (draft: GenerationDraft) => Promise<boolean>;
@@ -383,6 +384,7 @@ function GenerationComposer({
   models,
   modelsLoading,
   mediaCapability,
+  setupReason,
   submitting,
   values,
   computerId,
@@ -413,6 +415,8 @@ function GenerationComposer({
   models: readonly MediaModel[];
   modelsLoading: boolean;
   mediaCapability: boolean;
+  /** Why generating is off until the person connects a model; shown on the controls. */
+  setupReason: string | undefined;
   submitting: boolean;
   values: GenerationDraft;
   computerId: string | null;
@@ -696,7 +700,7 @@ function GenerationComposer({
                     onSlashPick={() => {
                       pickSlash(slash.slashIndex);
                     }}
-                    placeholder="What are we making?"
+                    placeholder={setupReason ?? "What are we making?"}
                     slashCount={slash.slashMatches.length}
                     value={field.state.value}
                   />
@@ -832,9 +836,9 @@ function GenerationComposer({
               <span
                 className="sr-only"
                 data-generation-computer
-                title={`Saved to ${computerId}:${mediaDirectory}`}
+                title="Where new prints are saved"
               >
-                Saves to {mediaDirectory}
+                Saved in your Prints folder
               </span>
             ) : null}
           </>
@@ -849,6 +853,7 @@ function GenerationComposer({
               models.length === 0 ||
               submitting
             }
+            disabledReason={setupReason}
             label={generateActionLabel(selected)}
             onGenerate={() => {
               void onSubmit();
@@ -896,6 +901,54 @@ export function MediaPane({
   const connectionRef = useRef(connection);
   connectionRef.current = connection;
   const folder = useMediaFolder(connection?.app ?? null);
+  // The host says up front whether a provider is connected; no send is wasted finding out.
+  const mediaSetupMissing =
+    useAppContext(connection?.app ?? null)?.setup?.media === "missing";
+  const [setupWaiting, setSetupWaiting] = useState(false);
+  const [setupUnavailable, setSetupUnavailable] = useState(false);
+  const openMediaSetup = () => {
+    const app = connection?.app;
+    if (!app) return;
+    setSetupWaiting(true);
+    setSetupUnavailable(false);
+    app.ui.openSetup("media").then(
+      (outcome) => {
+        if (outcome === "unavailable") {
+          setSetupWaiting(false);
+          setSetupUnavailable(true);
+        }
+      },
+      (cause: unknown) => {
+        setSetupWaiting(false);
+        reportCatchFailure("open-media-setup", cause);
+      },
+    );
+  };
+  const setupNotice = (variant: "panel" | "banner") => (
+    <SetupNotice
+      variant={variant}
+      data-media-empty={variant === "panel" ? true : undefined}
+      need={
+        variant === "panel"
+          ? "Connect an image model to start making prints"
+          : "Generation needs an image model"
+      }
+      cause={
+        setupUnavailable
+          ? "Open System Settings, then Keys, to connect one."
+          : variant === "panel"
+            ? "Describe something and it lands here."
+            : "No image model is connected yet."
+      }
+      available="Uploads work now."
+      waitingFor="an image model"
+      fix={{
+        label: "Connect",
+        onSelect: openMediaSetup,
+        pending: setupWaiting,
+      }}
+    />
+  );
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [activityInset, setActivityInset] = useState<number | undefined>();
   const dismissed = useNoticeDismissals(
@@ -1255,9 +1308,51 @@ export function MediaPane({
     selectedImageKey,
   ]);
   const hasPendingGeneration = generationState.kind === "pending";
-  const wallItems = useMemo(
+  const activeRuns = [...activeGenerations].sort().join("|");
+  const failedSlots = gallerySlots.filter(
+    (slot) => slot.error !== undefined,
+  ).length;
+  // A remembered command with no run behind it did not finish. It stays on the
+  // wall as a failed tile, across reloads, until it is retried or dismissed.
+  const interruptedItems = useMemo(
     () =>
-      galleryWithSlots(listedItems, gallerySlots, (slot) => {
+      pendingGenerations
+        .filter(
+          (record) =>
+            record.reference.computerId === folder.computerId &&
+            !activeRuns.split("|").includes(record.reference.requestId) &&
+            !gallerySlots.some(
+              (slot) =>
+                slot.computerId === record.reference.computerId &&
+                slot.path === record.input.destination.path,
+            ),
+        )
+        .map((record): MediaMasonryItem => ({
+          key: `${record.reference.computerId}:${record.input.destination.path}`,
+          path: record.input.destination.path,
+          width: 1024,
+          // A failed tile is at least 4:5, so its reason and buttons fit.
+          height: 1280,
+          url: "",
+          pending: true,
+          error:
+            record.failure?.message ??
+            "Stopped when Prints closed. Retry to run it again.",
+          prompt: record.typed.prompt,
+          onOpen: () => undefined,
+          onRetry: () => {
+            generationRef.current.resume(record);
+          },
+          onDismiss: () => {
+            generationRef.current.discard(record);
+          },
+        })),
+    [pendingGenerations, folder.computerId, activeRuns, gallerySlots],
+  );
+  const wallItems = useMemo(
+    () => [
+      ...interruptedItems,
+      ...galleryWithSlots(listedItems, gallerySlots, (slot) => {
         const upload = uploads.items.find((item) => item.id === slot.uploadId);
         const error =
           slot.error ??
@@ -1268,10 +1363,22 @@ export function MediaPane({
           key: slot.key,
           path: slot.path,
           width: slot.width,
-          height: slot.height,
+          height:
+            error === undefined
+              ? slot.height
+              : Math.max(slot.height, slot.width * 1.25),
           url: "",
           pending: true,
           error,
+          prompt:
+            error === undefined
+              ? undefined
+              : (pendingGenerations.find(
+                  (record) =>
+                    record.reference.computerId === slot.computerId &&
+                    record.input.destination.path === slot.path,
+                )?.typed.prompt ??
+                (failedSlots === 1 ? generation.failedPrompt : undefined)),
           pendingLabel:
             upload?.status === "complete" ||
             generationState.kind === "completed"
@@ -1317,7 +1424,12 @@ export function MediaPane({
             : undefined,
         };
       }),
+    ],
     [
+      interruptedItems,
+      pendingGenerations,
+      failedSlots,
+      generation.failedPrompt,
       listedItems,
       gallerySlots,
       uploads.items,
@@ -1350,10 +1462,16 @@ export function MediaPane({
                     });
                 }
               : undefined,
-          retry:
-            tileFailed && generationState.retryable !== false
-              ? generation.retry
-              : undefined,
+          prompt: generation.failedPrompt,
+          retry: tileFailed ? generation.retry : undefined,
+          dismiss: tileFailed
+            ? () => {
+                // The tile and the Activity row go together with the remembered run.
+                for (const slot of gallerySlots)
+                  if (slot.error !== undefined) removeSlot(slot.key);
+                generation.dismissFailed();
+              }
+            : undefined,
         }
       : null;
   const notices = noticesFor({
@@ -1616,32 +1734,44 @@ export function MediaPane({
                 }
               />
             ) : !(loading || gallery.loading) ? (
-              <EmptyState
-                aria-live="polite"
-                data-absence
-                data-media-empty
-                role="status"
-                variant="panel"
-                visual={<ImagePlus />}
-                title="Nothing printed yet."
-                description={
-                  folder.computerId === null
-                    ? "Your images will appear here."
-                    : folder.available && mediaDirectory === null
-                      ? "Pick a folder in the composer below, then describe something or drop in images."
-                      : "Describe something and it lands here, or drop in images from your Computer."
-                }
-                {...(mediaCapability
-                  ? {
-                      suggestions: promptSuggestions.map((prompt) => ({
-                        label: prompt,
-                        onSelect: () => {
-                          form.setFieldValue("prompt", prompt);
-                        },
-                      })),
-                    }
-                  : {})}
-              />
+              mediaSetupMissing ? (
+                setupNotice("panel")
+              ) : (
+                <EmptyState
+                  aria-live="polite"
+                  data-absence
+                  data-media-empty
+                  role="status"
+                  variant="panel"
+                  visual={<ImagePlus />}
+                  title="Make your first print"
+                  description={
+                    folder.computerId === null
+                      ? "Your images will appear here."
+                      : folder.available && mediaDirectory === null
+                        ? "Pick a folder in the composer below, then describe something or drop in images."
+                        : "Describe something and it lands here, or drop in images from your Computer."
+                  }
+                  {...(mediaCapability &&
+                  canGenerate &&
+                  canWrite &&
+                  mediaDirectory !== null &&
+                  generationState.kind === "ready" &&
+                  !modelsLoading &&
+                  models.length > 0
+                    ? {
+                        suggestions: promptSuggestions.map((prompt) => ({
+                          label: prompt,
+                          onSelect: () => {
+                            // A starter makes its print, so the first click shows what Prints does.
+                            form.setFieldValue("prompt", prompt);
+                            void form.submitCurrent();
+                          },
+                        })),
+                      }
+                    : {})}
+                />
+              )
             ) : (
               <EmptyState
                 variant="hint"
@@ -1686,6 +1816,7 @@ export function MediaPane({
         onClose={closeViewer}
         renderInfo={(image, onClose) => renderPrintInfo(image, onClose, null)}
       />
+      {mediaSetupMissing && wallItems.length > 0 ? setupNotice("banner") : null}
       <div className="prints-composer-dock">
         <section aria-label="Computer uploads" className="prints-uploads">
           <input
@@ -1799,7 +1930,11 @@ export function MediaPane({
             mediaCapability &&
             canGenerate &&
             canWrite &&
-            mediaDirectory !== null
+            mediaDirectory !== null &&
+            !mediaSetupMissing
+          }
+          setupReason={
+            mediaSetupMissing ? "Connect an image model to start" : undefined
           }
           models={models}
           modelsLoading={modelsLoading}

@@ -18,22 +18,22 @@ import { Display, ScreenHeader } from "@fungi.computer/caps/components/surface";
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { KeycapButton } from "@fungi.computer/caps/components/keycap";
 import { Loader } from "@fungi.computer/caps/components/loader";
+import { FailureLine } from "@fungi.computer/caps/components/failure-line";
 import { GenerationFrame } from "@fungi.computer/caps/components/generation-frame";
 import { ScrollArea } from "@fungi.computer/caps/components/scroll-area";
-import { Status } from "@fungi.computer/caps/components/status";
 import {
   ArrowLeft,
   ArrowRight,
   ExternalLink,
   Info,
   Maximize,
-  RotateCcw,
   X,
 } from "lucide-react";
 import type { MediaMasonryItem } from "./media-masonry.js";
 import {
   galleryImageKey,
   openInInkcap,
+  useFilesEditorInstalled,
   type GalleryImage,
   type GallerySource,
 } from "./media-gallery.js";
@@ -114,6 +114,7 @@ function PrintStage({
   const [awaitedGeneration, setAwaitedGeneration] = useState(generating);
   if (generating && !awaitedGeneration) setAwaitedGeneration(true);
   const pendingLabel = item.pendingLabel ?? "Loading print…";
+  const label = generating ? "Not saved" : "Prints can’t show this file";
   const picture = (
     <img
       key={item.url}
@@ -146,30 +147,13 @@ function PrintStage({
           className="h-full w-full"
           failure={
             <div className="flex max-w-full flex-col items-center gap-sm px-md text-center">
-              <Status
-                tone="error"
-                appearance="chip"
-                glyph="bang"
-                label={generating ? "Not saved" : "Prints can't show this file"}
-              />
               <p className="max-w-full break-words text-sm">{item.path}</p>
-              {item.error ? <p className="text-sm">{item.error}</p> : null}
-              {item.onRetry ? (
-                <IconButton
-                  aria-label="Retry print"
-                  title="Retry print"
-                  icon={<RotateCcw />}
-                  onClick={item.onRetry}
-                />
-              ) : null}
-              {item.onDismiss ? (
-                <IconButton
-                  aria-label="Dismiss print"
-                  title="Dismiss print"
-                  icon={<X />}
-                  onClick={item.onDismiss}
-                />
-              ) : null}
+              <FailureLine
+                density="tile"
+                message={item.error ? `${label}: ${item.error}` : label}
+                onRetry={item.onRetry}
+                onDismiss={item.onDismiss}
+              />
             </div>
           }
         />
@@ -275,6 +259,7 @@ export function PrintViewer({
   renderInfo: (image: GalleryImage, onClose: () => void) => ReactNode;
 }) {
   const popup = useRef<HTMLDivElement>(null);
+  const filesEditor = useFilesEditorInstalled(app);
   const sequence = viewerSequence(items);
   const previous = useRef(sequence);
   const key =
@@ -435,7 +420,7 @@ export function PrintViewer({
                 />
               </Suspense>
             ) : null}
-            {image?.source.kind === "computer" ? (
+            {filesEditor && image?.source.kind === "computer" ? (
               <InkcapAction key={key} source={image.source} />
             ) : null}
             <IconButton

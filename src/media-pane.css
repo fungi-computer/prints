@@ -5,13 +5,6 @@ body,
   margin: 0;
 }
 
-.prints-gallery-pending-actions {
-  position: absolute;
-  inset-block-start: var(--spacing-sm);
-  inset-inline-end: var(--spacing-sm);
-  display: flex;
-  gap: var(--spacing-sm);
-}
 @media (prefers-reduced-motion: no-preference) {
   [data-media-grid] > div {
     transition:
@@ -225,12 +218,6 @@ span.prints-reference-role {
   display: grid;
   gap: var(--spacing-xs);
 }
-.prints-tile-failed {
-  display: inline-flex;
-  position: absolute;
-  bottom: var(--spacing-sm);
-  left: var(--spacing-sm);
-}
 
 /* Layout only; Caps KeycapButton owns its key material and states. */
 .prints-panel-footer > button {
@@ -415,4 +402,14 @@ span.prints-reference-role {
 .prints-share-note {
   color: var(--stipe-fg-muted);
   font-size: var(--text-xs);
+}
+
+/* A failure's reason is the content, so Activity rows wrap it instead of truncating. */
+.prints-instrument .caps-status-tray-text {
+  flex-wrap: wrap;
+  white-space: normal;
+}
+.prints-instrument .caps-status-tray-primary {
+  overflow: visible;
+  text-overflow: clip;
 }

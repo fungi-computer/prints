@@ -223,11 +223,11 @@ function ActivityContent({
                     className="prints-notice-actions"
                     aria-label={`Actions for ${notice.title}`}
                   >
-                    {notice.actions?.map((action) => (
+                    {notice.actions?.map((action, index) => (
                       <Button
                         key={action.label}
-                        variant="ghost"
-                        size="xs"
+                        variant={index === 0 ? "outline" : "ghost"}
+                        size={index === 0 ? "sm" : "xs"}
                         onClick={action.run}
                       >
                         {action.label}
@@ -257,7 +257,9 @@ function ActivityContent({
         </section>
       ) : null}
       <div className="prints-panel-footer">
-        <span className="prints-footer-note">Clear keeps setup notices</span>
+        <span className="prints-footer-note">
+          Clear dismisses finished items
+        </span>
         <Button
           variant="ghost"
           size="xs"

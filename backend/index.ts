@@ -261,12 +261,62 @@ class PrintsFacet extends DurableObject<PrintsEnv, unknown> {
             record.reference.requestId,
           )
           .one();
-        if (stored.record_json !== encoded)
-          return Response.json(
-            { error: "Generation reference already has another input" },
-            { status: 409 },
+        if (stored.record_json !== encoded) {
+          // A retry re-remembers the same command; only a recorded failure may differ.
+          const previous = normalizePendingGeneration(
+            Schema.decodeUnknownSync(
+              Schema.fromJsonString(pendingGenerationSchema),
+              { onExcessProperty: "error" },
+            )(stored.record_json),
           );
+          if (
+            previous.failure === undefined ||
+            JSON.stringify({ ...previous, failure: undefined }) !== encoded
+          )
+            return Response.json(
+              { error: "Generation reference already has another input" },
+              { status: 409 },
+            );
+          sql.exec(
+            "UPDATE pending_generations SET record_json=? WHERE actor_id=? AND request_id=?",
+            encoded,
+            actor.value,
+            record.reference.requestId,
+          );
+        }
         return Response.json(record);
+      }
+      if (input.operation === "fail-generation") {
+        const refused = requireComputer(input.reference.computerId);
+        if (refused !== null) return refused;
+        const row = sql
+          .exec<{ record_json: string }>(
+            "SELECT record_json FROM pending_generations WHERE actor_id=? AND request_id=? AND computer_id=?",
+            actor.value,
+            input.reference.requestId,
+            input.reference.computerId,
+          )
+          .toArray()[0];
+        if (row === undefined)
+          return Response.json(
+            { error: "No remembered generation matches this reference" },
+            { status: 404 },
+          );
+        const failed = normalizePendingGeneration({
+          ...Schema.decodeUnknownSync(
+            Schema.fromJsonString(pendingGenerationSchema),
+            { onExcessProperty: "error" },
+          )(row.record_json),
+          failure: input.failure,
+        });
+        sql.exec(
+          "UPDATE pending_generations SET record_json=? WHERE actor_id=? AND request_id=? AND computer_id=?",
+          JSON.stringify(failed),
+          actor.value,
+          input.reference.requestId,
+          input.reference.computerId,
+        );
+        return Response.json(failed);
       }
       if (input.operation === "forget-generation") {
         const refused = requireComputer(input.reference.computerId);

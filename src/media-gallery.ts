@@ -1,4 +1,6 @@
 import type { AppRoot } from "@fungi.computer/agar";
+import { appsOpen } from "@fungi.computer/agar/apps";
+import { filesRole } from "@fungi.computer/agar/roles/files";
 import { useComputerId } from "@fungi.computer/agar/react";
 import {
   computerList,
@@ -42,6 +44,34 @@ export function openInInkcap(
     computerId: source.computerId,
     path: source.path,
   });
+}
+
+/**
+ * Whether the Team has an App for the files role, so "Open in Inkcap" is only
+ * offered when the open can land. Unanswered or refused means not installed.
+ */
+export function useFilesEditorInstalled(app: AppRoot | null): boolean {
+  const [installed, setInstalled] = useState(false);
+  useEffect(() => {
+    setInstalled(false);
+    if (!app?.capabilities.has(appsOpen)) return;
+    let current = true;
+    app.capabilities
+      .require(appsOpen)
+      .role(filesRole)
+      .then(
+        (choice) => {
+          if (current) setInstalled(choice !== null);
+        },
+        (cause: unknown) => {
+          reportCatchFailure("files-editor-role", cause);
+        },
+      );
+    return () => {
+      current = false;
+    };
+  }, [app]);
+  return installed;
 }
 
 export function useGalleryMedia(

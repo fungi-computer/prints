@@ -7,6 +7,7 @@ import { MediaPane } from "../src/MediaPane.js";
 import { createPrintsFixture, type CaptureOptions } from "./fixtures.js";
 import { fixtureNotices } from "./notice-store.js";
 import { useWorkbenchStatusBar } from "./status-bar.fixture.js";
+import "../src/media.css";
 import "./workbench.css";
 export default { title: "Prints" } satisfies StoryDefault;
 function Workbench({
@@ -171,6 +172,10 @@ export function ViewerReads() {
   );
 }
 export const Empty = () => <Workbench scenario="empty" />;
+/** A starter chip was chosen; the first print is being made. */
+export const GeneratingFirstPrint = () => (
+  <Workbench scenario="empty" generationDelayMs={120_000} />
+);
 export const Retry = () => <Workbench scenario="retry" />;
 export const Unavailable = () => <Workbench scenario="unavailable" />;
 export const Disconnected = () => <Workbench scenario="disconnected" />;

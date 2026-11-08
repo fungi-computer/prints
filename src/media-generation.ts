@@ -21,6 +21,7 @@ import { Option, Schema } from "effect";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   describeGenerationError,
+  generationFailureOf,
   generationDestinationFor,
   generationInputFor,
   generationPendingLabel,
@@ -34,12 +35,14 @@ import {
 import { mediaModelsQuery } from "./media-queries.js";
 import {
   completeGeneration,
+  failGeneration,
   forgetGeneration,
   listGenerations,
   rememberGeneration,
 } from "./media-recovery.js";
 import {
   normalizePendingGeneration,
+  type GenerationFailure,
   type PendingGeneration,
 } from "./media-recovery-contract.js";
 import {
@@ -187,6 +190,28 @@ export function useMediaGeneration({
     current.current === command.connection &&
     command.connection.app.context.get().computerId ===
       command.reference.computerId;
+  /** Show a remembered run as failed (or running again) without waiting for a refetch. */
+  const markFailure = (
+    queryKey: QueryKey,
+    requestId: string,
+    failure: GenerationFailure | undefined,
+  ) => {
+    client.setQueryData<RecoveryPages>(
+      queryKey,
+      (previous) =>
+        previous && {
+          ...previous,
+          pages: previous.pages.map((page) => ({
+            ...page,
+            records: page.records.map((record) =>
+              record.reference.requestId === requestId
+                ? { ...record, failure }
+                : record,
+            ),
+          })),
+        },
+    );
+  };
   const removeRecord = (queryKey: QueryKey, requestId: string) => {
     client.setQueryData<RecoveryPages>(
       queryKey,
@@ -214,6 +239,7 @@ export function useMediaGeneration({
         characters: run.characters,
       });
       await rememberGeneration(run.connection.app.capabilities, pendingRecord);
+      markFailure(run.recoveryKey, run.reference.requestId, undefined);
       run.controller.signal.throwIfAborted();
       const attempt = await run.session.restoreAttempt(run.reference);
       let result;
@@ -257,14 +283,24 @@ export function useMediaGeneration({
     },
     onError: (cause, run) => {
       reportCatchFailure("generate-media", cause);
-      if (!selected(run) || run.controller.signal.aborted) return;
+      if (run.controller.signal.aborted) return;
+      const failure = generationFailureOf(cause);
+      // The reason is remembered with the run, so it outlives a reload.
+      void failGeneration(
+        run.connection.app.capabilities,
+        run.reference,
+        failure,
+      ).catch((failed: unknown) => {
+        reportCatchFailure("fail-generation", failed);
+      });
+      if (!selected(run)) return;
+      markFailure(run.recoveryKey, run.reference.requestId, failure);
       folder.recheck();
-      const message = describeGenerationError(cause).message;
+      // The tile and Activity say it once; a toast would say it a third time.
       callbacks.current.failed(
         `${run.reference.computerId}:${run.input.destination.path}`,
-        message,
+        failure.message,
       );
-      callbacks.current.notifyFailure(message);
     },
     onSettled: (_result, _cause, run) => {
       if (active.current.get(run.reference.requestId) === run.controller)
@@ -625,6 +661,21 @@ export function useMediaGeneration({
             if (retry.current) run(retry.current);
           }
         : undefined,
+    /** What the failed attempt was asked for, so a failure says which print. */
+    failedPrompt: retry.current?.typed.prompt,
+    /** Forget the failed attempt: drop its remembered command and its error. */
+    dismissFailed: () => {
+      const command = retry.current;
+      if (!command || active.current.has(command.reference.requestId)) {
+        generate.reset();
+        return;
+      }
+      retry.current = null;
+      generate.reset();
+      const controller = new AbortController();
+      active.current.set(command.reference.requestId, controller);
+      discard.mutate({ ...command, controller, recoveryKey });
+    },
     errorKey: `generation:${retry.current?.reference.requestId ?? "draft"}:${String(ticket.current)}`,
   };
 }

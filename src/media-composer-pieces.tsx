@@ -48,6 +48,7 @@ const PROMPT_COUNTER_ID = "prints-prompt-counter";
 export function GenerateButton({
   busy,
   disabled,
+  disabledReason,
   draft,
   label,
   onGenerate,
@@ -55,6 +56,8 @@ export function GenerateButton({
 }: {
   busy: boolean;
   disabled: boolean;
+  /** Why it is disabled, when the person can fix that; replaces the label as the tooltip. */
+  disabledReason?: string | undefined;
   draft: string;
   label: string;
   onGenerate: () => void;
@@ -69,7 +72,7 @@ export function GenerateButton({
       disabled={disabled || promptOver}
       onClick={onGenerate}
       state={composerSendState({ draft, busy })}
-      title={label}
+      title={disabled && disabledReason ? disabledReason : label}
     />
   );
 }

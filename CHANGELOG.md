@@ -1,5 +1,34 @@
 # @fungi.computer/prints
 
+## 0.10.0
+
+### Minor Changes
+
+- Changes since 0.9.4:
+
+  - fix(prints): say where prints are saved without importing the folder
+    constant
+  - fix(prints): one framed panel for the missing-model state
+  - feat(prints): ask for an image model up front and let starters run
+  - fix(prints): make Retry the one real button
+  - fix(prints): keep the failure schema private
+  - fix(prints): remember why a generation failed and say it once
+  - fix(prints): show failed prints as failed, keep them, guard Inkcap
+  - feat(agar): first-run setup facts, openSetup, more permission families
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.9.0
+  - @fungi.computer/caps@0.9.0
+  - @fungi.computer/darkroom@0.5.5
+  - @fungi.computer/gills@0.3.0
+  - @fungi.computer/parakeet@0.10.0
+
 ## 0.9.4
 
 ### Patch Changes

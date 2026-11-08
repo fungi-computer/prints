@@ -14,12 +14,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { Status } from "@fungi.computer/caps/components/status";
+import { FailureLine } from "@fungi.computer/caps/components/failure-line";
 import { GenerationFrame } from "@fungi.computer/caps/components/generation-frame";
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Loader } from "@fungi.computer/caps/components/loader";
 import { isVideoPath } from "./local-images.js";
-import { ImagePlus, Info, Check, RotateCcw, X } from "lucide-react";
+import { ImagePlus, Info, Check } from "lucide-react";
 
 /** One decoded image in the retained wall. */
 export type MediaMasonryItem = {
@@ -38,6 +38,8 @@ export type MediaMasonryItem = {
   pending?: boolean;
   pendingLabel?: string;
   error?: string;
+  /** What the print was asked for, so a failed tile says which one it was. */
+  prompt?: string | undefined;
   onRetry?: () => void;
   onDismiss?: () => void;
 };
@@ -157,82 +159,81 @@ const MediaTileView = memo(function MediaTileView({
       className="prints-gallery-tile"
       data-referenced={item.referenced ? true : undefined}
     >
-      <button
-        className="block h-full w-full overflow-hidden bg-base-200 p-0 text-left"
-        data-media-thumb-wrap
-        type="button"
-        disabled={item.pending}
-        onClick={() => {
-          item.onOpen(item.path);
-        }}
-        onKeyDown={(event) => {
-          if (
-            event.key.toLowerCase() === "i" &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.altKey &&
-            item.onInfo
-          ) {
-            event.preventDefault();
-            item.onInfo();
-          }
-        }}
-        title={item.path}
-      >
-        {/* Media fills the tile edge to edge; the selection ring sits inside it. */}
-        <div
-          className="caps-item block! h-full w-full overflow-hidden rounded-none! border-0! bg-transparent! shadow-none! z-auto! -outline-offset-2!"
-          data-selected={item.selected ?? false}
-        >
-          {item.pending || reserved || item.error ? (
-            <GenerationFrame
-              data-media-pending={item.pending ? "true" : undefined}
-              failure={
-                item.error ? (
-                  <span title={item.error} className="prints-tile-failed">
-                    <Status
-                      size="compact"
-                      appearance="chip"
-                      glyph="bang"
-                      tone="error"
-                      label="Not saved"
-                    />
-                  </span>
-                ) : undefined
-              }
-              indicator={
-                <Loader decorative size="fill" tone="accent" variant="bloom" />
-              }
-              label={item.pendingLabel ?? "Preparing image…"}
-              status={
-                item.pending ? (item.error ? "failed" : "generating") : "done"
-              }
-            >
-              {item.pending ? null : <TileMedia item={item} />}
-            </GenerationFrame>
-          ) : (
-            <TileMedia item={item} />
-          )}
-        </div>
-      </button>
       {item.error ? (
-        <div className="prints-gallery-pending-actions">
-          {item.onRetry ? (
-            <IconButton
-              aria-label={`Retry ${item.path}`}
-              icon={<RotateCcw />}
-              onClick={item.onRetry}
-            />
-          ) : null}
-          {item.onDismiss ? (
-            <IconButton
-              aria-label={`Dismiss ${item.path}`}
-              icon={<X />}
-              onClick={item.onDismiss}
-            />
-          ) : null}
+        <div
+          className="block h-full w-full overflow-hidden bg-base-200"
+          data-media-failed
+          title={item.path}
+        >
+          <GenerationFrame
+            status="failed"
+            failure={
+              <div className="flex max-w-full flex-col items-center gap-xs">
+                {item.prompt ? (
+                  <p className="m-0 max-w-full truncate px-md text-xs text-(--stipe-fg-muted)">
+                    {item.prompt}
+                  </p>
+                ) : null}
+                <FailureLine
+                  density="tile"
+                  message={item.error}
+                  onRetry={item.onRetry}
+                  onDismiss={item.onDismiss}
+                />
+              </div>
+            }
+          />
         </div>
-      ) : null}
+      ) : (
+        <button
+          className="block h-full w-full overflow-hidden bg-base-200 p-0 text-left"
+          data-media-thumb-wrap
+          type="button"
+          disabled={item.pending}
+          onClick={() => {
+            item.onOpen(item.path);
+          }}
+          onKeyDown={(event) => {
+            if (
+              event.key.toLowerCase() === "i" &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              !event.altKey &&
+              item.onInfo
+            ) {
+              event.preventDefault();
+              item.onInfo();
+            }
+          }}
+          title={item.path}
+        >
+          {/* Media fills the tile edge to edge; the selection ring sits inside it. */}
+          <div
+            className="caps-item block! h-full w-full overflow-hidden rounded-none! border-0! bg-transparent! shadow-none! z-auto! -outline-offset-2!"
+            data-selected={item.selected ?? false}
+          >
+            {item.pending || reserved ? (
+              <GenerationFrame
+                data-media-pending={item.pending ? "true" : undefined}
+                indicator={
+                  <Loader
+                    decorative
+                    size="fill"
+                    tone="accent"
+                    variant="bloom"
+                  />
+                }
+                label={item.pendingLabel ?? "Preparing image…"}
+                status={item.pending ? "generating" : "done"}
+              >
+                {item.pending ? null : <TileMedia item={item} />}
+              </GenerationFrame>
+            ) : (
+              <TileMedia item={item} />
+            )}
+          </div>
+        </button>
+      )}
       <div className="prints-gallery-tools">
         {!item.pending && item.onInfo ? (
           <IconButton

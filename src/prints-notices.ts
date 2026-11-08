@@ -20,6 +20,9 @@ export type NoticeState = {
     message: string;
     retry?: () => void;
     billing?: () => void;
+    dismiss?: () => void;
+    /** What the failed print was asked for. */
+    prompt?: string;
   } | null;
   recoveryError: string | null;
   pendingGenerations: readonly PendingGeneration[];
@@ -34,6 +37,8 @@ export type NoticeState = {
   discard: (record: PendingGeneration) => void;
   retryUpload: (id: string) => void;
 };
+
+const kindNames = { image: "Image", video: "Video", media: "Media" } as const;
 
 /** One owner for the cause, wording and actions of each activity notice. */
 export function noticesFor({
@@ -138,22 +143,25 @@ export function noticesFor({
     });
   if (generationError !== null) {
     const kind = generationError.mediaKind ?? "media";
+    const failure = `${kindNames[kind]} failed`;
     notices.push({
       key: generationError.key,
       group: "Images",
       tone: "error",
-      short: {
-        image: "Image failed",
-        video: "Video failed",
-        media: "Media failed",
-      }[kind],
-      title: `Couldn’t create ${kind}`,
-      detail: generationError.message,
-      actions: generationError.billing
-        ? [{ label: "Open Billing", run: generationError.billing }]
-        : generationError.retry
-          ? [{ label: "Retry", run: generationError.retry }]
-          : [],
+      short: failure,
+      title: `${failure}: ${generationError.message}`,
+      detail: generationError.prompt,
+      blocking: generationError.dismiss !== undefined,
+      actions: [
+        ...(generationError.billing
+          ? [{ label: "Open Billing", run: generationError.billing }]
+          : generationError.retry
+            ? [{ label: "Retry", run: generationError.retry }]
+            : []),
+        ...(generationError.dismiss
+          ? [{ label: "Dismiss", run: generationError.dismiss }]
+          : []),
+      ],
     });
   }
   if (recoveryError !== null)
@@ -175,22 +183,28 @@ export function noticesFor({
     )
       continue;
     const kind = modelFor(models, record.input.settings.model)?.kind ?? "media";
-    const title = `Unfinished ${kind}`;
+    // A remembered command with no run behind it did not finish, so it is a
+    // failure the person can retry or dismiss, not work that is still going.
+    const failure = `${kindNames[kind]} failed`;
     notices.push({
       key: `unfinished:${record.reference.requestId}`,
       group: "Images",
-      tone: "info",
-      short: title,
-      title,
+      tone: "error",
+      blocking: true,
+      short: failure,
+      title: `${failure}: ${
+        record.failure?.message ??
+        "Stopped when Prints closed. Retry to run it again."
+      }`,
       detail:
         record.reference.computerId !== computerId
-          ? `${record.input.settings.prompt} · on Computer ${record.reference.computerId}`
-          : record.input.settings.prompt,
+          ? `${record.typed.prompt} · on Computer ${record.reference.computerId}`
+          : record.typed.prompt,
       actions: [
         ...(record.reference.computerId === computerId
           ? [
               {
-                label: "Resume",
+                label: "Retry",
                 run: () => {
                   resume(record);
                 },
@@ -198,7 +212,7 @@ export function noticesFor({
             ]
           : []),
         {
-          label: "Discard",
+          label: "Dismiss",
           run: () => {
             discard(record);
           },

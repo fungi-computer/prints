@@ -5,6 +5,7 @@ import type {
   MediaGenerationAttemptHandle,
   MediaGenerationOutcome,
 } from "@fungi.computer/agar/media";
+import { appsOpen } from "@fungi.computer/agar/apps";
 import { appBackend, appMethods } from "@fungi.computer/agar/backend";
 import * as Schema from "effect/Schema";
 import * as z from "zod";
@@ -102,15 +103,19 @@ export type CaptureOptions = {
   folderExists?: boolean;
   canGenerate?: boolean;
   writable?: boolean;
+  /** False leaves the Team without an App for the files role (no Inkcap). */
+  filesEditor?: boolean;
   mediaGen?: boolean;
   /** False leaves the App without public links, as on a standalone host. */
   mediaShare?: boolean;
-  fail?: "error" | null;
+  fail?: "error" | "timeout" | null;
   pending?: boolean;
   modelsError?: boolean;
   computerSelected?: boolean;
   insufficientCredits?: boolean;
   openTeamBilling?: AppRoot["ui"]["openTeamBilling"];
+  /** What the host says about an image provider; omitted means it does not say. */
+  mediaSetup?: "ready" | "missing";
   requestBrowserAction?: AppRoot["ui"]["requestBrowserAction"];
   /** The window's status bar; a story without a shell drops its items. */
   status?: Pick<AppRoot["ui"], "reportStatus" | "onStatusAction">;
@@ -300,6 +305,13 @@ export function createPrintsFixture(
   }
   const capabilities = createCapabilityRegistry();
   const register = capabilities.provide;
+  register(appsOpen, {
+    open: () => Promise.resolve(),
+    role: () =>
+      Promise.resolve(
+        opt.filesEditor === false ? null : { displayName: "Inkcap" },
+      ),
+  });
   const folders = new Set(scenario === "folder-missing" ? [] : ["/media"]);
   let mediaFolder: string | null =
     opt.folder === undefined
@@ -481,12 +493,27 @@ export function createPrintsFixture(
         case "remember-generation": {
           const record = normalizePendingGeneration(command.record);
           const previous = pendingGenerations.get(record.reference.requestId);
-          if (previous && JSON.stringify(previous) !== JSON.stringify(record))
+          // A retry re-remembers the same command, which clears a recorded failure.
+          if (
+            previous &&
+            JSON.stringify({ ...previous, failure: undefined }) !==
+              JSON.stringify(record)
+          )
             return Promise.reject(
               new Error("Generation reference already has another input"),
             );
           pendingGenerations.set(record.reference.requestId, record);
           return Promise.resolve(record);
+        }
+        case "fail-generation": {
+          const previous = pendingGenerations.get(command.reference.requestId);
+          if (!previous)
+            return Promise.reject(
+              new Error("No remembered generation matches this reference"),
+            );
+          const failed = { ...previous, failure: command.failure };
+          pendingGenerations.set(command.reference.requestId, failed);
+          return Promise.resolve(failed);
         }
         case "complete-generation": {
           pendingGenerations.delete(command.reference.requestId);
@@ -655,6 +682,15 @@ export function createPrintsFixture(
               retryable: false,
             },
           } satisfies MediaGenerationOutcome;
+        if (opt.fail === "timeout")
+          return {
+            kind: "failed" as const,
+            failure: {
+              code: "TIMEOUT" as const,
+              message: "Fixture: no answer.",
+              retryable: true,
+            },
+          };
         if (opt.fail === "error")
           return {
             kind: "failed" as const,
@@ -778,7 +814,17 @@ export function createPrintsFixture(
         return Promise.resolve({ shared: false as const });
       },
     });
+  const setup: ReturnType<AppRoot["context"]["get"]>["setup"] =
+    opt.mediaSetup === undefined
+      ? undefined
+      : {
+          models: "ready",
+          media: opt.mediaSetup,
+          git: "ready",
+          terminal: "ready",
+        };
   const context: ReturnType<AppRoot["context"]["get"]> = {
+    setup,
     computerId: opt.computerSelected === false ? null : computerId,
     focus: { editing: false, surface: null },
     openRequest: null,
@@ -813,6 +859,7 @@ export function createPrintsFixture(
         (() => {
           throw new Error("Unexpected browser action");
         }),
+      openSetup: () => Promise.resolve("unavailable"),
       openDesktopSettings: () => Promise.resolve(),
       reportAgentSessionSelection: () => Promise.resolve(),
       showToast: () => Promise.resolve(),

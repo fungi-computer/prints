@@ -5,6 +5,7 @@ import {
   type MediaGenerationInput,
   type MediaGenerationReference,
 } from "@fungi.computer/agar/media";
+import { appErrorCodes } from "@fungi.computer/agar/errors";
 import * as Schema from "effect/Schema";
 import { styleName } from "./prompt-styles.js";
 import { characterName } from "./prompt-characters.js";
@@ -16,6 +17,15 @@ const typedSchema = Schema.Struct({
   references: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0))),
 });
 
+/** Why a generation stopped: the closed cause, and the plain sentence shown for it. */
+const generationFailureSchema = Schema.Struct({
+  reason: Schema.Literals([...appErrorCodes, "UNKNOWN"]),
+  message: Schema.NonEmptyString.pipe(Schema.check(Schema.isMaxLength(512))),
+});
+export type GenerationFailure = Schema.Schema.Type<
+  typeof generationFailureSchema
+>;
+
 export const pendingGenerationSchema = Schema.Struct({
   reference: mediaGenerationReferenceSchema,
   input: mediaGenerationInputWireSchema,
@@ -25,6 +35,8 @@ export const pendingGenerationSchema = Schema.Struct({
   style: Schema.optional(styleName),
   /** Saved characters whose text and references the input was composed with. */
   characters: Schema.optional(Schema.Array(characterName)),
+  /** Set once the run failed, so the reason survives a reload; cleared by a retry. */
+  failure: Schema.optional(generationFailureSchema),
 });
 
 export type PendingGenerationWire = Schema.Schema.Type<
@@ -38,12 +50,18 @@ export type PendingGeneration = Readonly<{
   typed: Schema.Schema.Type<typeof typedSchema>;
   style?: string | undefined;
   characters?: readonly string[] | undefined;
+  failure?: GenerationFailure | undefined;
 }>;
 
 export const mediaRecoveryRequestSchema = Schema.Union([
   Schema.Struct({
     operation: Schema.Literal("remember-generation"),
     record: pendingGenerationSchema,
+  }),
+  Schema.Struct({
+    operation: Schema.Literal("fail-generation"),
+    reference: mediaGenerationReferenceSchema,
+    failure: generationFailureSchema,
   }),
   Schema.Struct({
     operation: Schema.Literal("forget-generation"),
@@ -64,5 +82,6 @@ export function normalizePendingGeneration(
     typed: record.typed,
     style: record.style,
     characters: record.characters,
+    failure: record.failure,
   };
 }

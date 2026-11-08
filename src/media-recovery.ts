@@ -7,6 +7,7 @@ import { AppError, type CapabilityDirectory } from "@fungi.computer/agar";
 import type { MediaGenerationReference } from "@fungi.computer/agar/media";
 import * as Schema from "effect/Schema";
 import {
+  type GenerationFailure,
   normalizePendingGeneration,
   pendingGenerationSchema,
   type PendingGeneration,
@@ -37,6 +38,23 @@ export async function rememberGeneration(
       { code: "PROTOCOL", retryable: false },
     );
   return confirmed;
+}
+
+/** Record why a remembered generation failed, so the reason survives a reload. */
+export async function failGeneration(
+  capabilities: CapabilityDirectory,
+  reference: MediaGenerationReference,
+  failure: GenerationFailure,
+) {
+  Schema.decodeUnknownSync(pendingGenerationSchema, {
+    onExcessProperty: "error",
+  })(
+    await capabilities
+      .require(appBackend)
+      .request(
+        JSON.stringify({ operation: "fail-generation", reference, failure }),
+      ),
+  );
 }
 
 export async function forgetGeneration(

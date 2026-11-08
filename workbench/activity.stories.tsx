@@ -6,6 +6,7 @@ import { MediaPane } from "../src/MediaPane.js";
 import { createPrintsFixture, type CaptureOptions } from "./fixtures.js";
 import { fixtureNotices } from "./notice-store.js";
 import { useWorkbenchStatusBar } from "./status-bar.fixture.js";
+import "../src/media.css";
 import "./workbench.css";
 export default { title: "Activity" } satisfies StoryDefault;
 function ActivityWorkbench({
@@ -78,6 +79,15 @@ export const ModelsError = () => (
 );
 export const GenerateError = () => (
   <ActivityWorkbench opt={{ fail: "error" }} />
+);
+export const GenerateTimeout = () => (
+  <ActivityWorkbench opt={{ fail: "timeout" }} />
+);
+export const NoImageModel = () => (
+  <ActivityWorkbench scenario="empty" opt={{ mediaSetup: "missing" }} />
+);
+export const NoImageModelWithPrints = () => (
+  <ActivityWorkbench opt={{ mediaSetup: "missing" }} />
 );
 export const Retry = () => <ActivityWorkbench scenario="retry" />;
 export const Unfinished = () => <ActivityWorkbench opt={{ pending: true }} />;
