@@ -1,5 +1,13 @@
 # @fungi.computer/prints
 
+## 0.10.8
+
+### Patch Changes
+
+- Changes since 0.10.7:
+
+  - fix(prints): restore editable starters and an upload action
+
 ## 0.10.7
 
 ### Patch Changes

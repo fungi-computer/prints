@@ -15,11 +15,13 @@ function Workbench({
   generationDelayMs,
   beforeRead,
   finishGeneration,
+  mediaSetup,
 }: {
   scenario: Parameters<typeof createPrintsFixture>[0] | "disconnected";
   generationDelayMs?: number;
   beforeRead?: CaptureOptions["beforeRead"];
   finishGeneration?: CaptureOptions["finishGeneration"];
+  mediaSetup?: CaptureOptions["mediaSetup"];
 }) {
   const [navigation, setNavigation] = useState("");
   const [imageReads, setImageReads] = useState(0);
@@ -43,6 +45,7 @@ function Workbench({
     };
     if (generationDelayMs !== undefined)
       options.generationDelayMs = generationDelayMs;
+    if (mediaSetup !== undefined) options.mediaSetup = mediaSetup;
     if (beforeRead !== undefined) options.beforeRead = beforeRead;
     if (finishGeneration !== undefined)
       options.finishGeneration = finishGeneration;
@@ -172,6 +175,9 @@ export function ViewerReads() {
   );
 }
 export const Empty = () => <Workbench scenario="empty" />;
+export const ImageSetup = () => (
+  <Workbench scenario="empty" mediaSetup="missing" />
+);
 /** A starter chip was chosen; the first print is being made. */
 export const GeneratingFirstPrint = () => (
   <Workbench scenario="empty" generationDelayMs={120_000} />

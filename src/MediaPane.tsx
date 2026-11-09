@@ -108,7 +108,7 @@ const PrintInfoDrawer = lazy(async () => {
   return { default: module.PrintInfoDrawer };
 });
 
-/** Starting points for an empty gallery; choosing one makes that print. */
+/** Starting points for an empty gallery; choosing one prepares an editable prompt. */
 const promptSuggestions = [
   "a mushroom knight",
   "moss on a keyboard",
@@ -898,6 +898,7 @@ export function MediaPane({
 }: {
   connection: MediaConnection | null;
 }): React.JSX.Element {
+  const pane = useRef<HTMLElement>(null);
   const connectionRef = useRef(connection);
   connectionRef.current = connection;
   const folder = useMediaFolder(connection?.app ?? null);
@@ -922,22 +923,26 @@ export function MediaPane({
       },
     );
   };
-  const setupNotice = (variant: "panel" | "banner") => (
+  const setupCause = setupUnavailable ? (
+    <>
+      Image generation needs Cloudflare Workers AI.{" "}
+      <a
+        href="https://github.com/fungi-computer/oyster#deploy-to-cloudflare"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Open the image setup guide
+      </a>
+      .
+    </>
+  ) : (
+    "Make images from a prompt with Cloudflare Workers AI. Connect opens the image setup guide."
+  );
+  const setupNotice = () => (
     <SetupNotice
-      variant={variant}
-      data-media-empty={variant === "panel" ? true : undefined}
-      need={
-        variant === "panel"
-          ? "Connect an image model to start making prints"
-          : "Generation needs an image model"
-      }
-      cause={
-        setupUnavailable
-          ? "Open System Settings → Keys → Image models to set up Cloudflare Workers AI."
-          : variant === "panel"
-            ? "Describe something and it lands here."
-            : "No image model is connected yet."
-      }
+      variant="banner"
+      need="Generation needs an image model"
+      cause={setupCause}
       available="Uploads work now."
       waitingFor="an image model"
       fix={{
@@ -1438,6 +1443,15 @@ export function MediaPane({
     ],
   );
   const generationBusy = submitting || hasPendingGeneration;
+  const startersEnabled =
+    !mediaSetupMissing &&
+    mediaCapability &&
+    canGenerate &&
+    canWrite &&
+    mediaDirectory !== null &&
+    generationState.kind === "ready" &&
+    !modelsLoading &&
+    models.length > 0;
   const tileFailed = gallerySlots.some((slot) => slot.error !== undefined);
   const currentUploads = uploads.items.filter(
     (item) => item.computerId === folder.computerId,
@@ -1670,6 +1684,7 @@ export function MediaPane({
   );
   return (
     <main
+      ref={pane}
       className="h-full w-full flex flex-col overflow-hidden"
       data-app-pane="media"
       data-generation-state={generationState.kind}
@@ -1733,44 +1748,66 @@ export function MediaPane({
                 }
               />
             ) : !(loading || gallery.loading) ? (
-              mediaSetupMissing ? (
-                setupNotice("panel")
-              ) : (
-                <EmptyState
-                  aria-live="polite"
-                  data-absence
-                  data-media-empty
-                  role="status"
-                  variant="panel"
-                  visual={<ImagePlus />}
-                  title="Make your first print"
-                  description={
-                    folder.computerId === null
-                      ? "Your images will appear here."
-                      : folder.available && mediaDirectory === null
-                        ? "Pick a folder in the composer below, then describe something or drop in images."
-                        : "Describe something and it lands here, or drop in images from your Computer."
-                  }
-                  {...(mediaCapability &&
-                  canGenerate &&
-                  canWrite &&
-                  mediaDirectory !== null &&
-                  generationState.kind === "ready" &&
-                  !modelsLoading &&
-                  models.length > 0
+              <EmptyState
+                aria-live="polite"
+                data-absence
+                data-media-empty
+                role="status"
+                variant="panel"
+                visual={<ImagePlus />}
+                title={
+                  mediaSetupMissing
+                    ? "Connect an image model to start making prints"
+                    : "Make your first print"
+                }
+                description={
+                  mediaSetupMissing ? (
+                    <>
+                      {setupCause} Uploads work now. Connect an image model to
+                      try a starter.
+                    </>
+                  ) : folder.computerId === null ? (
+                    "Your images will appear here."
+                  ) : folder.available && mediaDirectory === null ? (
+                    "Pick a folder in the composer below, then describe something or drop in images."
+                  ) : (
+                    "Describe something and it lands here, or drop in images from your Computer."
+                  )
+                }
+                primaryAction={
+                  mediaSetupMissing
                     ? {
-                        suggestions: promptSuggestions.map((prompt) => ({
-                          label: prompt,
-                          onSelect: () => {
-                            // A starter makes its print, so the first click shows what Prints does.
-                            form.setFieldValue("prompt", prompt);
-                            void form.submitCurrent();
-                          },
-                        })),
+                        label: setupWaiting
+                          ? "Waiting for an image model…"
+                          : "Connect",
+                        onSelect: openMediaSetup,
+                        pending: setupWaiting,
                       }
-                    : {})}
-                />
-              )
+                    : undefined
+                }
+                actions={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!canWrite || mediaDirectory === null}
+                    onClick={() => uploadInput.current?.click()}
+                  >
+                    Upload images
+                  </Button>
+                }
+                suggestions={promptSuggestions.map((prompt) => ({
+                  label: prompt,
+                  disabled: !startersEnabled,
+                  onSelect: () => {
+                    form.setFieldValue("prompt", prompt);
+                    pane.current
+                      ?.querySelector<HTMLTextAreaElement>(
+                        "[data-generation-prompt]",
+                      )
+                      ?.focus();
+                  },
+                }))}
+              />
             ) : (
               <EmptyState
                 variant="hint"
@@ -1815,7 +1852,7 @@ export function MediaPane({
         onClose={closeViewer}
         renderInfo={(image, onClose) => renderPrintInfo(image, onClose, null)}
       />
-      {mediaSetupMissing && wallItems.length > 0 ? setupNotice("banner") : null}
+      {mediaSetupMissing && wallItems.length > 0 ? setupNotice() : null}
       <div className="prints-composer-dock">
         <section aria-label="Computer uploads" className="prints-uploads">
           <input
