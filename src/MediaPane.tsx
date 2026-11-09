@@ -22,7 +22,6 @@ import { Select } from "@fungi.computer/caps/components/select";
 import { Switch } from "@fungi.computer/caps/components/switch";
 import { EmptyState } from "@fungi.computer/caps/blocks/empty-state";
 import { useAppContext, useWindowStatus } from "@fungi.computer/agar/react";
-import { SetupNotice } from "@fungi.computer/caps/blocks/setup-notice";
 import { folderStatusItem } from "./folder-status.js";
 import { ComposerShell } from "@fungi.computer/parakeet";
 import { GenerationModelKey } from "./generation-model-key.js";
@@ -384,7 +383,6 @@ function GenerationComposer({
   models,
   modelsLoading,
   mediaCapability,
-  setupReason,
   submitting,
   values,
   computerId,
@@ -416,7 +414,6 @@ function GenerationComposer({
   modelsLoading: boolean;
   mediaCapability: boolean;
   /** Why generating is off until the person connects a model; shown on the controls. */
-  setupReason: string | undefined;
   submitting: boolean;
   values: GenerationDraft;
   computerId: string | null;
@@ -700,7 +697,7 @@ function GenerationComposer({
                     onSlashPick={() => {
                       pickSlash(slash.slashIndex);
                     }}
-                    placeholder={setupReason ?? "What are we making?"}
+                    placeholder="What are we making?"
                     slashCount={slash.slashMatches.length}
                     value={field.state.value}
                   />
@@ -853,7 +850,6 @@ function GenerationComposer({
               models.length === 0 ||
               submitting
             }
-            disabledReason={setupReason}
             label={generateActionLabel(selected)}
             onGenerate={() => {
               void onSubmit();
@@ -936,21 +932,7 @@ export function MediaPane({
       .
     </>
   ) : (
-    "Make images from a prompt with Cloudflare Workers AI. Connect opens the image setup guide."
-  );
-  const setupNotice = () => (
-    <SetupNotice
-      variant="banner"
-      need="Generation needs an image model"
-      cause={setupCause}
-      available="Uploads work now."
-      waitingFor="an image model"
-      fix={{
-        label: "Connect",
-        onSelect: openMediaSetup,
-        pending: setupWaiting,
-      }}
-    />
+    "Generation needs Cloudflare Workers AI."
   );
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [activityInset, setActivityInset] = useState<number | undefined>();
@@ -1682,6 +1664,22 @@ export function MediaPane({
       />
     </Suspense>
   );
+  const uploadAction = {
+    label: "Upload images",
+    onSelect: () => uploadInput.current?.click(),
+    disabled: !canWrite || mediaDirectory === null,
+    disabledReason: "Choose a writable Computer and folder to upload images.",
+  };
+  const imageSetupAction = (
+    <Button
+      variant="ghost"
+      size="sm"
+      loading={setupWaiting}
+      onClick={openMediaSetup}
+    >
+      Connect
+    </Button>
+  );
   return (
     <main
       ref={pane}
@@ -1709,8 +1707,8 @@ export function MediaPane({
       <Toaster id="prints-generation-notices" />
       <div className="prints-gallery-region">
         <ScrollArea
-          screen
-          surface
+          screen={wallItems.length > 0}
+          surface={wallItems.length > 0}
           surfaceSize="lg"
           surfaceDepth="deep"
           ref={scrollRef}
@@ -1754,18 +1752,16 @@ export function MediaPane({
                 data-media-empty
                 role="status"
                 variant="panel"
+                className="max-w-lg"
                 visual={<ImagePlus />}
                 title={
                   mediaSetupMissing
-                    ? "Connect an image model to start making prints"
+                    ? "Make and collect images"
                     : "Make your first print"
                 }
                 description={
                   mediaSetupMissing ? (
-                    <>
-                      {setupCause} Uploads work now. Connect an image model to
-                      try a starter.
-                    </>
+                    <>Uploads work now. {setupCause}</>
                   ) : folder.computerId === null ? (
                     "Your images will appear here."
                   ) : folder.available && mediaDirectory === null ? (
@@ -1774,39 +1770,37 @@ export function MediaPane({
                     "Describe something and it lands here, or drop in images from your Computer."
                   )
                 }
-                primaryAction={
-                  mediaSetupMissing
-                    ? {
-                        label: setupWaiting
-                          ? "Waiting for an image model…"
-                          : "Connect",
-                        onSelect: openMediaSetup,
-                        pending: setupWaiting,
-                      }
-                    : undefined
-                }
+                primaryAction={mediaSetupMissing ? uploadAction : undefined}
                 actions={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={!canWrite || mediaDirectory === null}
-                    onClick={() => uploadInput.current?.click()}
-                  >
-                    Upload images
-                  </Button>
+                  mediaSetupMissing ? (
+                    imageSetupAction
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!canWrite || mediaDirectory === null}
+                      onClick={() => uploadInput.current?.click()}
+                    >
+                      Upload images
+                    </Button>
+                  )
                 }
-                suggestions={promptSuggestions.map((prompt) => ({
-                  label: prompt,
-                  disabled: !startersEnabled,
-                  onSelect: () => {
-                    form.setFieldValue("prompt", prompt);
-                    pane.current
-                      ?.querySelector<HTMLTextAreaElement>(
-                        "[data-generation-prompt]",
-                      )
-                      ?.focus();
-                  },
-                }))}
+                suggestions={
+                  mediaSetupMissing
+                    ? undefined
+                    : promptSuggestions.map((prompt) => ({
+                        label: prompt,
+                        disabled: !startersEnabled,
+                        onSelect: () => {
+                          form.setFieldValue("prompt", prompt);
+                          pane.current
+                            ?.querySelector<HTMLTextAreaElement>(
+                              "[data-generation-prompt]",
+                            )
+                            ?.focus();
+                        },
+                      }))
+                }
               />
             ) : (
               <EmptyState
@@ -1852,7 +1846,26 @@ export function MediaPane({
         onClose={closeViewer}
         renderInfo={(image, onClose) => renderPrintInfo(image, onClose, null)}
       />
-      {mediaSetupMissing && wallItems.length > 0 ? setupNotice() : null}
+      {mediaSetupMissing && wallItems.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-sm p-sm">
+          <div className="text-sm">
+            <p className="m-0 font-semibold">Generation needs an image model</p>
+            <p className="m-0 text-base-content/60">
+              {setupCause} Uploads work now.
+            </p>
+          </div>
+          <div className="flex items-center gap-xs">
+            <Button
+              size="sm"
+              onClick={uploadAction.onSelect}
+              disabled={uploadAction.disabled}
+            >
+              Upload images
+            </Button>
+            {imageSetupAction}
+          </div>
+        </div>
+      ) : null}
       <div className="prints-composer-dock">
         <section aria-label="Computer uploads" className="prints-uploads">
           <input
@@ -1869,118 +1882,117 @@ export function MediaPane({
             }}
           />
         </section>
-        <GenerationComposer
-          addedLength={addedPromptLength(
-            values.prompt,
-            promptStyles.styles.find((style) => style.name === values.style)
-              ?.text,
-            promptCharacters.characters,
-          )}
-          styleControls={(dialog) => ({
-            picker: (
-              <PromptStyleSelect
-                styles={promptStyles.styles}
-                selected={values.style}
-                disabled={!mediaCapability || modelsLoading || generationBusy}
-                onSelect={(name) => {
-                  form.setFieldValue("style", name);
-                }}
-              />
-            ),
-            dialog: (
-              <PromptStylesDialog
+        {mediaSetupMissing ? null : (
+          <GenerationComposer
+            addedLength={addedPromptLength(
+              values.prompt,
+              promptStyles.styles.find((style) => style.name === values.style)
+                ?.text,
+              promptCharacters.characters,
+            )}
+            styleControls={(dialog) => ({
+              picker: (
+                <PromptStyleSelect
+                  styles={promptStyles.styles}
+                  selected={values.style}
+                  disabled={!mediaCapability || modelsLoading || generationBusy}
+                  onSelect={(name) => {
+                    form.setFieldValue("style", name);
+                  }}
+                />
+              ),
+              dialog: (
+                <PromptStylesDialog
+                  open={dialog.open}
+                  onOpenChange={dialog.onOpenChange}
+                  styles={promptStyles.styles}
+                  selected={values.style}
+                  busy={promptStyles.busy}
+                  error={promptStyles.error}
+                  onSelect={(name) => {
+                    form.setFieldValue("style", name);
+                  }}
+                  onSave={promptStyles.save}
+                  onDelete={(style, done) => {
+                    promptStyles.remove(style.id, done);
+                  }}
+                />
+              ),
+            })}
+            characters={promptCharacters.characters}
+            characterDialog={(dialog) => (
+              <PromptCharactersDialog
                 open={dialog.open}
                 onOpenChange={dialog.onOpenChange}
-                styles={promptStyles.styles}
-                selected={values.style}
-                busy={promptStyles.busy}
-                error={promptStyles.error}
-                onSelect={(name) => {
-                  form.setFieldValue("style", name);
-                }}
-                onSave={promptStyles.save}
-                onDelete={(style, done) => {
-                  promptStyles.remove(style.id, done);
+                characters={promptCharacters.characters}
+                images={composerImages}
+                busy={promptCharacters.busy}
+                error={promptCharacters.error}
+                canUpload={canWrite && mediaDirectory !== null}
+                onUpload={() => uploadInput.current?.click()}
+                onSave={promptCharacters.save}
+                onDelete={(character, done) => {
+                  promptCharacters.remove(character.id, done);
                 }}
               />
-            ),
-          })}
-          characters={promptCharacters.characters}
-          characterDialog={(dialog) => (
-            <PromptCharactersDialog
-              open={dialog.open}
-              onOpenChange={dialog.onOpenChange}
-              characters={promptCharacters.characters}
-              images={composerImages}
-              busy={promptCharacters.busy}
-              error={promptCharacters.error}
-              canUpload={canWrite && mediaDirectory !== null}
-              onUpload={() => uploadInput.current?.click()}
-              onSave={promptCharacters.save}
-              onDelete={(character, done) => {
-                promptCharacters.remove(character.id, done);
-              }}
-            />
-          )}
-          guidance={
-            visibleNotices.find(
-              (notice) => notice.blocking && notice.group === "Setup",
-            ) ??
-            (iterationNotice !== null && iterationNotice.model === values.model
-              ? {
-                  key: "iteration-model",
-                  group: "Images",
-                  tone: "warning",
-                  short: "Model changed",
-                  title: "Model changed",
-                  detail: iterationNotice.message,
-                  actions: [
-                    {
-                      label: "Dismiss",
-                      run: () => {
-                        setIterationNotice(null);
+            )}
+            guidance={
+              visibleNotices.find(
+                (notice) => notice.blocking && notice.group === "Setup",
+              ) ??
+              (iterationNotice !== null &&
+              iterationNotice.model === values.model
+                ? {
+                    key: "iteration-model",
+                    group: "Images",
+                    tone: "warning",
+                    short: "Model changed",
+                    title: "Model changed",
+                    detail: iterationNotice.message,
+                    actions: [
+                      {
+                        label: "Dismiss",
+                        run: () => {
+                          setIterationNotice(null);
+                        },
                       },
-                    },
-                  ],
+                    ],
+                  }
+                : undefined)
+            }
+            commandApp={commandApp}
+            actions={
+              <KeycapButton
+                aria-label="Upload images"
+                title={
+                  canWrite
+                    ? "Upload images to Computer"
+                    : "Connect a writable Computer to upload"
                 }
-              : undefined)
-          }
-          commandApp={commandApp}
-          actions={
-            <KeycapButton
-              aria-label="Upload images"
-              title={
-                canWrite
-                  ? "Upload images to Computer"
-                  : "Connect a writable Computer to upload"
-              }
-              icon={<Upload />}
-              label={null}
-              className="prints-upload-key"
-              disabled={!canWrite || mediaDirectory === null}
-              onClick={() => uploadInput.current?.click()}
-            />
-          }
-          form={form}
-          mediaCapability={
-            mediaCapability &&
-            canGenerate &&
-            canWrite &&
-            mediaDirectory !== null &&
-            !mediaSetupMissing
-          }
-          setupReason={
-            mediaSetupMissing ? "Connect an image model to start" : undefined
-          }
-          models={models}
-          modelsLoading={modelsLoading}
-          onSubmit={form.submitCurrent}
-          submitting={generationBusy}
-          values={values}
-          computerId={folder.computerId}
-          mediaDirectory={mediaDirectory}
-          referenceImages={composerImages}
-        />
+                icon={<Upload />}
+                label={null}
+                className="prints-upload-key"
+                disabled={!canWrite || mediaDirectory === null}
+                onClick={() => uploadInput.current?.click()}
+              />
+            }
+            form={form}
+            mediaCapability={
+              mediaCapability &&
+              canGenerate &&
+              canWrite &&
+              mediaDirectory !== null
+            }
+            models={models}
+            modelsLoading={modelsLoading}
+            onSubmit={form.submitCurrent}
+            submitting={generationBusy}
+            values={values}
+            computerId={folder.computerId}
+            mediaDirectory={mediaDirectory}
+            referenceImages={composerImages}
+          />
+        )}
         {/* The host tray has no footer row; its anchor must not add a pane gap. */}
         {activityItem === null ? null : (
           <PrintsActivityTray

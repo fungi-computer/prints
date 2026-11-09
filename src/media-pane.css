@@ -413,3 +413,11 @@ span.prints-reference-role {
   overflow: visible;
   text-overflow: clip;
 }
+
+/* The first invitation sits directly on the gallery surface. */
+.prints-gallery-content:has([data-media-empty]) {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  padding: var(--spacing-xl) var(--spacing-md);
+}

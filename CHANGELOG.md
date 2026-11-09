@@ -1,5 +1,14 @@
 # @fungi.computer/prints
 
+## 0.10.9
+
+### Patch Changes
+
+- Changes since 0.10.8:
+
+  - fix(prints): retain Caps invitation hierarchy without nested frames
+  - fix(prints): lead missing-model setup with uploads
+
 ## 0.10.8
 
 ### Patch Changes
