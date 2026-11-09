@@ -201,7 +201,7 @@ export function noticesFor({
       }`,
       detail:
         record.reference.computerId !== computerId
-          ? `${record.typed.prompt} · on Computer ${record.reference.computerId}`
+          ? `${record.typed.prompt} · select the original Computer to retry`
           : record.typed.prompt,
       actions: [
         ...(record.reference.computerId === computerId

@@ -9,7 +9,7 @@ import {
 import { useMediaGeneration } from "./media-generation.js";
 import type { AppRoot } from "@fungi.computer/agar";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { ImagePlus, SlidersHorizontal, Upload, X } from "lucide-react";
+import { SlidersHorizontal, Upload, X } from "lucide-react";
 
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Button } from "@fungi.computer/caps/components/button";
@@ -21,6 +21,7 @@ import { Field } from "@fungi.computer/caps/components/field";
 import { Select } from "@fungi.computer/caps/components/select";
 import { Switch } from "@fungi.computer/caps/components/switch";
 import { EmptyState } from "@fungi.computer/caps/blocks/empty-state";
+import { LoadingState } from "@fungi.computer/caps/blocks/loading-state";
 import { useAppContext, useWindowStatus } from "@fungi.computer/agar/react";
 import { folderStatusItem } from "./folder-status.js";
 import { ComposerShell } from "@fungi.computer/parakeet";
@@ -915,13 +916,14 @@ export function MediaPane({
       },
       (cause: unknown) => {
         setSetupWaiting(false);
+        setSetupUnavailable(true);
         reportCatchFailure("open-media-setup", cause);
       },
     );
   };
   const setupCause = setupUnavailable ? (
     <>
-      Image generation needs Cloudflare Workers AI.{" "}
+      Image setup couldn’t open.{" "}
       <a
         href="https://github.com/fungi-computer/oyster#deploy-to-cloudflare"
         target="_blank"
@@ -932,7 +934,7 @@ export function MediaPane({
       .
     </>
   ) : (
-    "Generation needs Cloudflare Workers AI."
+    "Image generation isn’t set up yet."
   );
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [activityInset, setActivityInset] = useState<number | undefined>();
@@ -1677,7 +1679,7 @@ export function MediaPane({
       loading={setupWaiting}
       onClick={openMediaSetup}
     >
-      Connect
+      Set up image generation
     </Button>
   );
   return (
@@ -1712,7 +1714,7 @@ export function MediaPane({
           surfaceSize="lg"
           surfaceDepth="deep"
           ref={scrollRef}
-          className="flex-1 min-h-0"
+          className="prints-gallery-scroll flex-1 min-h-0"
           data-media-scroll
           aria-busy={loading || gallery.loading}
           onDragOver={(event) => {
@@ -1751,29 +1753,30 @@ export function MediaPane({
                 data-absence
                 data-media-empty
                 role="status"
-                variant="panel"
-                className="max-w-lg"
-                visual={<ImagePlus />}
+                variant="speech"
+                className="prints-invitation"
+                visual="blobs"
                 title={
                   mediaSetupMissing
                     ? "Make and collect images"
                     : "Make your first print"
                 }
                 description={
-                  mediaSetupMissing ? (
-                    <>Uploads work now. {setupCause}</>
-                  ) : folder.computerId === null ? (
-                    "Your images will appear here."
-                  ) : folder.available && mediaDirectory === null ? (
-                    "Pick a folder in the composer below, then describe something or drop in images."
-                  ) : (
-                    "Describe something and it lands here, or drop in images from your Computer."
-                  )
+                  mediaSetupMissing
+                    ? "Upload images to start your collection. Open any image to view or download it."
+                    : folder.computerId === null
+                      ? "Your images will appear here."
+                      : folder.available && mediaDirectory === null
+                        ? "Pick a folder in the composer below, then describe something or drop in images."
+                        : "Describe something and it lands here, or drop in images from your Computer."
                 }
                 primaryAction={mediaSetupMissing ? uploadAction : undefined}
                 actions={
                   mediaSetupMissing ? (
-                    imageSetupAction
+                    <div className="prints-image-setup">
+                      <span>{setupCause}</span>
+                      {imageSetupAction}
+                    </div>
                   ) : (
                     <Button
                       variant="ghost"
@@ -1803,12 +1806,12 @@ export function MediaPane({
                 }
               />
             ) : (
-              <EmptyState
-                variant="hint"
-                role="status"
-                aria-live="polite"
-                title="Loading prints…"
-                description="Your library is on its way."
+              <LoadingState
+                data-media-loading
+                framed={false}
+                message="Loading prints…"
+                detail="Your library is on its way."
+                variant="wander"
               />
             )}
             {gallery.hasNextPage && (
@@ -1847,23 +1850,18 @@ export function MediaPane({
         renderInfo={(image, onClose) => renderPrintInfo(image, onClose, null)}
       />
       {mediaSetupMissing && wallItems.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-sm p-sm">
-          <div className="text-sm">
-            <p className="m-0 font-semibold">Generation needs an image model</p>
-            <p className="m-0 text-base-content/60">
-              {setupCause} Uploads work now.
-            </p>
-          </div>
-          <div className="flex items-center gap-xs">
-            <Button
-              size="sm"
-              onClick={uploadAction.onSelect}
-              disabled={uploadAction.disabled}
-            >
-              Upload images
-            </Button>
-            {imageSetupAction}
-          </div>
+        <div className="prints-library-actions">
+          <Button
+            size="sm"
+            onClick={uploadAction.onSelect}
+            disabled={uploadAction.disabled}
+          >
+            Upload images
+          </Button>
+          {imageSetupAction}
+          {setupUnavailable ? (
+            <div className="prints-image-setup">{setupCause}</div>
+          ) : null}
         </div>
       ) : null}
       <div className="prints-composer-dock">

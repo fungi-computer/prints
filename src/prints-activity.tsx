@@ -216,8 +216,16 @@ function ActivityContent({
               <StatusTrayRow
                 key={notice.key}
                 icon={noticeIcons[notice.group]}
-                primary={notice.title}
-                secondary={notice.detail}
+                primary={
+                  <span className="prints-notice-copy">
+                    <span>{notice.title}</span>
+                    {notice.detail ? (
+                      <span className="prints-notice-detail">
+                        {notice.detail}
+                      </span>
+                    ) : null}
+                  </span>
+                }
                 actions={
                   <div
                     className="prints-notice-actions"

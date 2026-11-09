@@ -404,20 +404,59 @@ span.prints-reference-role {
   font-size: var(--text-xs);
 }
 
-/* A failure's reason is the content, so Activity rows wrap it instead of truncating. */
-.prints-instrument .caps-status-tray-text {
-  flex-wrap: wrap;
+/* Notices keep their cause under the title, using the full text column.
+   Caps owns the row, icon and actions; the App composes its copy slot. */
+.prints-notice-copy {
+  display: grid;
+  gap: var(--spacing-2xs);
   white-space: normal;
+  overflow-wrap: anywhere;
 }
-.prints-instrument .caps-status-tray-primary {
-  overflow: visible;
-  text-overflow: clip;
+.prints-notice-detail {
+  color: var(--stipe-fg-muted);
+  font-size: var(--text-xs);
+  font-weight: normal;
 }
 
-/* The first invitation sits directly on the gallery surface. */
-.prints-gallery-content:has([data-media-empty]) {
-  display: grid;
+/* Fill the real scroll content, so an empty collection has a deliberate centre.
+   Short windows still scroll rather than clipping the invitation's controls. */
+.prints-gallery-scroll:has([data-media-empty], [data-media-loading])
+  [data-media-scroll]
+  > div {
   min-height: 100%;
-  place-items: center;
-  padding: var(--spacing-xl) var(--spacing-md);
+  display: grid;
+}
+.prints-gallery-content:has([data-media-empty], [data-media-loading]) {
+  display: grid;
+  align-content: safe center;
+  justify-items: center;
+  padding: var(--spacing-xl) var(--spacing-lg);
+}
+.prints-invitation {
+  width: 100%;
+  max-width: 46rem;
+}
+.prints-image-setup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-xs) var(--spacing-sm);
+  color: var(--stipe-fg-muted);
+  font-size: var(--text-sm);
+}
+.prints-library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+.prints-library-actions > .prints-image-setup {
+  flex-basis: 100%;
+}
+@container (max-width: 40rem) {
+  .prints-gallery-content:has([data-media-empty], [data-media-loading]) {
+    padding: var(--spacing-lg) var(--spacing-sm);
+  }
 }

@@ -1,5 +1,19 @@
 # @fungi.computer/prints
 
+## 0.10.10
+
+### Patch Changes
+
+- Changes since 0.10.9:
+
+  - fix(prints): keep populated phone actions on one row
+  - fix(prints): keep image setup guidance host neutral
+  - fix(prints): finish first-run guidance and recovery polish
+
+- Updated dependencies
+  - @fungi.computer/caps@0.10.2
+  - @fungi.computer/parakeet@0.11.6
+
 ## 0.10.9
 
 ### Patch Changes
