@@ -1482,6 +1482,7 @@ export function MediaPane({
     modelsLoading,
     models,
     canGenerate,
+    mediaSetupMissing,
     canWrite,
     generationError,
     recoveryError,

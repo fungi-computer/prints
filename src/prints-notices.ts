@@ -13,6 +13,8 @@ export type NoticeState = {
   modelsLoading: boolean;
   models: readonly MediaModel[];
   canGenerate: boolean;
+  /** The host says no image model is connected; the setup notice owns that, not Permissions. */
+  mediaSetupMissing: boolean;
   canWrite: boolean;
   generationError: {
     key: string;
@@ -49,6 +51,7 @@ export function noticesFor({
   modelsLoading,
   models,
   canGenerate,
+  mediaSetupMissing,
   canWrite,
   generationError,
   recoveryError,
@@ -112,7 +115,7 @@ export function noticesFor({
       detail: modelsError,
       actions: [{ label: "Retry", run: retryModels }],
     });
-  else if (!modelsLoading && !canGenerate)
+  else if (!modelsLoading && !canGenerate && !mediaSetupMissing)
     notices.push({
       key: "approval",
       group: "Setup",

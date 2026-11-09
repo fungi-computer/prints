@@ -1,5 +1,16 @@
 # @fungi.computer/prints
 
+## 0.10.4
+
+### Patch Changes
+
+- Changes since 0.10.3:
+
+  - fix(nacre): deliver setup facts and fixes to every App (#393)
+
+- Updated dependencies
+  - @fungi.computer/parakeet@0.11.3
+
 ## 0.10.3
 
 ### Patch Changes
