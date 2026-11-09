@@ -1,5 +1,15 @@
 # @fungi.computer/prints
 
+## 0.10.5
+
+### Patch Changes
+
+- Changes since 0.10.4:
+
+  - fix(prints): keep image setup reachable after it opens
+
+- @fungi.computer/caps@0.10.1
+
 ## 0.10.4
 
 ### Patch Changes

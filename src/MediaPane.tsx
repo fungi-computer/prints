@@ -913,10 +913,8 @@ export function MediaPane({
     setSetupUnavailable(false);
     app.ui.openSetup("media").then(
       (outcome) => {
-        if (outcome === "unavailable") {
-          setSetupWaiting(false);
-          setSetupUnavailable(true);
-        }
+        setSetupWaiting(false);
+        setSetupUnavailable(outcome === "unavailable");
       },
       (cause: unknown) => {
         setSetupWaiting(false);
@@ -935,7 +933,7 @@ export function MediaPane({
       }
       cause={
         setupUnavailable
-          ? "Open System Settings, then Keys, to connect one."
+          ? "Open System Settings → Keys → Image models to set up Cloudflare Workers AI."
           : variant === "panel"
             ? "Describe something and it lands here."
             : "No image model is connected yet."

@@ -17,6 +17,7 @@ function ActivityWorkbench({
   opt?: CaptureOptions;
 }) {
   const [billingOpen, setBillingOpen] = useState(false);
+  const [setupOpens, setSetupOpens] = useState(0);
   const statusBar = useWorkbenchStatusBar();
   const [client] = useState(createQueryClient);
   useEffect(
@@ -30,6 +31,12 @@ function ActivityWorkbench({
       ...opt,
       noticeStore: fixtureNotices,
       status: statusBar.status,
+      openSetup:
+        opt.openSetup ??
+        (() => {
+          setSetupOpens((count) => count + 1);
+          return Promise.resolve("opened");
+        }),
       openTeamBilling: () => {
         setBillingOpen(true);
         return Promise.resolve();
@@ -38,6 +45,11 @@ function ActivityWorkbench({
   }));
   return (
     <div className="prints-study">
+      {setupOpens > 0 ? (
+        <output hidden aria-label="Workbench setup requests">
+          {setupOpens}
+        </output>
+      ) : null}
       {billingOpen ? (
         <output aria-label="Workbench host action">Billing opened</output>
       ) : null}

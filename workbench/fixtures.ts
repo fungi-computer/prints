@@ -114,6 +114,7 @@ export type CaptureOptions = {
   computerSelected?: boolean;
   insufficientCredits?: boolean;
   openTeamBilling?: AppRoot["ui"]["openTeamBilling"];
+  openSetup?: AppRoot["ui"]["openSetup"];
   /** What the host says about an image provider; omitted means it does not say. */
   mediaSetup?: "ready" | "missing";
   requestBrowserAction?: AppRoot["ui"]["requestBrowserAction"];
@@ -859,7 +860,7 @@ export function createPrintsFixture(
         (() => {
           throw new Error("Unexpected browser action");
         }),
-      openSetup: () => Promise.resolve("unavailable"),
+      openSetup: opt.openSetup ?? (() => Promise.resolve("unavailable")),
       openDesktopSettings: () => Promise.resolve(),
       reportAgentSessionSelection: () => Promise.resolve(),
       showToast: () => Promise.resolve(),
