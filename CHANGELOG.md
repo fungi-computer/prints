@@ -1,5 +1,12 @@
 # @fungi.computer/prints
 
+## 0.10.17
+
+### Patch Changes
+
+- Updated dependencies
+  - @fungi.computer/darkroom@0.5.7
+
 ## 0.10.16
 
 ### Patch Changes
