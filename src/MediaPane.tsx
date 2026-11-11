@@ -1673,12 +1673,7 @@ export function MediaPane({
     disabledReason: "Choose a writable Computer and folder to upload images.",
   };
   const imageSetupAction = (
-    <Button
-      variant="ghost"
-      size="sm"
-      loading={setupWaiting}
-      onClick={openMediaSetup}
-    >
+    <Button variant="ghost" loading={setupWaiting} onClick={openMediaSetup}>
       Set up image generation
     </Button>
   );

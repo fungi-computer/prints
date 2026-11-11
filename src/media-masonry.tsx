@@ -340,6 +340,13 @@ function useMediaRegionScroll(scrollRef: MediaScrollRef) {
   return { isScrolling, scrollTop };
 }
 
+/** Whole-pixel tile height: fractional heights leave 1px seams between
+ *  stacked tiles once Masonic accumulates them into positions. */
+function tileHeight(width: number, item: MediaMasonryItem): number {
+  const aspect = item.height > 0 ? item.width / item.height : 1;
+  return Math.round(width / aspect);
+}
+
 function useMediaWallPositioner(items: MediaMasonryItem[], width: number) {
   const columnCount = Math.max(1, masonryColumnCount(items.length, width));
   return useMemo(() => {
@@ -351,8 +358,7 @@ function useMediaWallPositioner(items: MediaMasonryItem[], width: number) {
     const positioner = createPositioner(columnCount, columnWidth, MASONRY_GAP);
     if (columnWidth > 0) {
       items.forEach((item, index) => {
-        const aspect = item.height > 0 ? item.width / item.height : 1;
-        positioner.set(index, columnWidth / aspect);
+        positioner.set(index, tileHeight(columnWidth, item));
       });
     }
     return positioner;
@@ -367,9 +373,11 @@ const WallCell = memo(function WallCell({
   data: MediaMasonryItem;
   width: number;
 }): React.JSX.Element {
-  const aspect = data.height > 0 ? data.width / data.height : 1;
   return (
-    <div data-media-tile={data.key} style={{ height: width / aspect, width }}>
+    <div
+      data-media-tile={data.key}
+      style={{ height: tileHeight(width, data), width }}
+    >
       <MediaTileView item={data} />
     </div>
   );

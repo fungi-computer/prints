@@ -1,5 +1,17 @@
 # @fungi.computer/prints
 
+## 0.10.19
+
+### Patch Changes
+
+- Changes since 0.10.18:
+
+  - fix(prints,inkcap): tighten alignment, spacing and sizing
+
+- Updated dependencies
+  - @fungi.computer/caps@0.10.7
+  - @fungi.computer/parakeet@0.11.14
+
 ## 0.10.18
 
 ### Patch Changes

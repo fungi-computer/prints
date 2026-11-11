@@ -241,6 +241,9 @@ span.prints-reference-role {
   gap: var(--spacing-xs);
 }
 .prints-gallery-region > .caps-scroll-area {
+  /* Caps reserves the scrollbar gutter on the right only; mirror it on the
+     left so the bezel is even on both sides. */
+  padding-inline-start: var(--caps-scroll-gutter-width);
   /* Quiet gallery material keeps the frame distinct from its one-border track. */
   --stipe-surface-frame-width: max(
     calc(var(--border) * 2),
