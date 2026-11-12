@@ -302,6 +302,13 @@ span.prints-reference-role {
   --caps-keycap-width: auto;
   --caps-keycap-justify: center;
 }
+@media (max-width: 640px) {
+  /* Phone toolbar: six icon keys on one row, each at the Caps touch minimum. */
+  .prints-viewer-actions .caps-icon-button {
+    min-width: var(--caps-touch-target, 2.75rem);
+    min-height: var(--caps-touch-target, 2.75rem);
+  }
+}
 .prints-viewer-actions > [role="alert"] {
   flex-basis: 100%;
   min-width: 0;

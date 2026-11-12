@@ -16,7 +16,9 @@ function Workbench({
   beforeRead,
   finishGeneration,
   mediaSetup,
+  imageCount,
 }: {
+  imageCount?: number;
   scenario: Parameters<typeof createPrintsFixture>[0] | "disconnected";
   generationDelayMs?: number;
   beforeRead?: CaptureOptions["beforeRead"];
@@ -46,6 +48,7 @@ function Workbench({
     if (generationDelayMs !== undefined)
       options.generationDelayMs = generationDelayMs;
     if (mediaSetup !== undefined) options.mediaSetup = mediaSetup;
+    if (imageCount !== undefined) options.imageCount = imageCount;
     if (beforeRead !== undefined) options.beforeRead = beforeRead;
     if (finishGeneration !== undefined)
       options.finishGeneration = finishGeneration;
@@ -90,6 +93,10 @@ function Workbench({
   );
 }
 export const Studio = () => <Workbench scenario="studio" />;
+/** One picture: a deliberate showcase, never a window-high crop. */
+export const SingleImage = () => <Workbench scenario="studio" imageCount={1} />;
+/** Two pictures stay side by side inside the window. */
+export const TwoImages = () => <Workbench scenario="studio" imageCount={2} />;
 /** Forty deterministic pictures for viewer geometry and virtualised return focus. */
 export const ViewerImages = () => <Workbench scenario="viewer-images" />;
 /** A two-second local MP4 between ready pictures; no external media requests. */

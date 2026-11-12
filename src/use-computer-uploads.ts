@@ -1,8 +1,7 @@
-import { normalizeUploadFilename } from "./upload-path.js";
+import { normalizeUploadFilename, uniqueUploadPath } from "./upload-path.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppRoot } from "@fungi.computer/agar";
 import { writeComputerFile } from "@fungi.computer/agar/computer";
-import { nanoid } from "@fungi.computer/cairn";
 import { decodeLocalMedia } from "./local-images.js";
 import { reportCatchFailure } from "./log-event.js";
 
@@ -144,7 +143,12 @@ export function useComputerUploads(
     items,
     error,
     cancelAll,
-    add(files: readonly File[], directory: string, app: AppRoot) {
+    add(
+      files: readonly File[],
+      directory: string,
+      app: AppRoot,
+      taken: ReadonlySet<string> = new Set(),
+    ) {
       setError(null);
       let retainedBytes = [...retained.current.values()].reduce(
         (sum, row) => sum + row.file.size,
@@ -169,13 +173,14 @@ export function useComputerUploads(
           setError("Select a Computer before uploading images.");
           continue;
         }
-        const path = `${directory.replace(/\/$/, "")}/upload-${nanoid(8)}-${normalizeUploadFilename(file.name)}`;
-        if (retained.current.has(path)) {
-          setError(
-            "This path is already in the queue. Retry or remove its existing row.",
-          );
-          continue;
-        }
+        // The person's file name is the stored name; a clash with a known
+        // print or a queued upload gets a numeric suffix, never an internal id.
+        const path = uniqueUploadPath(
+          directory,
+          normalizeUploadFilename(file.name),
+          (candidate) =>
+            taken.has(candidate) || retained.current.has(candidate),
+        );
         const row: Upload = {
           computerId,
           id: path,

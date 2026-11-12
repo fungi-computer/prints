@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type {
   AppRoot,
   AppBrowserAction,
@@ -6,7 +6,14 @@ import type {
 } from "@fungi.computer/agar";
 import { useMutation } from "@tanstack/react-query";
 import { KeycapButton } from "@fungi.computer/caps/components/keycap";
-import { Download } from "lucide-react";
+import { IconButton } from "@fungi.computer/caps/components/icon-button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@fungi.computer/caps/components/dropdown-menu";
+import { Download, MoreHorizontal } from "lucide-react";
 import type { GallerySource } from "./media-gallery.js";
 import {
   preparePrintDownload,
@@ -19,9 +26,17 @@ import { reportCatchFailure } from "./log-event.js";
 export function PrintDownloadButton({
   source,
   app,
+  presentation = "key",
+  menuItems,
 }: {
   source: GallerySource;
   app: AppRoot | null;
+  /**
+   * "key" is the Download keycap. "menu" puts Download first in a "More"
+   * menu, followed by `menuItems`; preparation still starts on mount.
+   */
+  presentation?: "key" | "menu";
+  menuItems?: ReactNode;
 }) {
   const active = useRef<AbortController | null>(null);
   const preparation = useMutation({
@@ -84,39 +99,66 @@ export function PrintDownloadButton({
       ? describePrintDownloadRefusal(download.data)
       : null;
   const preparing = preparation.isIdle || preparation.isPending;
+  const startDownload = () => {
+    if (
+      preparation.data &&
+      !download.isPending &&
+      !active.current?.signal.aborted
+    ) {
+      // Start the host request in the click, before mutation bookkeeping
+      // can yield or disable the focused button.
+      const outcome = app
+        ? app.ui.requestBrowserAction(preparation.data)
+        : Promise.resolve<AppBrowserActionOutcome>({
+            kind: "refused",
+            reason: "unavailable",
+          });
+      download.mutate(outcome);
+    }
+  };
+  const title = preparing
+    ? "Preparing download…"
+    : download.isPending
+      ? "Downloading…"
+      : "Download";
+  const disabled = !preparation.data || download.isPending;
   return (
     <>
-      <KeycapButton
-        type="button"
-        label="Download"
-        title={
-          preparing
-            ? "Preparing download…"
-            : download.isPending
-              ? "Downloading…"
-              : "Download"
-        }
-        disabled={!preparation.data || download.isPending}
-        aria-busy={preparing || download.isPending}
-        icon={<Download size={16} aria-hidden="true" />}
-        onClick={() => {
-          if (
-            preparation.data &&
-            !download.isPending &&
-            !active.current?.signal.aborted
-          ) {
-            // Start the host request in the click, before mutation bookkeeping
-            // can yield or disable the focused button.
-            const outcome = app
-              ? app.ui.requestBrowserAction(preparation.data)
-              : Promise.resolve<AppBrowserActionOutcome>({
-                  kind: "refused",
-                  reason: "unavailable",
-                });
-            download.mutate(outcome);
-          }
-        }}
-      />
+      {presentation === "menu" ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <IconButton
+                size="default"
+                iconSize="md"
+                icon={<MoreHorizontal />}
+                aria-label="More"
+                title="More"
+              />
+            }
+          />
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              disabled={disabled}
+              title={title}
+              onSelect={startDownload}
+            >
+              Download
+            </DropdownMenuItem>
+            {menuItems}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <KeycapButton
+          type="button"
+          label="Download"
+          title={title}
+          disabled={disabled}
+          aria-busy={preparing || download.isPending}
+          icon={<Download size={16} aria-hidden="true" />}
+          onClick={startDownload}
+        />
+      )}
       {failure ? (
         <p role="alert" className="text-sm">
           {failure.title}. {failure.message}

@@ -1,5 +1,23 @@
 # @fungi.computer/prints
 
+## 0.10.23
+
+### Patch Changes
+
+- Changes since 0.10.22:
+
+  - fix(prints): check the Computer folder before naming an upload; sparse wall
+    sits on the page
+  - fix(prints): keep one image whole in the window and keep upload names
+  - fix(prints): keep the viewer toolbar on one row on phones
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.10.0
+  - @fungi.computer/caps@0.11.0
+  - @fungi.computer/darkroom@0.5.9
+  - @fungi.computer/parakeet@0.11.18
+
 ## 0.10.22
 
 ### Patch Changes

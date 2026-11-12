@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import type { AppRoot } from "@fungi.computer/agar";
@@ -17,6 +18,7 @@ import {
 import { Screen } from "@fungi.computer/caps/components/surface";
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { KeycapButton } from "@fungi.computer/caps/components/keycap";
+import { DropdownMenuItem } from "@fungi.computer/caps/components/dropdown-menu";
 import { Loader } from "@fungi.computer/caps/components/loader";
 import { FailureLine } from "@fungi.computer/caps/components/failure-line";
 import { GenerationFrame } from "@fungi.computer/caps/components/generation-frame";
@@ -205,37 +207,101 @@ function PrintStage({
   );
 }
 
-function InkcapAction({
+/** Caps' phone breakpoint: the toolbar keeps one row by folding actions into More. */
+const phoneQuery = "(max-width: 640px)";
+
+function usePhoneToolbar(): boolean {
+  return useSyncExternalStore(
+    (notify) => {
+      const query = globalThis.matchMedia(phoneQuery);
+      query.addEventListener("change", notify);
+      return () => {
+        query.removeEventListener("change", notify);
+      };
+    },
+    () => globalThis.matchMedia(phoneQuery).matches,
+    () => false,
+  );
+}
+
+function useInkcapOpen(
+  source: Extract<GallerySource, { kind: "computer" }> | null,
+) {
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+  return {
+    pending,
+    failed,
+    open: () => {
+      if (!source) return;
+      setPending(true);
+      setFailed(false);
+      void openInInkcap(source)
+        .catch((cause: unknown) => {
+          reportCatchFailure("open-print-in-inkcap", cause);
+          setFailed(true);
+        })
+        .finally(() => {
+          setPending(false);
+        });
+    },
+  };
+}
+
+function InkcapFailure({
   source,
 }: {
   source: Extract<GallerySource, { kind: "computer" }>;
 }) {
-  const [pending, setPending] = useState(false);
-  const [failed, setFailed] = useState(false);
+  return (
+    <p role="alert" className="text-sm">
+      Could not open {source.path} in Inkcap.
+    </p>
+  );
+}
+
+/** Image actions: Download and Open in Inkcap as keys, or one More menu on a phone. */
+function ImageActions({
+  source,
+  app,
+  inkcap,
+  phone,
+}: {
+  source: GallerySource;
+  app: AppRoot | null;
+  inkcap: boolean;
+  phone: boolean;
+}) {
+  const computer = source.kind === "computer" && inkcap ? source : null;
+  const opener = useInkcapOpen(computer);
   return (
     <>
-      <KeycapButton
-        label="Open in Inkcap"
-        icon={<ExternalLink />}
-        disabled={pending}
-        onClick={() => {
-          setPending(true);
-          setFailed(false);
-          void openInInkcap(source)
-            .catch((cause: unknown) => {
-              reportCatchFailure("open-print-in-inkcap", cause);
-              setFailed(true);
-            })
-            .finally(() => {
-              setPending(false);
-            });
-        }}
-      />
-      {failed ? (
-        <p role="alert" className="text-sm">
-          Could not open {source.path} in Inkcap.
-        </p>
+      <Suspense fallback={null}>
+        <PrintDownloadButton
+          source={source}
+          app={app}
+          presentation={phone ? "menu" : "key"}
+          menuItems={
+            computer ? (
+              <DropdownMenuItem
+                disabled={opener.pending}
+                onSelect={opener.open}
+              >
+                Open in Inkcap
+              </DropdownMenuItem>
+            ) : undefined
+          }
+        />
+      </Suspense>
+      {computer && !phone ? (
+        <KeycapButton
+          label="Open in Inkcap"
+          icon={<ExternalLink />}
+          disabled={opener.pending}
+          onClick={opener.open}
+        />
       ) : null}
+      {computer && opener.failed ? <InkcapFailure source={computer} /> : null}
     </>
   );
 }
@@ -260,6 +326,7 @@ export function PrintViewer({
 }) {
   const popup = useRef<HTMLDivElement>(null);
   const filesEditor = useFilesEditorInstalled(app);
+  const phone = usePhoneToolbar();
   const sequence = viewerSequence(items);
   const previous = useRef(sequence);
   const key =
@@ -416,16 +483,13 @@ export function PrintViewer({
               />
             ) : null}
             {image ? (
-              <Suspense fallback={null}>
-                <PrintDownloadButton
-                  key={image.url}
-                  source={image.source}
-                  app={app}
-                />
-              </Suspense>
-            ) : null}
-            {filesEditor && image?.source.kind === "computer" ? (
-              <InkcapAction key={key} source={image.source} />
+              <ImageActions
+                key={`${key}\n${image.url}`}
+                source={image.source}
+                app={app}
+                inkcap={filesEditor}
+                phone={phone}
+              />
             ) : null}
             <IconButton
               size="default"

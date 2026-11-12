@@ -93,6 +93,8 @@ export type Scenario =
   | "viewer-video"
   | "viewer-resumed";
 export type CaptureOptions = {
+  /** Studio shows this many painted samples (default: all of them). */
+  imageCount?: number;
   onRead?: (path: string) => void;
   imageCopies?: number;
   noticeStore?: (
@@ -197,7 +199,7 @@ export function createPrintsFixture(
     scenario === "retry" ||
     scenario === "unavailable"
   )
-    for (const [index, sample] of samples.entries()) {
+    for (const [index, sample] of samples.slice(0, opt.imageCount).entries()) {
       for (let copy = 0; copy < (opt.imageCopies ?? 1); copy += 1) {
         const name =
           copy === 0 ? sample.name : `${sample.name}-${String(copy)}`;

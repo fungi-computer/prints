@@ -52,6 +52,7 @@ import {
 } from "react";
 import {
   MediaMosaic,
+  SPARSE_TILE_LIMIT,
   type MediaFocus,
   type MediaMasonryItem,
 } from "./media-masonry.js";
@@ -1704,8 +1705,8 @@ export function MediaPane({
       <Toaster id="prints-generation-notices" />
       <div className="prints-gallery-region">
         <ScrollArea
-          screen={wallItems.length > 0}
-          surface={wallItems.length > 0}
+          screen={wallItems.length > SPARSE_TILE_LIMIT}
+          surface={wallItems.length > SPARSE_TILE_LIMIT}
           surfaceSize="lg"
           surfaceDepth="deep"
           ref={scrollRef}

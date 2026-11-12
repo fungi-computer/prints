@@ -6,6 +6,7 @@ import {
   computerList,
   computerReadFile,
   computerWriteFile,
+  listComputerFiles,
   readComputerFile,
 } from "@fungi.computer/agar/computer";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,6 +15,7 @@ import type { GallerySlot } from "./gallery-slots.js";
 import type { useMediaFolder } from "./media-folder.js";
 import { useMediaGallery } from "./media-gallery-query.js";
 import { useComputerUploads } from "./use-computer-uploads.js";
+import { listTakenPaths } from "./upload-path.js";
 import { reportCatchFailure } from "./log-event.js";
 
 export type MediaConnection = { app: AppRoot };
@@ -447,7 +449,28 @@ export function useGalleryMedia(
       captured.app.context.get().computerId !== id
     )
       return;
-    uploads.add(selected, mediaDirectory, captured.app);
+    // The loaded gallery page is only a window; the Computer's directory is
+    // the truth about which names are free.
+    let taken: ReadonlySet<string>;
+    try {
+      taken = await listTakenPaths(mediaDirectory, (offset) =>
+        listComputerFiles(captured.app.capabilities, {
+          path: mediaDirectory,
+          limit: 500,
+          offset,
+        }),
+      );
+    } catch (cause) {
+      reportCatchFailure("list-upload-destination", cause);
+      setFailed(["Could not check the Computer folder. No upload was sent."]);
+      return;
+    }
+    if (
+      connectionRef.current !== captured ||
+      captured.app.context.get().computerId !== id
+    )
+      return;
+    uploads.add(selected, mediaDirectory, captured.app, taken);
   };
   return {
     images,
