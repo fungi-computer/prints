@@ -16,8 +16,21 @@ import { KeycapButton } from "@fungi.computer/caps/components/keycap";
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Surface } from "@fungi.computer/caps/components/surface";
 import { DataList, DataRow } from "@fungi.computer/caps/components/data-list";
-import { Sigil, type SigilName } from "@fungi.computer/sigils";
-import { Clapperboard, RotateCcw, Shuffle, X } from "lucide-react";
+import {
+  Clapperboard,
+  Clock,
+  Cpu,
+  FileImage,
+  Images,
+  MessageSquareText,
+  Palette,
+  RotateCcw,
+  Ruler,
+  Shuffle,
+  Users,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import type { Iteration, PrintLineage } from "./print-iteration.js";
 import {
   isReferenceOnComputer,
@@ -103,20 +116,20 @@ function useOutputDetails(image: GalleryImage, app: AppRoot | null) {
   });
 }
 
-/** One fact row: a fixed label column (Sigil and name) and a wrapping value. */
+/** One fact row: a fixed label column (icon and name) and a wrapping value. */
 function Fact({
-  sigil,
+  icon: Icon,
   label,
   children,
 }: {
-  sigil: SigilName;
+  icon: LucideIcon;
   label: string;
   children: ReactNode;
 }) {
   return (
     <DataRow>
       <span className="prints-info-label">
-        <Sigil name={sigil} size={16} />
+        <Icon size={16} aria-hidden />
         {label}
       </span>
       <span className="prints-info-value">{children}</span>
@@ -211,26 +224,26 @@ export function PrintInfoDrawer({
         />
       </div>
       <DataList density="compact" className="prints-info-facts">
-        <Fact sigil="list" label="File">
+        <Fact icon={FileImage} label="File">
           <FileName name={image.file.name} />
         </Fact>
-        <Fact sigil="prints" label="Size">
+        <Fact icon={Ruler} label="Size">
           {image.width} × {image.height} · {aspectOf(image.width, image.height)}
         </Fact>
         {style.data?.style ? (
-          <Fact sigil="write" label="Style">
+          <Fact icon={Palette} label="Style">
             {style.data.style}
           </Fact>
         ) : null}
         {details ? (
-          <Fact sigil="sendPrompts" label="Prompt">
+          <Fact icon={MessageSquareText} label="Prompt">
             <span className="whitespace-pre-wrap" data-print-prompt>
               {details.typed.prompt}
             </span>
           </Fact>
         ) : null}
         {details ? (
-          <Fact sigil="generateMedia" label="Model">
+          <Fact icon={Cpu} label="Model">
             <span data-print-model>
               {recordedModel
                 ? modelName(recordedModel)
@@ -239,14 +252,14 @@ export function PrintInfoDrawer({
           </Fact>
         ) : null}
         {details && details.characters.length > 0 ? (
-          <Fact sigil="members" label="Characters">
+          <Fact icon={Users} label="Characters">
             <span data-print-characters>
               {details.characters.map((name) => `@${name}`).join(", ")}
             </span>
           </Fact>
         ) : null}
         {details && details.references.length > 0 ? (
-          <Fact sigil="read" label="References">
+          <Fact icon={Images} label="References">
             <ul
               className="prints-info-references"
               data-print-references
@@ -274,7 +287,7 @@ export function PrintInfoDrawer({
           </Fact>
         ) : null}
         {details ? (
-          <Fact sigil="schedule" label="Made">
+          <Fact icon={Clock} label="Made">
             {madeAt.format(details.print.createdAt)}
           </Fact>
         ) : null}

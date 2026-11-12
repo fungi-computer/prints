@@ -18,7 +18,8 @@ export type GallerySlot = {
   error?: string;
 };
 
-/** Preserve admission order and replace a reservation with its decoded file. */
+/** Newest admission first, then the listed files (already newest first);
+ *  a reservation is replaced by its decoded file in place. */
 export function galleryWithSlots(
   ready: MediaMasonryItem[],
   slots: GallerySlot[],
@@ -27,7 +28,8 @@ export function galleryWithSlots(
   const byKey = new Map(ready.map((item) => [item.key, item]));
   const reserved = new Set(slots.map((slot) => slot.key));
   return [
-    ...slots
+    ...[...slots]
+      .reverse()
       .filter((slot) => !slot.resolved || byKey.has(slot.key))
       .map((slot) => {
         const image = byKey.get(slot.key);

@@ -17,8 +17,10 @@ function Workbench({
   finishGeneration,
   mediaSetup,
   imageCount,
+  imageCopies,
 }: {
   imageCount?: number;
+  imageCopies?: number;
   scenario: Parameters<typeof createPrintsFixture>[0] | "disconnected";
   generationDelayMs?: number;
   beforeRead?: CaptureOptions["beforeRead"];
@@ -49,6 +51,7 @@ function Workbench({
       options.generationDelayMs = generationDelayMs;
     if (mediaSetup !== undefined) options.mediaSetup = mediaSetup;
     if (imageCount !== undefined) options.imageCount = imageCount;
+    if (imageCopies !== undefined) options.imageCopies = imageCopies;
     if (beforeRead !== undefined) options.beforeRead = beforeRead;
     if (finishGeneration !== undefined)
       options.finishGeneration = finishGeneration;
@@ -97,6 +100,14 @@ export const Studio = () => <Workbench scenario="studio" />;
 export const SingleImage = () => <Workbench scenario="studio" imageCount={1} />;
 /** Two pictures stay side by side inside the window. */
 export const TwoImages = () => <Workbench scenario="studio" imageCount={2} />;
+
+/** A portrait among landscapes: the sparse wall must show it whole. */
+export const ThreeImages = () => <Workbench scenario="studio" imageCount={3} />;
+
+/** Past the sparse limit: the same gutters and aspect rule, more columns. */
+export const EightImages = () => (
+  <Workbench scenario="studio" imageCount={4} imageCopies={2} />
+);
 /** Forty deterministic pictures for viewer geometry and virtualised return focus. */
 export const ViewerImages = () => <Workbench scenario="viewer-images" />;
 /** A two-second local MP4 between ready pictures; no external media requests. */

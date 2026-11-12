@@ -47,11 +47,14 @@ body,
 .prints-gallery-tools {
   position: absolute;
   display: flex;
-  gap: var(--spacing-xs);
-  background: var(--color-base-100);
-  top: var(--spacing-sm);
-  right: var(--spacing-sm);
+  gap: var(--spacing-2xs);
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
+  /* Bare glyphs over the picture: white with a soft shadow, no pad behind. */
+  color: white;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.55));
   opacity: 0;
+  transition: opacity 120ms ease;
 }
 .prints-gallery-tile:hover .prints-gallery-tools,
 .prints-gallery-tile:focus-within .prints-gallery-tools,
@@ -99,8 +102,7 @@ body,
   opacity: 1;
 }
 @media (hover: none) {
-  .prints-reference-remove,
-  .prints-gallery-reference {
+  .prints-reference-remove {
     opacity: 1;
   }
 }
@@ -231,9 +233,6 @@ span.prints-reference-role {
 }
 
 .prints-gallery-region {
-  /* Capture inherited material before the frame refines it, avoiding a variable
-     cycle. Unset material still uses Caps' own size fallback. */
-  --prints-gallery-frame-width: var(--stipe-surface-frame-width);
   position: relative;
   display: flex;
   flex: 1;
@@ -244,11 +243,6 @@ span.prints-reference-role {
   /* Caps reserves the scrollbar gutter on the right only; mirror it on the
      left so the bezel is even on both sides. */
   padding-inline-start: var(--caps-scroll-gutter-width);
-  /* Quiet gallery material keeps the frame distinct from its one-border track. */
-  --stipe-surface-frame-width: max(
-    calc(var(--border) * 2),
-    var(--prints-gallery-frame-width)
-  );
 }
 .prints-info-drawer {
   flex: 0 0 var(--container-xs);
@@ -314,16 +308,24 @@ span.prints-reference-role {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* A narrow pane keeps the picture in view: the panel is a bottom sheet over
+   the wall's lower part, never the whole of it. */
 @container (max-width: 40rem) {
   .prints-info-drawer {
     position: absolute;
-    inset: 0;
+    inset: auto 0 0;
     z-index: 1;
+    flex: none;
+    max-height: min(50%, 22rem);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-top: var(--border) solid var(--stipe-hairline);
+    box-shadow: 0 -6px 16px rgb(0 0 0 / 0.12);
   }
 }
+/* Touch has no hover: the tools stay, quieter. */
 @media (hover: none) {
   .prints-gallery-tools {
-    opacity: 1;
+    opacity: 0.7;
   }
 }
 

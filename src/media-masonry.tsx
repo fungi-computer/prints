@@ -44,8 +44,9 @@ export type MediaMasonryItem = {
   onDismiss?: () => void;
 };
 
-/** Wall finish — the protected Media wall has no inter-tile gap. */
-const MASONRY_GAP = 0;
+/** Wall finish: one gutter between tiles and around the wall, in px. It is
+ *  Caps' `--spacing-sm` (0.5rem) at the 16px root; masonic needs a number. */
+const MASONRY_GAP = 8;
 const MASONRY_FALLBACK_WIDTH = 320;
 
 // ─────────────────────────────────────────────────────────────────────
@@ -58,10 +59,16 @@ const MASONRY_FALLBACK_WIDTH = 320;
 // column rule. Covered by media-gallery.test.mjs.
 // ─────────────────────────────────────────────────────────────────────
 
+/** A sparse wall has at most this many tiles. */
+const SPARSE_TILE_LIMIT = 4;
+/** Below this pane width the wall is a phone's. */
+const PHONE_WIDTH = 640;
+
 /** The corner-shove rule: column count scales with BOTH the wall width AND
  *  the tile count — sparse sets span FEWER columns so a handful of images
- *  fills the width deliberately (Krea rhythm): one tile uses one column, up to four use two;
- *  wide walls use three or four, narrow walls use two.
+ *  fills the width deliberately (Krea rhythm): one tile uses one column, two use
+ *  two, three or four use three on a wide pane (two on a narrow one, one on a
+ *  phone, full-width); a full wall uses four, three or two as the pane allows.
  *
  *  COLS_3_FLOOR (Levi 2026-08-24) — the pane at an EVEN split of a MacBook
  *  Air 13" (1440 logical), rail accounted: 720 - 64 (w-16). Derived, not
@@ -72,7 +79,10 @@ const COLS_3_FLOOR = 720 - 64; // 656
 export function masonryColumnCount(itemCount: number, width: number): number {
   if (itemCount <= 0 || !Number.isFinite(width) || width <= 0) return 0;
   if (itemCount === 1) return 1;
-  if (itemCount <= 4) return 2;
+  if (itemCount <= SPARSE_TILE_LIMIT) {
+    if (width < PHONE_WIDTH) return 1;
+    return itemCount === 2 || width < COLS_3_FLOOR ? 2 : 3;
+  }
   if (width >= 1280) return 4;
   if (width >= COLS_3_FLOOR) return 3;
   return 2;
@@ -342,26 +352,9 @@ function useMediaRegionScroll(scrollRef: MediaScrollRef) {
 
 /** Whole-pixel tile height: fractional heights leave 1px seams between
  *  stacked tiles once Masonic accumulates them into positions. */
-function tileHeight(
-  width: number,
-  item: MediaMasonryItem,
-  maxHeight = Number.POSITIVE_INFINITY,
-): number {
+function tileHeight(width: number, item: MediaMasonryItem): number {
   const aspect = item.height > 0 ? item.width / item.height : 1;
-  return Math.min(Math.round(width / aspect), maxHeight);
-}
-
-/** A sparse wall is a showcase, not a wall: no tile outgrows the window. */
-export const SPARSE_TILE_LIMIT = 4;
-/** Breathing room around a sparse wall; the wall sits on the page itself. */
-const SPARSE_PHONE_WIDTH = 640;
-function sparseMargin(width: number): number {
-  return width < SPARSE_PHONE_WIDTH ? 16 : 24;
-}
-function sparseTileCap(itemCount: number, regionHeight: number): number {
-  return itemCount <= SPARSE_TILE_LIMIT && regionHeight > 0
-    ? regionHeight
-    : Number.POSITIVE_INFINITY;
+  return Math.round(width / aspect);
 }
 
 /** One picture shows whole: its column narrows to the window-high aspect
@@ -383,10 +376,12 @@ function wallColumnWidth(
 
 function useMediaWallPositioner(
   items: MediaMasonryItem[],
-  width: number,
-  regionHeight: number,
+  paneWidth: number,
+  paneHeight: number,
 ) {
-  const columnCount = Math.max(1, masonryColumnCount(items.length, width));
+  const columnCount = Math.max(1, masonryColumnCount(items.length, paneWidth));
+  const width = paneWidth - 2 * MASONRY_GAP;
+  const regionHeight = paneHeight - 2 * MASONRY_GAP;
   return useMemo(() => {
     const columnWidth = wallColumnWidth(
       items,
@@ -394,13 +389,12 @@ function useMediaWallPositioner(
       columnCount,
       regionHeight,
     );
-    const cap = sparseTileCap(items.length, regionHeight);
     // Keep one Masonic owner across scroll renders. A changed item set or
     // width starts fresh, including when removing items also changes columns.
     const positioner = createPositioner(columnCount, columnWidth, MASONRY_GAP);
     if (columnWidth > 0) {
       items.forEach((item, index) => {
-        positioner.set(index, tileHeight(columnWidth, item, cap));
+        positioner.set(index, tileHeight(columnWidth, item));
       });
     }
     return positioner;
@@ -411,16 +405,14 @@ function useMediaWallPositioner(
 const WallCell = memo(function WallCell({
   data,
   width,
-  maxHeight,
 }: {
   data: MediaMasonryItem;
   width: number;
-  maxHeight: number;
 }): React.JSX.Element {
   return (
     <div
       data-media-tile={data.key}
-      style={{ height: tileHeight(width, data, maxHeight), width }}
+      style={{ height: tileHeight(width, data), width }}
     >
       <MediaTileView item={data} />
     </div>
@@ -487,20 +479,13 @@ const MediaMasonryWall = memo(function MediaMasonryWall({
 }): React.JSX.Element {
   const regionBox = useMediaRegionBox(scrollRef, items.length);
   const width = regionBox.width || MASONRY_FALLBACK_WIDTH;
-  const sparse = items.length <= SPARSE_TILE_LIMIT && regionBox.height > 0;
-  const margin = sparse ? sparseMargin(width) : 0;
-  const wallWidth = width - 2 * margin;
-  const wallHeight = regionBox.height - 2 * margin;
-  const wallPositioner = useMediaWallPositioner(
-    items,
-    wallWidth,
-    sparse ? wallHeight : regionBox.height,
-  );
-  const soleColumnWidth =
-    items.length === 1
-      ? wallColumnWidth(items, wallWidth, 1, wallHeight)
-      : undefined;
-  const tileCap = sparseTileCap(items.length, sparse ? wallHeight : 0);
+  // One layout for every count: the same inset and gutter, tiles at their own
+  // aspect. A lone picture is the only wall that is centred and fitted to the
+  // window; every other wall starts at the top, newest first.
+  const sole = items.length === 1 && regionBox.height > 0;
+  const wallWidth = width - 2 * MASONRY_GAP;
+  const wallHeight = regionBox.height - 2 * MASONRY_GAP;
+  const wallPositioner = useMediaWallPositioner(items, width, regionBox.height);
   const { isScrolling, scrollTop } = useMediaRegionScroll(scrollRef);
   const knownTiles = useRef(new Set<string>());
   const focusedRequest = useRef<string | null>(null);
@@ -544,12 +529,10 @@ const MediaMasonryWall = memo(function MediaMasonryWall({
     if (!viewport || regionBox.width === 0 || regionBox.height === 0) return;
     // Initial directory reads don't navigate. Only newly admitted reservations
     // do; progress, completion, retries and resize keep the user's position.
-    const index = items.reduce(
-      (latest, item, index) =>
-        item.pending && !item.onVisible && !knownTiles.current.has(item.key)
-          ? index
-          : latest,
-      -1,
+    // The wall is newest first, so the first new reservation is the newest.
+    const index = items.findIndex(
+      (item) =>
+        item.pending && !item.onVisible && !knownTiles.current.has(item.key),
     );
     knownTiles.current = new Set(items.map((item) => item.key));
     if (index < 0) return;
@@ -568,11 +551,9 @@ const MediaMasonryWall = memo(function MediaMasonryWall({
       bottom <= viewport.scrollTop + viewport.clientHeight
     )
       return;
+    // The newest tile leads the wall: bring it to the top edge, not the middle.
     viewport.scrollTo({
-      top: Math.max(
-        0,
-        top - Math.max(0, (viewport.clientHeight - tile.height) / 2),
-      ),
+      top: Math.max(0, top - MASONRY_GAP),
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
         ? "instant"
         : "smooth",
@@ -581,9 +562,9 @@ const MediaMasonryWall = memo(function MediaMasonryWall({
 
   const renderCell = useCallback(
     ({ data, width: cellWidth }: RenderComponentProps<MediaMasonryItem>) => (
-      <WallCell data={data} width={cellWidth} maxHeight={tileCap} />
+      <WallCell data={data} width={cellWidth} />
     ),
-    [tileCap],
+    [],
   );
 
   const wall = useMasonry({
@@ -597,26 +578,30 @@ const MediaMasonryWall = memo(function MediaMasonryWall({
     render: renderCell,
     scrollTop,
   });
-  // One stable wrapper keeps tiles mounted as the count crosses the limit. A
-  // sparse wall keeps a margin and sits on the page (the caller drops the
-  // card): centred on wide panes, from the top on phones.
+  // One stable wrapper keeps tiles mounted as the count changes.
   return (
     <div
-      data-media-sparse={sparse ? "" : undefined}
-      style={
-        sparse
+      data-media-sole={sole ? "" : undefined}
+      style={{
+        boxSizing: "border-box",
+        padding: MASONRY_GAP,
+        ...(sole
           ? {
               display: "flex",
-              alignItems: width < SPARSE_PHONE_WIDTH ? "flex-start" : "center",
+              alignItems: "center",
               justifyContent: "center",
-              boxSizing: "border-box",
-              padding: margin,
               minHeight: regionBox.height,
             }
-          : undefined
-      }
+          : undefined),
+      }}
     >
-      <div style={{ width: sparse ? (soleColumnWidth ?? "100%") : "100%" }}>
+      <div
+        style={{
+          width: sole
+            ? wallColumnWidth(items, wallWidth, 1, wallHeight)
+            : "100%",
+        }}
+      >
         {wall}
       </div>
     </div>

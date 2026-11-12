@@ -1,5 +1,19 @@
 # @fungi.computer/prints
 
+## 0.10.24
+
+### Patch Changes
+
+- Changes since 0.10.23:
+
+  - fix(prints): give the gallery one container at every image count
+  - fix(prints): lay the gallery out with gutters, whole portraits and
+    newest-first uploads
+
+- Updated dependencies
+  - @fungi.computer/caps@0.11.1
+  - @fungi.computer/parakeet@0.11.19
+
 ## 0.10.23
 
 ### Patch Changes
