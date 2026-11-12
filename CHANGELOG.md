@@ -1,5 +1,23 @@
 # @fungi.computer/prints
 
+## 0.10.22
+
+### Patch Changes
+
+- Changes since 0.10.21:
+
+  - fix(prints): count the mirrored left gutter in the gallery edges proof
+  - fix(caps,prints): keep a failed generation's Retry above the dimmed
+    placeholder
+  - fix(prints): quiet the image viewer header and keep one frame
+  - fix(prints): download C2PA-signed images unchanged
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/caps@0.10.8
+  - @fungi.computer/darkroom@0.5.8
+  - @fungi.computer/parakeet@0.11.17
+
 ## 0.10.21
 
 ### Patch Changes

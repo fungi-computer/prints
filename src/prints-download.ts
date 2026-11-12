@@ -77,11 +77,6 @@ export function describePrintDownloadError(cause: unknown): ErrorDescription {
     return describeAppError(cause, { FILE_TOO_LARGE: tooLargeCopy });
   const copies = {
     "too-large": tooLargeCopy,
-    "signed-image": {
-      title: "Download unavailable",
-      message:
-        "This image has signed metadata that Prints cannot safely remove.",
-    },
     "invalid-image": {
       title: "Couldn't prepare the image",
       message:

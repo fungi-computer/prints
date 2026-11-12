@@ -14,7 +14,7 @@ import {
   DialogPortal,
   DialogTitle,
 } from "@fungi.computer/caps/components/dialog";
-import { Display, ScreenHeader } from "@fungi.computer/caps/components/surface";
+import { Screen } from "@fungi.computer/caps/components/surface";
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { KeycapButton } from "@fungi.computer/caps/components/keycap";
 import { Loader } from "@fungi.computer/caps/components/loader";
@@ -333,17 +333,21 @@ export function PrintViewer({
             }
           }}
         >
-          <Display fit="fill">
+          <Screen className="prints-viewer-frame">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <ScreenHeader
-                title={<DialogTitle className="truncate">{name}</DialogTitle>}
-                status={
-                  <span aria-live="polite" aria-atomic="true">
-                    <span className="sr-only">{name}, </span>
-                    {sequence.indexOf(key) + 1} of {sequence.length}
-                  </span>
-                }
-              />
+              <div className="prints-viewer-caption" data-print-viewer-caption>
+                <DialogTitle className="prints-viewer-caption-name truncate text-xs font-normal">
+                  {name}
+                </DialogTitle>
+                <span
+                  className="prints-viewer-caption-position"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  <span className="sr-only">{name}, </span>
+                  {sequence.indexOf(key) + 1} of {sequence.length}
+                </span>
+              </div>
               <div className="@container relative flex min-h-0 min-w-0 flex-1">
                 <PrintStage
                   key={key}
@@ -357,7 +361,7 @@ export function PrintViewer({
                   : null}
               </div>
             </div>
-          </Display>
+          </Screen>
           <div className="prints-viewer-actions">
             <IconButton
               size="default"

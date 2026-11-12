@@ -262,6 +262,38 @@ span.prints-reference-role {
   align-items: stretch;
   gap: var(--spacing-md);
 }
+.prints-viewer-frame {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  border: var(--border) solid var(--stipe-linework);
+  border-radius: var(--radius-field);
+}
+.prints-viewer-caption {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  min-width: 0;
+  padding: var(--spacing-2xs) var(--spacing-sm) 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--caps-control-dim);
+}
+.prints-viewer-caption-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: inherit;
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prints-viewer-caption-position {
+  flex: none;
+}
 .prints-viewer-actions {
   display: flex;
   flex-wrap: wrap;
