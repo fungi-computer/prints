@@ -37,7 +37,9 @@ export type IterationOutcome =
 
 /**
  * The video model that takes this print as its first frame: the first Seedance
- * model the catalog lists, else any video model that accepts a first frame.
+ * model the catalog lists (the newest comes first), else any video model that
+ * accepts a first frame. A model with no published price cannot be quoted or
+ * billed, so it is never chosen.
  */
 export function animateModelFor(
   models: readonly MediaModel[],
@@ -46,6 +48,7 @@ export function animateModelFor(
     (model) =>
       model.kind === "video" &&
       model.video !== null &&
+      model.video.prices.length > 0 &&
       model.input.maxReferences >= 1 &&
       model.video.referenceRoles.includes("first-frame"),
   );

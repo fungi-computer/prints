@@ -247,54 +247,202 @@ export type SizeChoice = Readonly<{
   label: string;
   width: number;
   height: number;
+  /** Menu group for a model that lists standard and largest sizes. */
+  group?: "Standard" | "Largest";
 }>;
 
 const greatestCommonDivisor = (a: number, b: number): number =>
   b === 0 ? a : greatestCommonDivisor(b, a % b);
 
 /** Pixel size with its reduced aspect ratio, e.g. "1536 × 1024 · 3:2". */
-const sizeLabel = (
+export const sizeLabel = (
   width: number,
   height: number,
   ratio?: readonly [number, number],
 ): string => {
   if (ratio !== undefined)
     return `${String(width)} × ${String(height)} · ${String(ratio[0])}:${String(ratio[1])}`;
-  const divisor = greatestCommonDivisor(width, height);
-  return `${String(width)} × ${String(height)} · ${String(width / divisor)}:${String(height / divisor)}`;
+  return `${String(width)} × ${String(height)} · ${ratioLabel(width, height)}`;
 };
 
-const WIDESCREEN_RATIOS = [
+/** A width and height in pixels. */
+export type PixelSize = Readonly<{ width: number; height: number }>;
+
+/** The ratios people ask for; every one is offered wherever the model can make it. */
+const COMMON_RATIOS = [
+  [1, 1],
+  [4, 3],
+  [3, 4],
+  [3, 2],
+  [2, 3],
   [16, 9],
+  [9, 16],
   [21, 9],
 ] as const;
 const PIXEL_MULTIPLE = 16;
+/** Smallest edge the host accepts for a model that sizes its own output. */
+const MINIMUM_EDGE = 256;
+/** A listed size at or above this many pixels is menu-grouped as the largest. */
+const LARGEST_AREA = 4_000_000;
+/** Pixels in a square of the retained 1024 px default. */
+const STANDARD_AREA = 1_048_576;
 
 /**
- * Widescreen presets for a model whose provider documents its maximum
- * dimension: the largest width (a multiple of 16, within that maximum) with
- * the height rounded to the nearest multiple of 16.
+ * A size with this ratio for a model that sizes its own output: the largest
+ * edge its provider documents, else about one megapixel (the retained scale),
+ * on multiples of 16 and clamped to the host's bounds.
  */
-function widescreenChoices(model: MediaModel): readonly SizeChoice[] {
-  const maximum = model.input.maxDimension;
+function ownSizeFor(
+  model: MediaModel,
+  across: number,
+  down: number,
+  best: boolean,
+): PixelSize {
+  const maximum =
+    Math.floor((model.input.maxDimension ?? 4_096) / PIXEL_MULTIPLE) *
+    PIXEL_MULTIPLE;
+  const roundDown = (value: number) =>
+    Math.round(value / PIXEL_MULTIPLE) * PIXEL_MULTIPLE;
+  const clamp = (value: number) =>
+    Math.min(maximum, Math.max(MINIMUM_EDGE, value));
+  const divisor = greatestCommonDivisor(across, down);
+  const unitWidth = (across / divisor) * PIXEL_MULTIPLE;
+  const unitHeight = (down / divisor) * PIXEL_MULTIPLE;
+  const documented = best && model.input.maxDimensionDocumented;
+  let width: number;
+  let height: number;
+  if (Math.max(unitWidth, unitHeight) <= maximum / 4) {
+    // An exact ratio: whole multiples of the smallest 16-aligned unit.
+    const steps = documented
+      ? Math.floor(maximum / Math.max(unitWidth, unitHeight))
+      : Math.max(
+          1,
+          Math.round(Math.sqrt(STANDARD_AREA / (unitWidth * unitHeight))),
+        );
+    width = unitWidth * steps;
+    height = unitHeight * steps;
+  } else {
+    const ratio = across / down;
+    width = documented
+      ? ratio >= 1
+        ? maximum
+        : roundDown(maximum * ratio)
+      : roundDown(Math.sqrt(STANDARD_AREA * ratio));
+    height = documented
+      ? ratio >= 1
+        ? roundDown(maximum / ratio)
+        : maximum
+      : roundDown(width / ratio);
+  }
+  // Keep the ratio when an extreme ratio overruns the maximum edge.
+  const over = Math.max(width, height) / maximum;
+  if (over > 1) {
+    width = roundDown(width / over);
+    height = roundDown(height / over);
+  }
+  return { width: clamp(width), height: clamp(height) };
+}
+
+/**
+ * Ratio presets for a model that sizes its own output: each common ratio at
+ * the model's best size when its provider documents a maximum, otherwise at
+ * the standard scale. The three retained presets stay first.
+ */
+function ratioChoices(model: MediaModel): readonly SizeChoice[] {
+  if (model.kind !== "image" || model.input.dimensions !== "own") return [];
+  const seen = new Set<string>();
+  const retained = new Set<string>();
+  for (const mode of SIZE_MODES) {
+    const { width, height } = SIZE_PRESETS[mode];
+    const divisor = greatestCommonDivisor(width, height);
+    retained.add(`${String(width / divisor)}:${String(height / divisor)}`);
+    seen.add(`${String(width)}x${String(height)}`);
+  }
+  const out: SizeChoice[] = [];
+  for (const [across, down] of COMMON_RATIOS) {
+    const sizes: { size: PixelSize; group: "Standard" | "Largest" }[] =
+      retained.has(`${String(across)}:${String(down)}`)
+        ? []
+        : [{ size: ownSizeFor(model, across, down, false), group: "Standard" }];
+    if (model.input.maxDimensionDocumented)
+      sizes.push({
+        size: ownSizeFor(model, across, down, true),
+        group: "Largest",
+      });
+    for (const {
+      size: { width, height },
+      group,
+    } of sizes) {
+      const value = `${String(width)}x${String(height)}`;
+      if (seen.has(value)) continue;
+      seen.add(value);
+      out.push({
+        value,
+        label: sizeLabel(width, height, [across, down]),
+        width,
+        height,
+        group,
+      });
+    }
+  }
+  return out;
+}
+
+/** The common ratio a size is within 2% of, else its reduced form or a decimal. */
+export function ratioLabel(width: number, height: number): string {
+  const proportion = width / height;
+  const near = COMMON_RATIOS.find(
+    ([across, down]) => Math.abs(proportion / (across / down) - 1) <= 0.02,
+  );
+  if (near !== undefined) return `${String(near[0])}:${String(near[1])}`;
+  const divisor = greatestCommonDivisor(width, height);
+  const across = width / divisor;
+  const down = height / divisor;
+  return across <= 21 && down <= 21
+    ? `${String(across)}:${String(down)}`
+    : `${proportion.toFixed(2)}:1`;
+}
+
+/**
+ * The size this model makes for a reference of the given proportions: the nearest
+ * listed size by ratio (the standard one on a tie) when the model lists its
+ * sizes, else about one megapixel in the reference's ratio on multiples of 16.
+ * Undefined for a model that chooses its own output size.
+ */
+export function matchReferenceSize(
+  model: MediaModel | undefined,
+  referenceWidth: number,
+  referenceHeight: number,
+): PixelSize | undefined {
   if (
-    model.kind !== "image" ||
+    model?.kind !== "image" ||
     model.input.dimensions !== "own" ||
-    !model.input.maxDimensionDocumented ||
-    maximum === null
+    !(referenceWidth > 0 && referenceHeight > 0)
   )
-    return [];
-  const width = Math.floor(maximum / PIXEL_MULTIPLE) * PIXEL_MULTIPLE;
-  return WIDESCREEN_RATIOS.map(([w, h]) => {
-    const height =
-      Math.round((width * h) / w / PIXEL_MULTIPLE) * PIXEL_MULTIPLE;
-    return {
-      value: `${String(width)}x${String(height)}`,
-      label: sizeLabel(width, height, [w, h]),
-      width,
-      height,
-    };
-  });
+    return undefined;
+  const wanted = Math.log(referenceWidth / referenceHeight);
+  if (model.sizes !== null) {
+    let best: { width: number; height: number; gap: number } | undefined;
+    for (const size of model.sizes) {
+      const match = /^(\d+)x(\d+)$/u.exec(size);
+      if (match === null) continue;
+      const width = Number(match[1]);
+      const height = Number(match[2]);
+      const gap = Math.abs(Math.log(width / height) - wanted);
+      if (best === undefined || gap < best.gap - 1e-9)
+        best = { width, height, gap };
+    }
+    return best === undefined
+      ? undefined
+      : { width: best.width, height: best.height };
+  }
+  const common = COMMON_RATIOS.find(
+    ([across, down]) =>
+      Math.abs(referenceWidth / referenceHeight / (across / down) - 1) <= 0.02,
+  );
+  return common === undefined
+    ? ownSizeFor(model, referenceWidth, referenceHeight, false)
+    : ownSizeFor(model, common[0], common[1], false);
 }
 
 /**
@@ -343,7 +491,8 @@ export function sizeChoicesFor(
           label: sizeLabel(width, height),
           width,
           height,
-        },
+          group: width * height >= LARGEST_AREA ? "Largest" : "Standard",
+        } satisfies SizeChoice,
       ];
     });
   return [
@@ -351,8 +500,9 @@ export function sizeChoicesFor(
       value: mode,
       label: sizeLabel(SIZE_PRESETS[mode].width, SIZE_PRESETS[mode].height),
       ...SIZE_PRESETS[mode],
+      group: "Standard" as const,
     })),
-    ...(model === undefined ? [] : widescreenChoices(model)),
+    ...(model === undefined ? [] : ratioChoices(model)),
   ];
 }
 

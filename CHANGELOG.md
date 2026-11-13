@@ -1,5 +1,30 @@
 # @fungi.computer/prints
 
+## 0.11.0
+
+### Minor Changes
+
+- Changes since 0.10.29:
+
+  - fix(prints): export PixelSize so matchReferenceSize leaks no private type
+  - fix(prints): polish Match reference and the grouped Size menu
+  - fix(prints): use an optional chain in matchReferenceSize
+  - feat(prints): more image aspect ratios and a Match reference size
+  - fix(prints): label the Seedance audio switch "Sound"
+  - feat(darkroom): default Seedance generated sound to On
+  - fix(darkroom): admit Seedance 2.0 prompts up to the provider's 10,000
+    characters
+  - feat(darkroom): price Seedance 2.5 at the dashboard rates
+  - feat(prints): add Seedance 2.5 to the Darkroom video catalog
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.12.1
+  - @fungi.computer/darkroom@0.6.0
+  - @fungi.computer/parakeet@0.11.25
+
 ## 0.10.29
 
 ### Patch Changes

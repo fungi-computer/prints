@@ -88,7 +88,11 @@ import {
   referenceRoleMessage,
   referenceRolesFor,
   resolveReferenceRoles,
+  matchReferenceSize,
+  type PixelSize,
+  ratioLabel,
   sizeChoicesFor,
+  sizeLabel,
   shortSizeLabel,
   type SizeChoice,
   sizeForModel,
@@ -141,6 +145,26 @@ function useGenerationForm(submit: { current: GenerationSubmit }) {
   return Object.assign(form, { submitCurrent });
 }
 
+/** Menu groups in first-seen order; a model with one kind of size gets a flat list. */
+function sizeGroups(
+  choices: readonly SizeChoice[],
+): readonly { group: SizeChoice["group"]; choices: readonly SizeChoice[] }[] {
+  const groups = [...new Set(choices.map((choice) => choice.group))];
+  if (groups.length < 2) return [{ group: undefined, choices }];
+  return groups.map((group) => ({
+    group,
+    choices: choices.filter((choice) => choice.group === group),
+  }));
+}
+
+/** A Computer image the composer can attach, with its decoded pixel size. */
+type ReferenceImage = Readonly<{
+  path: string;
+  url: string;
+  width: number;
+  height: number;
+}>;
+
 /**
  * The settings tray: the choices a creator sets once a session (style, size,
  * video length and audio, steps), and the doors to the style and character
@@ -153,6 +177,7 @@ function GenerationSettings({
   sizeChoices,
   sizeMode,
   onCustomSize,
+  match,
   onEditStyles,
   onEditCharacters,
 }: {
@@ -162,6 +187,12 @@ function GenerationSettings({
   sizeChoices: readonly SizeChoice[];
   sizeMode: string;
   onCustomSize: (custom: boolean) => void;
+  match: Readonly<{
+    offered: boolean;
+    /** The size the first reference resolves to, or undefined with none attached. */
+    size: PixelSize | undefined;
+    onChange: (on: boolean) => void;
+  }>;
   onEditStyles: () => void;
   onEditCharacters: () => void;
 }): React.JSX.Element {
@@ -184,6 +215,7 @@ function GenerationSettings({
           }
           onChange={(event) => {
             const value = event.currentTarget.value;
+            match.onChange(value === "match");
             onCustomSize(value === "custom");
             const choice = sizeChoices.find((option) => option.value === value);
             if (choice) {
@@ -197,17 +229,37 @@ function GenerationSettings({
             <option value="provider">Model default</option>
           ) : (
             <>
+              {match.offered ? (
+                <option value="match" disabled={match.size === undefined}>
+                  {match.size === undefined
+                    ? "Match first reference: attach an image first"
+                    : `Match first reference · ${sizeLabel(match.size.width, match.size.height)}`}
+                </option>
+              ) : null}
               {catalogSized &&
+              sizeMode !== "match" &&
               !sizeChoices.some((choice) => choice.value === sizeMode) ? (
                 <option value={sizeMode} disabled>
                   Choose a supported resolution
                 </option>
               ) : null}
-              {sizeChoices.map((choice) => (
-                <option key={choice.value} value={choice.value}>
-                  {choice.label}
-                </option>
-              ))}
+              {sizeGroups(sizeChoices).map(({ group, choices }) =>
+                group === undefined ? (
+                  choices.map((choice) => (
+                    <option key={choice.value} value={choice.value}>
+                      {choice.label}
+                    </option>
+                  ))
+                ) : (
+                  <optgroup key={group} label={group}>
+                    {choices.map((choice) => (
+                      <option key={choice.value} value={choice.value}>
+                        {choice.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ),
+              )}
               {catalogSized ? null : (
                 <option value="custom">Custom size</option>
               )}
@@ -289,9 +341,9 @@ function GenerationSettings({
         <form.Field name="generateAudio">
           {(field) =>
             video.defaultGenerateAudio === null ? (
-              <Field label="Audio" orientation="horizontal">
+              <Field label="Sound" orientation="horizontal">
                 <Select
-                  aria-label="Video audio"
+                  aria-label="Video sound"
                   className="select-sm"
                   data-generation-audio
                   onChange={(event) => {
@@ -314,9 +366,9 @@ function GenerationSettings({
                 </Select>
               </Field>
             ) : (
-              <Field label="Audio" orientation="horizontal">
+              <Field label="Sound" orientation="horizontal">
                 <Switch
-                  aria-label="Video audio"
+                  aria-label="Video sound"
                   checked={field.state.value ?? true}
                   data-generation-audio
                   onCheckedChange={field.handleChange}
@@ -419,7 +471,7 @@ function GenerationComposer({
   values: GenerationDraft;
   computerId: string | null;
   mediaDirectory: string | null;
-  referenceImages: readonly { path: string; url: string }[];
+  referenceImages: readonly ReferenceImage[];
   onSubmit: () => Promise<boolean>;
 }): React.JSX.Element {
   const selected = modelFor(models, values.model);
@@ -445,18 +497,56 @@ function GenerationComposer({
   const referenceLimit = selected?.input.maxReferences ?? 0;
   const referencesOver = values.references.length > referenceLimit;
   const [customSize, setCustomSize] = useState(false);
+  // "Match reference": the output takes the first attached image's shape.
+  const [matchReference, setMatchReference] = useState(false);
+  const firstReference = values.references.find(
+    (reference) =>
+      computerId !== null && isReferenceOnComputer(reference, computerId),
+  );
+  const referenceImage = referenceImages.find(
+    (image) => image.path === firstReference?.path,
+  );
+  const matched =
+    referenceImage === undefined
+      ? undefined
+      : matchReferenceSize(
+          selected,
+          referenceImage.width,
+          referenceImage.height,
+        );
+  const setFormValue = form.setFieldValue;
+  const sizeNow = useRef({ width: values.width, height: values.height });
+  sizeNow.current = { width: values.width, height: values.height };
+  useEffect(() => {
+    if (!matchReference) return;
+    if (matched === undefined) {
+      // The reference or the model went away; keep the size, leave the mode,
+      // and say so, since the next image would otherwise come out at a size
+      // the person did not knowingly pick.
+      setMatchReference(false);
+      toast(
+        `Size kept at ${String(sizeNow.current.width)} × ${String(sizeNow.current.height)}; Match first reference turned off`,
+        { toasterId: "prints-generation-notices" },
+      );
+      return;
+    }
+    setFormValue("width", matched.width);
+    setFormValue("height", matched.height);
+  }, [matchReference, matched?.width, matched?.height, setFormValue]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Catalog-sized models offer only their sizes; others add presets and custom.
   const catalogSized = selected !== undefined && selected.sizes !== null;
   const sizeChoices = sizeChoicesFor(selected);
-  const sizeMode = catalogSized
-    ? `${String(values.width)}x${String(values.height)}`
-    : customSize
-      ? "custom"
-      : (sizeChoices.find(
-          (choice) =>
-            choice.width === values.width && choice.height === values.height,
-        )?.value ?? "custom");
+  const sizeMode = matchReference
+    ? "match"
+    : catalogSized
+      ? `${String(values.width)}x${String(values.height)}`
+      : customSize
+        ? "custom"
+        : (sizeChoices.find(
+            (choice) =>
+              choice.width === values.width && choice.height === values.height,
+          )?.value ?? "custom");
   const [stylesOpen, setStylesOpen] = useState(false);
   const promptCommands = usePromptCommands(
     {
@@ -465,6 +555,7 @@ function GenerationComposer({
       },
       useSize: (mode) => {
         setCustomSize(false);
+        setMatchReference(false);
         form.setFieldValue("width", SIZE_PRESETS[mode].width);
         form.setFieldValue("height", SIZE_PRESETS[mode].height);
         form.setFieldValue("prompt", "");
@@ -514,7 +605,9 @@ function GenerationComposer({
   // The tray's chip reads back what the hidden choices are set to.
   const summary = [
     values.style,
-    shortSizeLabel(selected, values.width, values.height),
+    matchReference
+      ? `Match · ${ratioLabel(values.width, values.height)}`
+      : shortSizeLabel(selected, values.width, values.height),
     video && values.durationSeconds !== undefined
       ? `${String(values.durationSeconds)}s`
       : undefined,
@@ -530,6 +623,12 @@ function GenerationComposer({
       sizeChoices={sizeChoices}
       sizeMode={sizeMode}
       onCustomSize={setCustomSize}
+      match={{
+        offered:
+          selected?.kind === "image" && selected.input.dimensions === "own",
+        size: matched,
+        onChange: setMatchReference,
+      }}
       onEditStyles={() => {
         setSettingsOpen(false);
         setStylesOpen(true);
@@ -869,7 +968,9 @@ function GenerationComposer({
                   aria-hidden="true"
                   className="size-[var(--stipe-icon-size-sm)]"
                 />
-                {summary.length > 0 ? summary.join(" · ") : "Settings"}
+                <span className="prints-settings-chip-text">
+                  {summary.length > 0 ? summary.join(" · ") : "Settings"}
+                </span>
               </span>
             ),
             content: settings,
@@ -1615,7 +1716,14 @@ export function MediaPane({
   );
   const composerImages = images.flatMap((image) =>
     image.source.kind === "computer"
-      ? [{ path: image.source.path, url: image.url }]
+      ? [
+          {
+            path: image.source.path,
+            url: image.url,
+            width: image.width,
+            height: image.height,
+          },
+        ]
       : [],
   );
   const closeViewer = (lastKey: string) => {
