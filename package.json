@@ -1,6 +1,6 @@
 {
   "name": "@fungi.computer/prints",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p backend/tsconfig.json --noEmit",
@@ -12,7 +12,7 @@
     "@fungi.computer/agar": "0.15.0",
     "@fungi.computer/cairn": "0.1.0",
     "@fungi.computer/caps": "0.11.5",
-    "@fungi.computer/parakeet": "0.11.28",
+    "@fungi.computer/parakeet": "0.11.29",
     "@fungi.computer/sigils": "0.3.2",
     "@fungi.computer/whistle": "0.3.0",
     "@tanstack/react-form": "1.33.2",
@@ -44,7 +44,7 @@
     "vite": "8.2.2",
     "vite-plugin-singlefile": "2.3.3",
     "@cloudflare/workers-types": "5.20260828.1",
-    "@fungi.computer/oyster": "0.28.1",
+    "@fungi.computer/oyster": "0.28.2",
     "eslint": "10.9.1",
     "jsdom": "29.0.1",
     "@types/node": "24.13.3"

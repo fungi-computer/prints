@@ -67,7 +67,6 @@ body,
   gap: var(--spacing-sm);
   overflow-x: auto;
   padding: var(--spacing-sm);
-  border-bottom: var(--border) solid var(--stipe-hairline);
 }
 .prints-reference-tile {
   position: relative;
@@ -154,7 +153,6 @@ span.prints-reference-role {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-xs) var(--spacing-md);
-  padding-inline: 0.75rem;
 }
 .prints-reference-count {
   font-size: var(--text-xs);

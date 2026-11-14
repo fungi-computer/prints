@@ -1,5 +1,16 @@
 # @fungi.computer/prints
 
+## 0.14.1
+
+### Patch Changes
+
+- Changes since 0.14.0:
+
+  - fix(prints): drop the stray reference-strip hairline and align the reference
+    count
+
+- @fungi.computer/parakeet@0.11.29
+
 ## 0.14.0
 
 ### Minor Changes
