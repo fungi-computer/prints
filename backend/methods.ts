@@ -25,6 +25,7 @@ import { Base64 } from "effect/encoding";
 import {
   MediaSettingsError,
   listMediaModels,
+  listPictureMediaModels,
   validateMediaGenerationSelection,
 } from "@fungi.computer/darkroom";
 import { mediaRequestIdSchema } from "@fungi.computer/agar/media-request-id";
@@ -255,7 +256,9 @@ export function composeGeneration<
         `No character named ${unknown.map((name) => `"${name}"`).join(", ")}.`,
       ),
     };
-  const model = listMediaModels().find((entry) => entry.id === settings.model);
+  const model = listPictureMediaModels().find(
+    (entry) => entry.id === settings.model,
+  );
   const plan = planCharacters({
     prompt: settings.prompt,
     names: choices.characters,

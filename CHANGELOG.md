@@ -1,5 +1,27 @@
 # @fungi.computer/prints
 
+## 0.13.0
+
+### Minor Changes
+
+- Changes since 0.12.0:
+
+  - fix(darkroom): regenerate server docs and list picture models in the quote
+    test
+  - fix(prints): import listMediaModels in the Prints backend after the merge
+  - fix(prints): import listMediaModels in the Studio fixture after the merge
+  - fix(darkroom): repair the gate after merging integration
+  - feat(darkroom): generate speech and music through ElevenLabs on Unified
+    Billing
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.14.0
+  - @fungi.computer/darkroom@0.8.0
+  - @fungi.computer/parakeet@0.11.27
+
 ## 0.12.0
 
 ### Minor Changes

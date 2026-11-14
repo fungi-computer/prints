@@ -39,7 +39,10 @@ import {
   computerReadFile,
   computerWriteFile,
 } from "@fungi.computer/agar/computer";
-import { listMediaModels } from "@fungi.computer/darkroom";
+import {
+  listMediaModels,
+  listPictureMediaModels,
+} from "@fungi.computer/darkroom";
 import { mediaShare, type MediaShareStatus } from "@fungi.computer/agar/media";
 import { RpcStub, RpcTarget } from "@fungi.computer/capnweb";
 
@@ -888,8 +891,9 @@ export function createPrintsFixture(
             },
           };
         const video =
-          listMediaModels().find((model) => model.id === input.settings.model)
-            ?.kind === "video";
+          listPictureMediaModels().find(
+            (model) => model.id === input.settings.model,
+          )?.kind === "video";
         if (
           video &&
           (input.settings.width !== 1280 ||
@@ -950,7 +954,7 @@ export function createPrintsFixture(
           : Promise.resolve({
               computerId,
               canGenerate: opt.canGenerate ?? true,
-              models: listMediaModels(),
+              models: listPictureMediaModels(),
             }),
       // A fixture host's own price list (the real Hub meters Darkroom's
       // estimate): video by the second, images flat; the UI only displays it.

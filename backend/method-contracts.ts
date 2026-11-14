@@ -1,5 +1,4 @@
 import {
-  mediaBindingGenerationSchema,
   mediaImageBindingInputSchema,
   mediaVideoBindingInputSchema,
   mediaResultSchema,
@@ -77,7 +76,11 @@ export const generateVideoInputSchema = videoCommandSchema
     characters: charactersArgumentSchema.optional(),
   })
   .superRefine(validateVideoCommand);
-export const generationCommandSchema = mediaBindingGenerationSchema;
+/** Prints generates pictures and video; audio joins with its own UI. */
+export const generationCommandSchema = z.discriminatedUnion("kind", [
+  mediaImageBindingInputSchema,
+  mediaVideoBindingInputSchema,
+]);
 export type GenerationCommand = z.output<typeof generationCommandSchema>;
 export const generatedImageSchema = z.strictObject({
   bytes: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
