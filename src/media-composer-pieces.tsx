@@ -191,7 +191,7 @@ export function MediaComposerTextarea({
     <div className="relative min-w-0 flex-1">
       <Textarea
         aria-invalid={over ? true : undefined}
-        aria-label="Image prompt"
+        aria-label="Prompt"
         className="w-full"
         data-generation-prompt
         {...completionFieldProps(menu)}

@@ -6,6 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@fungi.computer/caps/components/dropdown-menu";
+import { menuContainerFor } from "./menu-container.js";
 import { modelName, type MediaModel } from "./generation-model.js";
 
 /** The generation model's native row key and single-choice menu. */
@@ -45,7 +46,7 @@ export function GenerationModelKey({
           data-generation-model-menu
           // Keep the native menu in this key's tray scope: model selection must
           // not light-dismiss an already open Settings tray.
-          container={menuContainer}
+          container={menuContainerFor(menuContainer)}
           side="top"
           align="start"
           aria-label="Generation models"

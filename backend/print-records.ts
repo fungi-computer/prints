@@ -14,7 +14,7 @@ const text = (maximum: number) => z.string().min(1).max(maximum);
 export type PrintRecord = Readonly<{
   printId: string;
   computerId: string;
-  kind: "image" | "video";
+  kind: "image" | "video" | "audio";
   prompt: string;
   model: string;
   width: number | null;
@@ -56,13 +56,11 @@ export function printTyped(sql: SqlStorage, printId: string): TypedInput {
   return { prompt: decoded.prompt, references: decoded.own_references };
 }
 
-export function ensurePrintsIndexTables(sql: SqlStorage): void {
-  ensurePromptCharacterTables(sql);
-  sql.exec(
-    `CREATE TABLE IF NOT EXISTS prints (
+/** The `prints` columns, shared by creation and the rebuild that admits `audio`. */
+const PRINTS_COLUMNS = `
       print_id TEXT PRIMARY KEY,
       computer_id TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK(kind IN ('image','video')),
+      kind TEXT NOT NULL CHECK(kind IN ('image','video','audio')),
       prompt TEXT NOT NULL,
       model TEXT NOT NULL,
       width INTEGER,
@@ -78,8 +76,34 @@ export function ensurePrintsIndexTables(sql: SqlStorage): void {
       created_at INTEGER NOT NULL,
       source TEXT NOT NULL CHECK(source IN ('recorded','file')),
       schema_version INTEGER NOT NULL
-    ) STRICT`,
+    `;
+
+const PRINT_COLUMN_NAMES =
+  "print_id,computer_id,kind,prompt,model,width,height,steps,duration_seconds,format,bytes,cost_milliunits,actor_kind,actor_id,derived_from,created_at,source,schema_version";
+
+/**
+ * A `prints` table made before audio only admits image and video kinds, and
+ * SQLite cannot widen a CHECK in place, so its rows move to a table that does.
+ */
+function admitAudioKind(sql: SqlStorage): void {
+  const existing = sql
+    .exec<{ sql: string }>(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='prints'",
+    )
+    .toArray()[0];
+  if (existing === undefined || existing.sql.includes("'audio'")) return;
+  sql.exec(`CREATE TABLE prints_audio (${PRINTS_COLUMNS}) STRICT`);
+  sql.exec(
+    `INSERT INTO prints_audio (${PRINT_COLUMN_NAMES}) SELECT ${PRINT_COLUMN_NAMES} FROM prints`,
   );
+  sql.exec("DROP TABLE prints");
+  sql.exec("ALTER TABLE prints_audio RENAME TO prints");
+}
+
+export function ensurePrintsIndexTables(sql: SqlStorage): void {
+  ensurePromptCharacterTables(sql);
+  sql.exec(`CREATE TABLE IF NOT EXISTS prints (${PRINTS_COLUMNS}) STRICT`);
+  admitAudioKind(sql);
   sql.exec(
     "CREATE INDEX IF NOT EXISTS prints_computer_created ON prints(computer_id,created_at DESC,print_id DESC)",
   );
@@ -204,6 +228,13 @@ export function readPrint(
   return row === undefined ? null : printRecordOf(row);
 }
 
+/** What a saved file is, from its encoding. */
+function kindOfFormat(format: string): PrintRecord["kind"] {
+  if (format === "mp4") return "video";
+  if (format === "mp3") return "audio";
+  return "image";
+}
+
 /** The one completed-print writer used by browser and Connector commands. */
 export function recordCompletedPrint(
   sql: SqlStorage,
@@ -225,7 +256,7 @@ export function recordCompletedPrint(
 ): PrintRecord {
   const { printId, computerId, settings } = input;
   const createdAt = Date.now();
-  const kind = input.result.format === "mp4" ? "video" : "image";
+  const kind = kindOfFormat(input.result.format);
   sql.exec(
     `INSERT INTO prints
         (print_id,computer_id,kind,prompt,model,width,height,steps,duration_seconds,
@@ -237,8 +268,8 @@ export function recordCompletedPrint(
     kind,
     settings.prompt,
     input.result.model,
-    input.result.width,
-    input.result.height,
+    input.result.width ?? null,
+    input.result.height ?? null,
     settings.steps ?? null,
     settings.durationSeconds ?? null,
     input.result.format,

@@ -47,6 +47,8 @@ import {
   type MediaModel,
 } from "./generation-model.js";
 import type { GalleryImage } from "./media-gallery.js";
+import { isAudioPath } from "./audio-media.js";
+import { formatDuration } from "./audio-waveform.js";
 import { formatPrintCost } from "./print-cost.js";
 import { PrintShareRows } from "./print-share.js";
 import { mediaShare } from "@fungi.computer/agar/media";
@@ -61,7 +63,7 @@ const outputDetailsSchema = z.object({
   print: z.object({
     printId: z.string(),
     source: z.enum(["recorded", "file"]),
-    kind: z.enum(["image", "video"]),
+    kind: z.enum(["image", "video", "audio"]),
     model: z.string(),
     width: z.number().nullable(),
     height: z.number().nullable(),
@@ -92,6 +94,8 @@ const lineageOf = (
   width: details.print.width,
   height: details.print.height,
 });
+
+const kindNames = { image: "Image", video: "Video", audio: "Audio" } as const;
 
 const divisor = (a: number, b: number): number =>
   b === 0 ? a : divisor(b, a % b);
@@ -273,7 +277,10 @@ export function PrintInfoDrawer({
   );
   const details = useOutputDetails(image, app).data;
   const lineage = details
-    ? lineageOf(details, style.data?.style ?? null)
+    ? lineageOf(
+        details,
+        isAudioPath(image.file.name) ? null : (style.data?.style ?? null),
+      )
     : null;
   const cost = details ? formatPrintCost(details.print.costMilliunits) : null;
   const recordedModel = details ? modelFor(models, details.print.model) : null;
@@ -306,7 +313,7 @@ export function PrintInfoDrawer({
           </h2>
           <span className="prints-info-subtitle">
             {details
-              ? `${details.print.kind === "video" ? "Video" : "Image"} · ${madeAt.format(details.print.createdAt)}`
+              ? `${kindNames[details.print.kind]} · ${madeAt.format(details.print.createdAt)}`
               : "Image info"}
           </span>
         </div>
@@ -320,10 +327,13 @@ export function PrintInfoDrawer({
         <Fact icon={FileImage} label="File">
           <FileName name={image.file.name} />
         </Fact>
-        <Fact icon={Ruler} label="Size">
-          {image.width} × {image.height} · {aspectOf(image.width, image.height)}
-        </Fact>
-        {style.data?.style ? (
+        {isAudioPath(image.file.name) ? null : (
+          <Fact icon={Ruler} label="Size">
+            {image.width} × {image.height} ·{" "}
+            {aspectOf(image.width, image.height)}
+          </Fact>
+        )}
+        {style.data?.style && !isAudioPath(image.file.name) ? (
           <Fact icon={Palette} label="Style">
             {style.data.style}
           </Fact>
@@ -377,11 +387,12 @@ export function PrintInfoDrawer({
             </ul>
           </Fact>
         ) : null}
-        {details?.print.kind === "video" &&
+        {details != null &&
+        details.print.kind !== "image" &&
         details.print.durationSeconds != null ? (
           <Fact icon={Clock} label="Duration">
             <span data-print-duration>
-              {String(details.print.durationSeconds)} s
+              {formatDuration(details.print.durationSeconds)}
             </span>
           </Fact>
         ) : null}
@@ -416,14 +427,16 @@ export function PrintInfoDrawer({
                 setRefusal(onIterate("reuse", lineage));
               }}
             />
-            <KeycapButton
-              label="Remix"
-              icon={<Shuffle />}
-              disabled={style.isPending}
-              onClick={() => {
-                setRefusal(onIterate("remix", lineage));
-              }}
-            />
+            {lineage.kind === "audio" ? null : (
+              <KeycapButton
+                label="Remix"
+                icon={<Shuffle />}
+                disabled={style.isPending}
+                onClick={() => {
+                  setRefusal(onIterate("remix", lineage));
+                }}
+              />
+            )}
             {canAnimate && lineage.kind === "image" ? (
               <KeycapButton
                 label="Animate"

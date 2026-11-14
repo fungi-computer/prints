@@ -106,8 +106,10 @@ export function completeMethodGeneration(
       result.destination.computerId !== pending.computer_id ||
       (command.kind === "video"
         ? result.format !== "mp4"
-        : command.outputFormat !== undefined &&
-          result.format !== command.outputFormat) ||
+        : command.kind === "audio"
+          ? result.format !== "mp3"
+          : command.outputFormat !== undefined &&
+            result.format !== command.outputFormat) ||
       result.model !== command.settings.model
     )
       return { error: "conflict" };
@@ -121,13 +123,16 @@ export function completeMethodGeneration(
         .toArray().length
     )
       return { error: "conflict" };
-    const settings = {
-      ...(command.kind === "image"
+    const settings =
+      command.kind === "audio"
         ? command.settings
-        : validateMediaVideoSelection(command.settings)),
-      width: result.width,
-      height: result.height,
-    };
+        : {
+            ...(command.kind === "image"
+              ? command.settings
+              : validateMediaVideoSelection(command.settings)),
+            width: "width" in result ? result.width : undefined,
+            height: "height" in result ? result.height : undefined,
+          };
     recordCompletedPrint(storage.sql, {
       printId: command.requestId,
       computerId: pending.computer_id,

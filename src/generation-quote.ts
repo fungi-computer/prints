@@ -12,7 +12,11 @@ import {
   type MediaModel,
 } from "./generation-model.js";
 import { formatPrintCost } from "./print-cost.js";
-import { planCharacters, type PromptCharacter } from "./prompt-characters.js";
+import {
+  plainPlan,
+  planCharacters,
+  type PromptCharacter,
+} from "./prompt-characters.js";
 import { composePrompt } from "./prompt-styles.js";
 import {
   mentionedReferenceNumbers,
@@ -43,21 +47,33 @@ export function quoteSettingsFor(
   const { draft, model } = input;
   if (model === undefined || draft.prompt.trim() === "") return null;
   const named = mentionedReferenceNumbers(draft.prompt).length > 0;
-  const plan = planCharacters({
-    prompt: draft.prompt,
-    saved: input.characters,
-    references: draft.references,
-    labels: input.labels,
-    wording: (merged) =>
-      referenceWording(resolveReferenceRoles(merged, model, named), model),
-    computerId: input.computerId,
-    model: { label: model.label, maxReferences: model.input.maxReferences },
-  });
+  const plan =
+    model.kind === "audio"
+      ? plainPlan(draft.prompt)
+      : planCharacters({
+          prompt: draft.prompt,
+          saved: input.characters,
+          references: draft.references,
+          labels: input.labels,
+          wording: (merged) =>
+            referenceWording(
+              resolveReferenceRoles(merged, model, named),
+              model,
+            ),
+          computerId: input.computerId,
+          model: {
+            label: model.label,
+            maxReferences: model.input.maxReferences,
+          },
+        });
   if (plan.kind === "refused") return null;
   const references = resolveReferenceRoles(plan.references, model, named);
   const composed = {
     ...draft,
-    prompt: composePrompt(input.styleText, plan.prompt),
+    prompt: composePrompt(
+      model.kind === "audio" ? undefined : input.styleText,
+      plan.prompt,
+    ),
     references,
   };
   if (validationMessage(composed, model) !== undefined) return null;

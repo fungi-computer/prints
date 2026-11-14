@@ -40,7 +40,12 @@ export type NoticeState = {
   retryUpload: (id: string) => void;
 };
 
-const kindNames = { image: "Image", video: "Video", media: "Media" } as const;
+const kindNames = {
+  image: "Image",
+  video: "Video",
+  audio: "Audio",
+  media: "Media",
+} as const;
 
 /** One owner for the cause, wording and actions of each activity notice. */
 export function noticesFor({

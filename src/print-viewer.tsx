@@ -44,6 +44,8 @@ import {
   step,
   viewerSequence,
 } from "./print-viewer-model.js";
+import { AudioViewerStage } from "./audio-viewer-stage.js";
+import { isAudioPath } from "./audio-media.js";
 import { isVideoPath } from "./local-images.js";
 import { reportCatchFailure } from "./log-event.js";
 
@@ -159,6 +161,8 @@ function PrintStage({
             </div>
           }
         />
+      ) : isAudioPath(item.path) && item.url ? (
+        <AudioViewerStage facts={{ url: item.url }} />
       ) : isVideoPath(item.path) && item.url ? (
         <ViewerVideo
           url={item.url}
@@ -467,7 +471,7 @@ export function PrintViewer({
                 setInfoKey(infoKey === key ? null : key);
               }}
             />
-            {!isVideoPath(item.path) ? (
+            {!isVideoPath(item.path) && !isAudioPath(item.path) ? (
               <IconButton
                 size="default"
                 iconSize="md"

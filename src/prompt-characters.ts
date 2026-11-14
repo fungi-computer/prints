@@ -170,6 +170,11 @@ export type CharacterPlan =
     }>
   | Readonly<{ kind: "refused"; message: string }>;
 
+/** A prompt sent as typed: audio takes no characters, references or `@image` mentions. */
+export function plainPlan(prompt: string): CharacterPlan {
+  return { kind: "ready", prompt, references: [], characters: [] };
+}
+
 /**
  * Expand a prompt's characters and count their references against the model.
  * `names` are characters picked outside the prompt text (the agent tool).

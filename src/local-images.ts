@@ -1,3 +1,5 @@
+import { AUDIO_TILE_SIZE, isAudioPath } from "./audio-media.js";
+
 /** Browser-selected files remain local. The gallery never uploads their bytes. */
 export type LocalImage = {
   file: File;
@@ -11,7 +13,8 @@ export function isVideoPath(path: string): boolean {
   return /\.mp4$/iu.test(path);
 }
 
-/** Intrinsic size of a print: images decode, MP4s report their metadata. */
+/** Intrinsic size of a print: images decode, MP4s report their metadata, and
+ * an MP3 takes the wall's audio tile shape once its length is readable. */
 export async function decodeLocalMedia(
   file: File,
   url: string,
@@ -38,6 +41,28 @@ export async function decodeLocalMedia(
       video.src = url;
     });
     return { file, url, width: video.videoWidth, height: video.videoHeight };
+  }
+  if (isAudioPath(file.name)) {
+    const audio = new Audio();
+    audio.preload = "metadata";
+    await new Promise<void>((resolve, reject) => {
+      audio.addEventListener(
+        "loadedmetadata",
+        () => {
+          resolve();
+        },
+        { once: true },
+      );
+      audio.addEventListener(
+        "error",
+        () => {
+          reject(new Error("MP3 metadata could not be read"));
+        },
+        { once: true },
+      );
+      audio.src = url;
+    });
+    return { file, url, ...AUDIO_TILE_SIZE };
   }
   const image = new Image();
   image.src = url;

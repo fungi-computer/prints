@@ -1,5 +1,36 @@
 # @fungi.computer/prints
 
+## 0.14.0
+
+### Minor Changes
+
+- Changes since 0.13.0:
+
+  - fix(prints): keep the quote test on the full catalog and regenerate Darkroom
+    docs after merging #731
+  - fix(prints): an audio print shows no Style row
+  - fix(prints,caps): audio polish from the wired re-review
+  - fix(prints): keep narrow audio tiles legible on a phone wall
+  - fix(prints): drop the superseded audio tile return
+  - feat(prints): audio in the composer, wall, viewer and info drawer
+  - feat(agar,prints): carry audio models, voices and MP3 results through the
+    Media contract
+  - fix(prints): audio polish review: menu clipping, accent play keys, type,
+    labels
+  - fix(prints): audio pieces pass the suppression budget and touch targets
+  - feat(prints): audio reference chip, composer mode controls, tile, waveform
+    and viewer stage
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.15.0
+  - @fungi.computer/caps@0.11.5
+  - @fungi.computer/darkroom@0.9.0
+  - @fungi.computer/parakeet@0.11.28
+
 ## 0.13.0
 
 ### Minor Changes

@@ -18,3 +18,7 @@
   display: flex;
   flex-direction: column;
 }
+/* The host's page sets the app font; Ladle's bare body does not, and the Toaster portals into it. */
+body {
+  font-family: var(--font-sans);
+}

@@ -21,6 +21,8 @@ import { Option, Schema } from "effect";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   describeGenerationError,
+  draftFromInput,
+  wallSizeFor,
   generationFailureOf,
   generationDestinationFor,
   generationInputFor,
@@ -52,7 +54,11 @@ import {
   promptLimitFor,
   type PromptStyle,
 } from "./prompt-styles.js";
-import { planCharacters, type PromptCharacter } from "./prompt-characters.js";
+import {
+  plainPlan,
+  planCharacters,
+  type PromptCharacter,
+} from "./prompt-characters.js";
 import {
   mentionedReferenceNumbers,
   referenceWording,
@@ -270,8 +276,7 @@ export function useMediaGeneration({
         key: `${run.reference.computerId}:${run.input.destination.path}`,
         computerId: run.reference.computerId,
         path: run.input.destination.path,
-        width: run.draft.width,
-        height: run.draft.height,
+        ...wallSizeFor(model, run.draft),
         pendingLabel: generationPendingLabel(model),
       };
       if (model?.kind === "video") {
@@ -424,11 +429,7 @@ export function useMediaGeneration({
           connection,
           ...record,
           resumed: true,
-          draft: {
-            ...record.input.settings,
-            references: record.input.settings.references ?? [],
-            destination: record.input.destination.path,
-          },
+          draft: draftFromInput(record.input),
         })
       )
         autoResumed.current.add(id);
@@ -460,16 +461,25 @@ export function useMediaGeneration({
     }
     // Naming references in the prompt makes every attachment a reference.
     const named = mentionedReferenceNumbers(draft.prompt).length > 0;
-    const plan = planCharacters({
-      prompt: draft.prompt,
-      saved: characters,
-      references: draft.references,
-      labels,
-      wording: (merged) =>
-        referenceWording(resolveReferenceRoles(merged, model, named), model),
-      computerId,
-      model: { label: model.label, maxReferences: model.input.maxReferences },
-    });
+    const plan =
+      model.kind === "audio"
+        ? plainPlan(draft.prompt)
+        : planCharacters({
+            prompt: draft.prompt,
+            saved: characters,
+            references: draft.references,
+            labels,
+            wording: (merged) =>
+              referenceWording(
+                resolveReferenceRoles(merged, model, named),
+                model,
+              ),
+            computerId,
+            model: {
+              label: model.label,
+              maxReferences: model.input.maxReferences,
+            },
+          });
     if (plan.kind === "refused") {
       refuseAdmission({
         kind: "error",
@@ -495,15 +505,17 @@ export function useMediaGeneration({
       });
       return false;
     }
+    // A style block is for pictures; audio is sent as typed.
+    const styleName = model.kind === "audio" ? undefined : draft.style;
     const style =
-      draft.style === undefined
+      styleName === undefined
         ? undefined
-        : styles.find((entry) => entry.name === draft.style);
-    if (draft.style !== undefined && style === undefined) {
+        : styles.find((entry) => entry.name === styleName);
+    if (styleName !== undefined && style === undefined) {
       refuseAdmission({
         kind: "error",
         mediaKind: model.kind,
-        message: `The "${draft.style}" style no longer exists. Pick another or none.`,
+        message: `The "${styleName}" style no longer exists. Pick another or none.`,
       });
       return false;
     }
@@ -657,11 +669,7 @@ export function useMediaGeneration({
       run({
         connection,
         ...record,
-        draft: {
-          ...record.input.settings,
-          references: record.input.settings.references ?? [],
-          destination: record.input.destination.path,
-        },
+        draft: draftFromInput(record.input),
       });
     },
     discard: (record: PendingGeneration) => {
@@ -672,10 +680,7 @@ export function useMediaGeneration({
         ...record,
         connection,
         controller,
-        draft: {
-          ...record.input.settings,
-          references: record.input.settings.references ?? [],
-        },
+        draft: draftFromInput(record.input),
         recoveryKey,
       });
     },

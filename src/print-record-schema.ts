@@ -14,7 +14,7 @@ const nonNegativeInteger = safeInteger.nonnegative();
 export const printRecordSchema = z.strictObject({
   printId: text(256),
   computerId: text(256),
-  kind: z.enum(["image", "video"]),
+  kind: z.enum(["image", "video", "audio"]),
   prompt: text(MAX_MEDIA_PROMPT_LENGTH),
   model: text(256),
   width: positiveInteger.nullable(),

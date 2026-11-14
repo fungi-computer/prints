@@ -13,6 +13,7 @@ import {
   stripPrivateProvenance,
 } from "@fungi.computer/darkroom/provenance";
 import type { GallerySource } from "./media-gallery.js";
+import { isAudioPath } from "./audio-media.js";
 import { isVideoPath } from "./local-images.js";
 
 const tooLargeCopy = {
@@ -59,6 +60,11 @@ export async function preparePrintDownload(
   if (isVideoPath(printPath)) {
     assertCurrent();
     return new File([file], `${stem}.mp4`, { type: "video/mp4" });
+  }
+  // An MP3 carries no image provenance: export its stored bytes unchanged.
+  if (isAudioPath(printPath)) {
+    assertCurrent();
+    return new File([file], `${stem}.mp3`, { type: "audio/mpeg" });
   }
   const exported = await stripPrivateProvenance(
     new Uint8Array(await file.arrayBuffer()),

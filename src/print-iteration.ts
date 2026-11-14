@@ -17,7 +17,7 @@ export type Iteration = "reuse" | "remix" | "animate";
 
 /** What a print remembers about how it was made; absent facts stay absent. */
 export type PrintLineage = Readonly<{
-  kind: "image" | "video";
+  kind: "image" | "video" | "audio";
   model: string;
   /** The prompt as typed, with saved characters, and how many references were the person's own. */
   typed: Readonly<{ prompt: string; references: number }>;

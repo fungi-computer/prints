@@ -18,6 +18,8 @@ import { FailureLine } from "@fungi.computer/caps/components/failure-line";
 import { GenerationFrame } from "@fungi.computer/caps/components/generation-frame";
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Loader } from "@fungi.computer/caps/components/loader";
+import { isAudioPath } from "./audio-media.js";
+import { AudioTileFace, AudioTilePlay, AudioTileScope } from "./audio-tile.js";
 import { isVideoPath } from "./local-images.js";
 import { Checkbox } from "@fungi.computer/caps/components/checkbox";
 import {
@@ -118,6 +120,7 @@ export function masonryColumnCount(itemCount: number, width: number): number {
 }
 
 function TileMedia({ item }: { item: MediaMasonryItem }): React.JSX.Element {
+  if (isAudioPath(item.path)) return <AudioTileFace url={item.url} />;
   return isVideoPath(item.path) ? (
     <video
       aria-label={item.path}
@@ -139,7 +142,7 @@ function TileMedia({ item }: { item: MediaMasonryItem }): React.JSX.Element {
 }
 
 /** Gallery actions are siblings of the image button, never nested controls. */
-const MediaTileView = memo(function MediaTileView({
+const TileBody = memo(function TileBody({
   item,
 }: {
   item: MediaMasonryItem;
@@ -303,6 +306,21 @@ const MediaTileView = memo(function MediaTileView({
   );
 });
 
+/** A print's tile; an audio print's face and play key share one playback. */
+const MediaTileView = memo(function MediaTileView({
+  item,
+}: {
+  item: MediaMasonryItem;
+}): React.JSX.Element {
+  return isAudioPath(item.path) ? (
+    <AudioTileScope url={item.url}>
+      <TileBody item={item} />
+    </AudioTileScope>
+  ) : (
+    <TileBody item={item} />
+  );
+});
+
 const formatSeconds = (seconds: number): string => `${String(seconds)}s`;
 
 /** Library marks over the picture: a favorite heart or select box on the left, the
@@ -315,6 +333,9 @@ function TileLibraryMarks({
   const { select } = item;
   return (
     <>
+      {isAudioPath(item.path) && item.url !== "" ? (
+        <AudioTilePlay title={item.path} />
+      ) : null}
       <div
         className="prints-tile-mark"
         data-checked={select?.active ? select.checked : undefined}

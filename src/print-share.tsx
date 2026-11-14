@@ -121,7 +121,7 @@ export function PrintShareRows({
             }}
           />
           <span className="prints-share-note">
-            {prompted ? "Picture and prompt" : "Picture only"}
+            {prompted ? "Print and prompt" : "Print only"}
           </span>
         </span>
       </DataRow>

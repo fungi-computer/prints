@@ -25,10 +25,11 @@ const completedResultSchema = Schema.Struct({
   bytes: positiveInteger,
   costMilliunits: nonNegativeInteger,
   destination: Schema.Struct({ computerId: text(256), path: text(4_096) }),
-  format: Schema.Literals(["png", "jpeg", "gif", "webp", "mp4"]),
-  height: positiveInteger,
+  format: Schema.Literals(["png", "jpeg", "gif", "webp", "mp4", "mp3"]),
+  /** Requested size; audio has none. */
+  height: Schema.optional(positiveInteger),
   model: text(256),
-  width: positiveInteger,
+  width: Schema.optional(positiveInteger),
 });
 
 export const completeGenerationRequestSchema = Schema.Struct({

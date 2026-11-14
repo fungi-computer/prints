@@ -18,8 +18,10 @@ function Workbench({
   mediaSetup,
   imageCount,
   imageCopies,
+  fail,
   quoteUrl,
 }: {
+  fail?: CaptureOptions["fail"];
   imageCount?: number;
   imageCopies?: number;
   quoteUrl?: string;
@@ -52,6 +54,7 @@ function Workbench({
     if (generationDelayMs !== undefined)
       options.generationDelayMs = generationDelayMs;
     if (mediaSetup !== undefined) options.mediaSetup = mediaSetup;
+    if (fail !== undefined) options.fail = fail;
     if (imageCount !== undefined) options.imageCount = imageCount;
     if (imageCopies !== undefined) options.imageCopies = imageCopies;
     if (quoteUrl !== undefined) options.quoteUrl = quoteUrl;
@@ -106,6 +109,38 @@ export const Studio = () => <Workbench scenario="studio" />;
 export const ReferenceMentions = () => (
   <Workbench scenario="studio" imageCount={4} />
 );
+/**
+ * Audio through the real composer: press the Audio key, write a script or a
+ * description, and generate. Fixture sounds are synthesised, never paid for.
+ */
+export const AudioStudio = () => <Workbench scenario="studio" />;
+/** A sound that takes a minute to make, for the generating tile. */
+export const AudioGenerating = () => (
+  <Workbench scenario="studio" generationDelayMs={60_000} />
+);
+/** A sound the host refuses, for the failure toast. */
+export const AudioFailed = () => <Workbench scenario="studio" fail="error" />;
+/** A platform that refuses to play audio, for the playback-failure toast. */
+export function AudioPlaybackBlocked() {
+  useEffect(() => {
+    const original = Object.getOwnPropertyDescriptor(
+      HTMLMediaElement.prototype,
+      "play",
+    );
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value: () =>
+        Promise.reject(
+          new DOMException("Playback blocked", "NotSupportedError"),
+        ),
+    });
+    return () => {
+      if (original)
+        Object.defineProperty(HTMLMediaElement.prototype, "play", original);
+    };
+  }, []);
+  return <Workbench scenario="studio" />;
+}
 /**
  * The composer priced by a real host: `?oysterQuote=<url>` names an Oyster
  * `/media/quote` route that `packages/oyster`'s `proof:oyster-quote` serves.

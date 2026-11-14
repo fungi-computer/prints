@@ -9,7 +9,7 @@ import {
 import { useMediaGeneration } from "./media-generation.js";
 import type { AppRoot } from "@fungi.computer/agar";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { SlidersHorizontal, Upload, X } from "lucide-react";
+import { AudioLines, SlidersHorizontal, Upload, X } from "lucide-react";
 
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Button } from "@fungi.computer/caps/components/button";
@@ -44,6 +44,16 @@ import {
 import { Folder } from "lucide-react";
 import { folderStatusItem } from "./folder-status.js";
 import { ComposerShell } from "@fungi.computer/parakeet";
+import {
+  AudioLengthMenu,
+  AudioModeControl,
+  AudioModelMenu,
+  AudioVoiceMenu,
+  audioModeOfModel,
+  audioOptionsOf,
+  availableAudioModes,
+  modelsForAudioMode,
+} from "./audio-composer-mode.js";
 import { GenerationModelKey } from "./generation-model-key.js";
 import { useMediaFolder } from "./media-folder.js";
 import {
@@ -74,6 +84,7 @@ import {
   type MediaFocus,
   type MediaMasonryItem,
 } from "./media-masonry.js";
+import { isAudioPath } from "./audio-media.js";
 import { galleryWithSlots } from "./gallery-slots.js";
 import {
   MediaComposerTextarea,
@@ -104,6 +115,8 @@ import {
 import { normalizeUploadFilename } from "./upload-path.js";
 import {
   DEFAULT_MODEL_ID,
+  audioModelsOf,
+  pictureModels,
   type GenerationDraft,
   type MediaModel,
   defaultGenerationDraft,
@@ -705,12 +718,95 @@ function GenerationComposer({
       }}
     />
   );
+  /** Switch the draft to another model, carrying over only what that model takes. */
+  const applyModel = (next: MediaModel) => {
+    const touched = form.store.state.fieldMeta;
+    const nextDraft = draftForModel(values, next);
+    const size = sizeForModel(values, next, selected);
+    form.setFieldValue("model", next.id);
+    if (next.input.dimensions === "none" || next.sizes !== null)
+      setCustomSize(false);
+    form.setFieldValue("width", size.width);
+    form.setFieldValue("height", size.height);
+    form.setFieldValue("durationSeconds", nextDraft.durationSeconds);
+    form.setFieldValue("voiceId", nextDraft.voiceId);
+    form.setFieldValue("generateAudio", nextDraft.generateAudio);
+    // Audio takes no references; leaving pictures for it drops them.
+    if (next.kind === "audio") form.setFieldValue("references", []);
+    if (next.input.steps === "fixed" || !touched.steps?.isTouched)
+      form.setFieldValue("steps", nextDraft.steps);
+  };
+  const isAudio = selected?.kind === "audio";
+  const audioChoices = audioOptionsOf(audioModelsOf(models));
+  // The picture model to return to when the Audio key is pressed again.
+  const lastPicture = useRef<string | null>(null);
+  if (selected !== undefined && selected.kind !== "audio")
+    lastPicture.current = selected.id;
+  const toggleAudio = () => {
+    const target = isAudio
+      ? (modelFor(models, lastPicture.current ?? "") ??
+        modelFor(models, DEFAULT_MODEL_ID) ??
+        pictureModels(models).at(0))
+      : modelFor(models, audioChoices.at(0)?.id ?? "");
+    if (target) applyModel(target);
+  };
+  const audioMode = selected !== undefined ? audioModeOfModel(selected) : null;
+  const audioInMode =
+    audioMode === null ? [] : modelsForAudioMode(audioChoices, audioMode);
+  const audioControls =
+    selected?.audio == null || audioMode === null ? null : (
+      <>
+        <AudioModeControl
+          disabled={submitting}
+          modes={availableAudioModes(audioChoices)}
+          value={audioMode}
+          onChange={(mode) => {
+            const next = modelFor(
+              models,
+              modelsForAudioMode(audioChoices, mode).at(0)?.id ?? "",
+            );
+            if (next) applyModel(next);
+          }}
+        />
+        {audioInMode.length > 1 ? (
+          <AudioModelMenu
+            disabled={submitting}
+            models={audioInMode}
+            value={selected.id}
+            onChange={(id) => {
+              const next = modelFor(models, id);
+              if (next) applyModel(next);
+            }}
+          />
+        ) : null}
+        {selected.audio.mode === "speech" ? (
+          <AudioVoiceMenu
+            disabled={submitting}
+            voices={selected.audio.voices}
+            value={values.voiceId ?? selected.audio.defaultVoiceId ?? ""}
+            onChange={(voiceId) => {
+              form.setFieldValue("voiceId", voiceId);
+            }}
+          />
+        ) : null}
+        {selected.audio.seconds === null ? null : (
+          <AudioLengthMenu
+            disabled={submitting}
+            seconds={selected.audio.seconds}
+            value={values.durationSeconds ?? selected.audio.seconds.default}
+            onChange={(seconds) => {
+              form.setFieldValue("durationSeconds", seconds);
+            }}
+          />
+        )}
+      </>
+    );
   return (
     <ComposerShell
-      aria-label="Image generation"
+      aria-label={isAudio ? "Audio generation" : "Image generation"}
       data-generation-form
       attachments={
-        values.references.length > 0 ? (
+        !isAudio && values.references.length > 0 ? (
           <div className="prints-reference-tray" aria-label="Image references">
             {values.references.map((reference, index) => {
               const thumbnail =
@@ -868,7 +964,13 @@ function GenerationComposer({
                     onSlashPick={() => {
                       pickSlash(slash.slashIndex);
                     }}
-                    placeholder="What are we making?"
+                    placeholder={
+                      selected?.audio?.mode === "speech"
+                        ? "What should it say?"
+                        : selected?.audio?.mode === "music"
+                          ? "Describe the music"
+                          : "What are we making?"
+                    }
                     slashCount={slash.slashMatches.length}
                     value={field.state.value}
                   />
@@ -971,48 +1073,44 @@ function GenerationComposer({
       row={{
         controls: (
           <>
-            {actions}
-            <form.Field name="model">
-              {(field) => (
-                <GenerationModelKey
-                  models={models}
-                  emptyLabel={
-                    computerId === null
-                      ? "Choose a Computer"
-                      : modelsLoading
-                        ? "Loading models…"
-                        : "Models unavailable"
-                  }
-                  disabled={modelsLoading || !mediaCapability}
-                  onChange={(id) => {
-                    const next = modelFor(models, id);
-                    field.handleChange(id);
-                    if (!next) return;
-                    const touched = form.store.state.fieldMeta;
-                    const nextDraft = draftForModel(values, next);
-                    const size = sizeForModel(values, next, selected);
-                    if (next.input.dimensions === "none" || next.sizes !== null)
-                      setCustomSize(false);
-                    form.setFieldValue("width", size.width);
-                    form.setFieldValue("height", size.height);
-                    form.setFieldValue(
-                      "durationSeconds",
-                      nextDraft.durationSeconds,
-                    );
-                    form.setFieldValue(
-                      "generateAudio",
-                      nextDraft.generateAudio,
-                    );
-                    if (
-                      next.input.steps === "fixed" ||
-                      !touched.steps?.isTouched
-                    )
-                      form.setFieldValue("steps", nextDraft.steps);
-                  }}
-                  value={field.state.value}
-                />
-              )}
-            </form.Field>
+            {isAudio ? null : actions}
+            {audioChoices.length > 0 ? (
+              <KeycapButton
+                aria-label="Audio"
+                data-generation-audio-key
+                icon={<AudioLines />}
+                label={null}
+                pressed={isAudio}
+                tone={isAudio ? "accent" : "neutral"}
+                title={isAudio ? "Back to pictures" : "Make audio"}
+                disabled={modelsLoading || !mediaCapability}
+                onClick={toggleAudio}
+              />
+            ) : null}
+            {isAudio ? (
+              audioControls
+            ) : (
+              <form.Field name="model">
+                {(field) => (
+                  <GenerationModelKey
+                    models={pictureModels(models)}
+                    emptyLabel={
+                      computerId === null
+                        ? "Choose a Computer"
+                        : modelsLoading
+                          ? "Loading models…"
+                          : "Models unavailable"
+                    }
+                    disabled={modelsLoading || !mediaCapability}
+                    onChange={(id) => {
+                      const next = modelFor(models, id);
+                      if (next) applyModel(next);
+                    }}
+                    value={field.state.value}
+                  />
+                )}
+              </form.Field>
+            )}
             {computerId && mediaDirectory ? (
               <span
                 className="sr-only"
@@ -1052,25 +1150,27 @@ function GenerationComposer({
             />
           </span>
         ),
-        items: [
-          {
-            id: "settings",
-            accessibleLabel: "Generation settings",
-            title: "Settings",
-            label: (
-              <span className="prints-settings-chip">
-                <SlidersHorizontal
-                  aria-hidden="true"
-                  className="size-[var(--stipe-icon-size-sm)]"
-                />
-                <span className="prints-settings-chip-text">
-                  {summary.length > 0 ? summary.join(" · ") : "Settings"}
-                </span>
-              </span>
-            ),
-            content: settings,
-          },
-        ],
+        items: isAudio
+          ? []
+          : [
+              {
+                id: "settings",
+                accessibleLabel: "Generation settings",
+                title: "Settings",
+                label: (
+                  <span className="prints-settings-chip">
+                    <SlidersHorizontal
+                      aria-hidden="true"
+                      className="size-[var(--stipe-icon-size-sm)]"
+                    />
+                    <span className="prints-settings-chip-text">
+                      {summary.length > 0 ? summary.join(" · ") : "Settings"}
+                    </span>
+                  </span>
+                ),
+                content: settings,
+              },
+            ],
         openId: settingsOpen ? "settings" : null,
         onOpenChange: (id) => {
           setSettingsOpen(id === "settings");
@@ -1398,7 +1498,9 @@ export function MediaPane({
   useEffect(() => {
     if (models.length === 0 || modelsError) return;
     const first =
-      models.find((model) => model.id === DEFAULT_MODEL_ID) ?? models[0];
+      models.find((model) => model.id === DEFAULT_MODEL_ID) ??
+      pictureModels(models).at(0) ??
+      models[0];
     if (!form.store.state.fieldMeta.model?.isTouched) {
       const next = draftForModel(form.store.state.values, first);
       form.setFieldValue("model", next.model);
@@ -1452,7 +1554,9 @@ export function MediaPane({
               reference.path === image.source.path,
           ),
         onToggleReference:
-          image.source.kind === "computer" && referenceLimit > 0
+          image.source.kind === "computer" &&
+          referenceLimit > 0 &&
+          !isAudioPath(image.source.path)
             ? () => {
                 if (image.source.kind !== "computer") return;
                 const path = image.source.path;
@@ -2332,12 +2436,17 @@ export function MediaPane({
         </section>
         {mediaSetupMissing ? null : (
           <GenerationComposer
-            addedLength={addedPromptLength(
-              values.prompt,
-              promptStyles.styles.find((style) => style.name === values.style)
-                ?.text,
-              promptCharacters.characters,
-            )}
+            addedLength={
+              selectedModel?.kind === "audio"
+                ? 0
+                : addedPromptLength(
+                    values.prompt,
+                    promptStyles.styles.find(
+                      (style) => style.name === values.style,
+                    )?.text,
+                    promptCharacters.characters,
+                  )
+            }
             styleControls={(dialog) => ({
               picker: (
                 <PromptStyleSelect

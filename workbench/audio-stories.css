@@ -1,0 +1,22 @@
+.prints-audio-story-wall {
+  display: grid;
+  gap: var(--spacing-sm);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  padding: var(--spacing-sm);
+}
+.prints-audio-story-wall > * {
+  min-width: 0;
+}
+.prints-audio-story-spacer {
+  flex: 1;
+}
+.prints-audio-story-image {
+  background: linear-gradient(135deg, #7d9a22, #7be0a0);
+}
+.prints-audio-story-viewer {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: var(--spacing-lg);
+  background: var(--color-base-100);
+}

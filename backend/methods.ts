@@ -9,6 +9,7 @@ import {
   outputPageSchema,
 } from "./output-page.js";
 import {
+  mediaAudioBindingInputSchema,
   mediaImageBindingInputSchema,
   mediaVideoBindingInputSchema,
 } from "@fungi.computer/darkroom/media-binding";
@@ -25,7 +26,6 @@ import { Base64 } from "effect/encoding";
 import {
   MediaSettingsError,
   listMediaModels,
-  listPictureMediaModels,
   validateMediaGenerationSelection,
 } from "@fungi.computer/darkroom";
 import { mediaRequestIdSchema } from "@fungi.computer/agar/media-request-id";
@@ -40,6 +40,9 @@ import {
   generateImageInputSchema,
   generateImageCommandSchema,
   generatedImageSchema,
+  generatedAudioSchema,
+  generateSoundCommandSchema,
+  generateSoundInputSchema,
   generateVideoInputSchema,
   generateVideoCommandSchema,
   generationCommandSchema,
@@ -114,7 +117,7 @@ const byteRead = z.strictObject({
 
 /** One logical host call maps to one canonical Media identity inside this Installation. */
 async function requestIdForCaller(
-  method: "generateImage" | "generateVideo",
+  method: "generateImage" | "generateVideo" | "generateSound",
   key: string,
 ): Promise<string> {
   const digest = await crypto.subtle.digest(
@@ -256,9 +259,7 @@ export function composeGeneration<
         `No character named ${unknown.map((name) => `"${name}"`).join(", ")}.`,
       ),
     };
-  const model = listPictureMediaModels().find(
-    (entry) => entry.id === settings.model,
-  );
+  const model = listMediaModels().find((entry) => entry.id === settings.model);
   const plan = planCharacters({
     prompt: settings.prompt,
     names: choices.characters,
@@ -371,7 +372,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
   methods: {
     listModels: defineAppMethod({
       description:
-        "List image and video models available through this App's admitted Media access.",
+        "List image, video and audio models available through this App's admitted Media access.",
       effect: "read",
       requires: ["media.generation"],
       input: empty,
@@ -586,7 +587,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
     }),
     describeFiles: defineAppMethod({
       description:
-        "Describe up to 24 files in the selected library on the admitted Computer in one call: for each path, whether Prints recorded it (kind image or video, model, modelLabel, and a video's durationSeconds, all null for a file Prints did not make) and whether the Team favorited it.",
+        "Describe up to 24 files in the selected library on the admitted Computer in one call: for each path, whether Prints recorded it (kind image, video or audio, model, modelLabel, and a video or music track's durationSeconds, all null for a file Prints did not make) and whether the Team favorited it.",
       effect: "read",
       requires: ["computer.list"],
       input: z.strictObject({
@@ -598,7 +599,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             .array(
               z.strictObject({
                 path,
-                kind: z.enum(["image", "video"]).nullable(),
+                kind: z.enum(["image", "video", "audio"]).nullable(),
                 model: z.string().min(1).max(256).nullable(),
                 modelLabel: z.string().min(1).max(256).nullable(),
                 durationSeconds: z.number().int().nonnegative().nullable(),
@@ -898,6 +899,102 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
         );
         return {
           ...generatedVideoSchema.parse(completed.result),
+          printId: command.requestId,
+        };
+      },
+    }),
+    generateSound: defineAppMethod({
+      description:
+        "Generate one MP3 in this App's library: speech or music, with an audio model from listModels (kind audio). A speech model reads the prompt aloud in settings.voiceId (default: the model's defaultVoiceId); a music model composes the prompt as a track of settings.durationSeconds (its audio.seconds bounds). Audio takes no references, styles or characters. The host chooses the Computer path. Workflows may omit requestId to derive it from the trusted caller key; otherwise use media_request_ followed by 21 random lowercase letters or digits. Pending means retry the same inputs and key after retryAfterMs. Existing billing and attachment budgets apply.",
+      effect: "write",
+      requires: ["media.generation", "computer.writeFile"],
+      pending: true,
+      input: generateSoundInputSchema,
+      output: z.union([
+        generatedAudioSchema.extend({ printId: id }),
+        methodRefusalSchema,
+      ]),
+      present: {
+        rows: resultRows,
+        verb: "made",
+        row: ({ output }) =>
+          "error" in output
+            ? {
+                id: "refused",
+                title: "Prints could not make this sound",
+                detail: output.error,
+                tone: "error",
+              }
+            : {
+                id: output.printId,
+                title: "Prints made this sound",
+                detail: output.model,
+                open: { params: [{ key: "print", value: output.printId }] },
+              },
+      },
+      handler: async (input, context, caller) => {
+        if (caller.computerId === null || caller.actor.kind === "team-key")
+          return refusal("not_granted");
+        const requestId =
+          input.requestId ??
+          (caller.idempotencyKey === undefined
+            ? undefined
+            : await requestIdForCaller("generateSound", caller.idempotencyKey));
+        if (requestId === undefined)
+          return methodRefusalSchema.parse({ error: "invalid" });
+        const command = mediaAudioBindingInputSchema.parse({
+          kind: "audio",
+          ...generateSoundCommandSchema.parse({ ...input, requestId }),
+          libraryPath:
+            selectedLibrary(context, caller.computerId) ??
+            defaultMediaLibraryPath,
+        });
+        try {
+          validateMediaGenerationSelection(command.settings);
+        } catch (cause) {
+          if (!(cause instanceof MediaSettingsError)) throw cause;
+          return methodRefusalSchema.parse({
+            error: "INVALID_ARGUMENT",
+            message: cause.message,
+            stage: "settings",
+            retryable: false,
+          });
+        }
+        const actor: MethodActor =
+          caller.actor.kind === "agent"
+            ? { kind: "agent", id: caller.actor.agentId }
+            : { kind: "member", id: caller.actor.memberId };
+        const remembered = rememberMethodGeneration(
+          context.ctx.storage,
+          actor,
+          caller.computerId,
+          command,
+        );
+        if ("error" in remembered) return refusal("conflict");
+        const reply = await bindingCall(() =>
+          context.env.MEDIA.generate(command),
+        );
+        const refused = methodRefusalSchema.safeParse(reply);
+        if (refused.success) return presentRefusal(refused.data);
+        const working = pendingSchema.safeParse(reply);
+        if (working.success) return pending(working.data.retryAfterMs);
+        const result = generatedAudioSchema.parse(reply);
+        const completed = completeMethodGeneration(
+          context.ctx.storage,
+          actor,
+          caller.computerId,
+          command,
+          result,
+          typedOf(input.settings, undefined),
+        );
+        if ("error" in completed) return refusal("conflict");
+        context.ctx.storage.sql.exec(
+          "INSERT OR IGNORE INTO media_library_folders(computer_id,path) VALUES (?,?)",
+          caller.computerId,
+          command.libraryPath,
+        );
+        return {
+          ...generatedAudioSchema.parse(completed.result),
           printId: command.requestId,
         };
       },

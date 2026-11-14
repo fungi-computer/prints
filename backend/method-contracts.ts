@@ -1,4 +1,5 @@
 import {
+  mediaAudioBindingInputSchema,
   mediaImageBindingInputSchema,
   mediaVideoBindingInputSchema,
   mediaResultSchema,
@@ -76,10 +77,22 @@ export const generateVideoInputSchema = videoCommandSchema
     characters: charactersArgumentSchema.optional(),
   })
   .superRefine(validateVideoCommand);
-/** Prints generates pictures and video; audio joins with its own UI. */
+/**
+ * Speech or music. Audio takes only a prompt, plus a voice for speech or a
+ * length for music, so a style, characters and references do not apply.
+ */
+export const generateSoundCommandSchema = mediaAudioBindingInputSchema.omit({
+  kind: true,
+  libraryPath: true,
+});
+export const generateSoundInputSchema = generateSoundCommandSchema.extend({
+  requestId: mediaRequestIdSchema.optional(),
+});
+/** Prints generates pictures, video and sound. */
 export const generationCommandSchema = z.discriminatedUnion("kind", [
   mediaImageBindingInputSchema,
   mediaVideoBindingInputSchema,
+  mediaAudioBindingInputSchema,
 ]);
 export type GenerationCommand = z.output<typeof generationCommandSchema>;
 export const generatedImageSchema = z.strictObject({
@@ -102,9 +115,14 @@ export const generatedImageSchema = z.strictObject({
 export const generatedVideoSchema = generatedImageSchema.extend({
   format: z.literal("mp4"),
 });
+/** A saved MP3: audio has no pixel size. */
+export const generatedAudioSchema = generatedImageSchema
+  .omit({ height: true, width: true })
+  .extend({ format: z.literal("mp3") });
 export const generatedMediaSchema = z.union([
   generatedImageSchema,
   generatedVideoSchema,
+  generatedAudioSchema,
 ]);
 export type GeneratedMedia = z.output<typeof generatedMediaSchema>;
 export const methodRefusalSchema = z.union([

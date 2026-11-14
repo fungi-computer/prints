@@ -21,7 +21,7 @@ const describedSchema = z.object({
   files: z.array(
     z.object({
       path,
-      kind: z.enum(["image", "video"]).nullable(),
+      kind: z.enum(["image", "video", "audio"]).nullable(),
       model: z.string().nullable(),
       modelLabel: z.string().nullable(),
       durationSeconds: z.number().nullable(),

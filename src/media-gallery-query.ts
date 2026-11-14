@@ -57,7 +57,7 @@ export type GalleryEntry = {
   /** The library folder the file sits in, for All prints; absent at the root. */
   folder?: string;
 };
-const mediaName = /\.(avif|gif|jpe?g|png|svg|webp|mp4)$/i;
+const mediaName = /\.(avif|gif|jpe?g|png|svg|webp|mp4|mp3)$/i;
 /** Where a listing stands: folders still to read, the offset into the first, and a favorites cursor. */
 type ListingCursor = Readonly<{
   queue: readonly string[];

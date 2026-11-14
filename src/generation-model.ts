@@ -1,3 +1,4 @@
+import { AUDIO_TILE_SIZE } from "./audio-media.js";
 import {
   appErrorCodes,
   describeAppError,
@@ -48,8 +49,10 @@ export type GenerationDraft = {
   steps?: number;
   /** Name of the saved style block that leads the prompt; absent for none. */
   style?: string;
-  /** Video models only: clip length in seconds. */
+  /** Video and music models only: length in seconds. */
   durationSeconds?: number;
+  /** Speech models only: the catalog voice that reads the prompt. */
+  voiceId?: string;
   /** Video models only: audio on or off; absent leaves the provider's default. */
   generateAudio?: boolean;
   width: number;
@@ -188,7 +191,7 @@ export function defaultGenerationDraft(): GenerationDraft {
 export function generatedMediaPath(
   token: string,
   directory: string,
-  extension: "png" | "jpg" | "webp" | "mp4" = "png",
+  extension: "png" | "jpg" | "webp" | "mp4" | "mp3" = "png",
 ): string {
   if (token.trim().length === 0)
     throw new Error("Media generation token must not be empty.");
@@ -213,7 +216,13 @@ export function generationDestinationFor(
     ? "png"
     : (model?.outputFormats[0] ?? "png");
   const extension =
-    model?.kind === "video" ? "mp4" : format === "jpeg" ? "jpg" : format;
+    model?.kind === "video"
+      ? "mp4"
+      : model?.kind === "audio"
+        ? "mp3"
+        : format === "jpeg"
+          ? "jpg"
+          : format;
   return generatedMediaPath(words({ count: 4 }), directory, extension);
 }
 
@@ -227,7 +236,45 @@ export function sizeModeFor(width: number, height: number): SizeMode {
 
 /** The send action names what the selected model makes. */
 export function generateActionLabel(model: MediaModel | undefined): string {
+  if (model?.kind === "audio")
+    return model.audio?.mode === "music" ? "Generate music" : "Generate speech";
   return model?.kind === "video" ? "Generate video" : "Generate image";
+}
+
+/** Models the image composer picks from; audio has its own controls. */
+export function pictureModels(
+  models: readonly MediaModel[],
+): readonly MediaModel[] {
+  return models.filter((model) => model.kind !== "audio");
+}
+
+/** Models the audio composer picks from. */
+export function audioModelsOf(
+  models: readonly MediaModel[],
+): readonly MediaModel[] {
+  return models.filter((model) => model.kind === "audio");
+}
+
+/** A draft rebuilt from a remembered input, for a retry or resume. Audio has no size, so it keeps the catalog's nominal one. */
+export function draftFromInput(input: MediaGenerationInput): GenerationDraft {
+  const { references, width, height, ...rest } = input.settings;
+  return {
+    ...rest,
+    references: references ?? [],
+    destination: input.destination.path,
+    width: width ?? 1,
+    height: height ?? 1,
+  };
+}
+
+/** The wall shape a pending or finished print takes: audio is its own tile, everything else its size. */
+export function wallSizeFor(
+  model: MediaModel | undefined,
+  draft: Pick<GenerationDraft, "width" | "height">,
+): Readonly<{ width: number; height: number }> {
+  return model?.kind === "audio"
+    ? AUDIO_TILE_SIZE
+    : { width: draft.width, height: draft.height };
 }
 
 /** Missing registry metadata must not relabel a restored attempt as an image. */
@@ -237,6 +284,10 @@ export function generationPendingLabel(
   resumed = false,
 ): string {
   if (model === undefined) return "Creating media…";
+  if (model.kind === "audio")
+    return model.audio?.mode === "music"
+      ? "Composing music…"
+      : "Making speech…";
   if (model.kind !== "video") return "Creating image…";
   if (elapsedMs === undefined)
     return "Creating video… Videos take about 2 minutes";
@@ -555,7 +606,9 @@ export function draftForModel(
       model.input.steps === "fixed"
         ? undefined
         : (model.input.defaultSteps ?? undefined),
-    durationSeconds: model.video?.defaultSeconds,
+    durationSeconds:
+      model.video?.defaultSeconds ?? model.audio?.seconds?.default,
+    voiceId: model.audio?.defaultVoiceId ?? undefined,
     generateAudio: model.video?.defaultGenerateAudio ?? undefined,
     width: model.input.defaultWidth,
   };
@@ -689,6 +742,20 @@ export function generationInputFor(
   );
   if (model.kind === "video" && format === undefined)
     throw new Error("Choose a supported video resolution and aspect ratio.");
+  if (model.kind === "audio") {
+    const sound: GenerationSettingsDraft = {
+      model: draft.model,
+      prompt: draft.prompt.trim(),
+    };
+    if (model.audio?.mode === "speech" && draft.voiceId !== undefined)
+      sound.voiceId = draft.voiceId;
+    if (model.audio?.mode === "music" && draft.durationSeconds !== undefined)
+      sound.durationSeconds = draft.durationSeconds;
+    return {
+      destination: { path: draft.destination?.trim() ?? "" },
+      settings: sound,
+    };
+  }
   const settings: GenerationSettingsDraft = {
     height: draft.height,
     model: draft.model,
@@ -757,6 +824,17 @@ export function generationParametersSchema(
           issue: `${model.label} accepts only these sizes: ${model.sizes.join(", ")}.`,
         };
       if (
+        model.audio?.seconds != null &&
+        draft.durationSeconds !== undefined &&
+        (!Number.isSafeInteger(draft.durationSeconds) ||
+          draft.durationSeconds < model.audio.seconds.min ||
+          draft.durationSeconds > model.audio.seconds.max)
+      )
+        return {
+          path: ["durationSeconds"],
+          issue: `${model.label} makes tracks from ${String(model.audio.seconds.min)} to ${String(model.audio.seconds.max)} seconds.`,
+        };
+      if (
         model.video !== null &&
         draft.durationSeconds !== undefined &&
         (!Number.isSafeInteger(draft.durationSeconds) ||
@@ -804,7 +882,11 @@ export function validationMessage(
   if (draft.prompt.trim().length === 0)
     return model?.kind === "video"
       ? "Describe the video to generate."
-      : "Describe the image to generate.";
+      : model?.kind === "audio"
+        ? model.audio?.mode === "music"
+          ? "Describe the music to generate."
+          : "Write what the voice should say."
+        : "Describe the image to generate.";
   if (model === undefined) return "Choose a model from the granted registry.";
   const over = promptOverflow(draft.prompt, model);
   if (over !== null)

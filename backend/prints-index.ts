@@ -30,8 +30,8 @@ function sameCompletion(
       )
       .toArray().length === 1 &&
     existing.model === input.result.model &&
-    existing.width === input.result.width &&
-    existing.height === input.result.height &&
+    existing.width === (input.result.width ?? null) &&
+    existing.height === (input.result.height ?? null) &&
     existing.format === input.result.format &&
     existing.bytes === input.result.bytes &&
     existing.costMilliunits === input.result.costMilliunits

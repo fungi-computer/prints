@@ -39,10 +39,8 @@ import {
   computerReadFile,
   computerWriteFile,
 } from "@fungi.computer/agar/computer";
-import {
-  listMediaModels,
-  listPictureMediaModels,
-} from "@fungi.computer/darkroom";
+import { listMediaModels } from "@fungi.computer/darkroom";
+import { synthClipBlob } from "./audio-fixtures.js";
 import { mediaShare, type MediaShareStatus } from "@fungi.computer/agar/media";
 import { RpcStub, RpcTarget } from "@fungi.computer/capnweb";
 
@@ -139,6 +137,72 @@ export type CaptureOptions = {
   /** Controlled Computer response availability for loading/error stories. */
   beforeRead?: (path: string) => Promise<void>;
 };
+/** The fixture host's price list: video and music by the second, speech by the 100 characters, images flat. */
+function fixturePrice(
+  settings: Readonly<{
+    model: string;
+    prompt: string;
+    durationSeconds?: number | undefined;
+  }>,
+): number {
+  const model = listMediaModels().find((entry) => entry.id === settings.model);
+  if (model?.audio != null)
+    return (
+      model.audio.milliunitsPerUnit *
+      (model.audio.mode === "music"
+        ? (settings.durationSeconds ?? model.audio.seconds?.default ?? 1)
+        : Math.ceil(settings.prompt.length / 100))
+    );
+  return model?.kind === "video"
+    ? 23_200 * (settings.durationSeconds ?? 1)
+    : 4_000;
+}
+
+/** The recorded facts of a fixture print: a clip, a sound, or the painted picture. */
+function fixtureOutput(path: string) {
+  const video = path.endsWith(".mp4");
+  const audio = path.endsWith(".mp3");
+  return {
+    print: {
+      printId: "fixture-print-mira",
+      source: "recorded" as const,
+      kind: video
+        ? ("video" as const)
+        : audio
+          ? ("audio" as const)
+          : ("image" as const),
+      model: video
+        ? "bytedance/seedance-2.0"
+        : audio
+          ? "elevenlabs/music-v2"
+          : "openai/gpt-image-2",
+      width: audio ? null : 1024,
+      height: audio ? null : 1024,
+      steps: null,
+      costMilliunits: audio ? 7_500 : 116_000,
+      durationSeconds: video ? 5 : audio ? 30 : null,
+      createdAt: Date.UTC(2026, 9, 26, 14, 30),
+    },
+    typed: {
+      prompt: video
+        ? "@Mira walks through the empty arcade at night, neon reflecting off the wet floor. The camera follows from behind at shoulder height, slowly drifting closer as she passes the cabinets. Her red scarf moves in the draft from the open door. Keep the lighting moody and the colours saturated, with a soft film grain over everything."
+        : audio
+          ? "A quiet forest theme with gentle piano."
+          : "@Mira and @Kenji waiting at a bus stop in the rain",
+      references: audio ? 0 : 1,
+    },
+    path,
+    references: audio
+      ? []
+      : [
+          { path: "/media/coast.jpg", printId: null },
+          { path: "/media/forest-light.jpg", printId: null },
+          { path: "/media/alpine-lake.jpg", printId: null },
+        ],
+    characters: audio ? [] : ["Mira", "Kenji"],
+  };
+}
+
 async function videoFixture(url: URL): Promise<Blob> {
   const response = await fetch(url);
   if (!response.ok) throw new Error("Video fixture unavailable");
@@ -540,47 +604,9 @@ export function createPrintsFixture(
             (scenario === "studio" ||
               scenario === "viewer-images" ||
               scenario === "library")
-          ? Promise.resolve({
-              print: {
-                printId: "fixture-print-mira",
-                source: "recorded",
-                kind: outputPathRequest
-                  .parse(JSON.parse(input))
-                  .path.endsWith(".mp4")
-                  ? "video"
-                  : "image",
-                model: outputPathRequest
-                  .parse(JSON.parse(input))
-                  .path.endsWith(".mp4")
-                  ? "bytedance/seedance-2.0"
-                  : "openai/gpt-image-2",
-                width: 1024,
-                height: 1024,
-                steps: null,
-                costMilliunits: 116_000,
-                durationSeconds: outputPathRequest
-                  .parse(JSON.parse(input))
-                  .path.endsWith(".mp4")
-                  ? 5
-                  : null,
-                createdAt: Date.UTC(2026, 9, 26, 14, 30),
-              },
-              typed: {
-                prompt: outputPathRequest
-                  .parse(JSON.parse(input))
-                  .path.endsWith(".mp4")
-                  ? "@Mira walks through the empty arcade at night, neon reflecting off the wet floor. The camera follows from behind at shoulder height, slowly drifting closer as she passes the cabinets. Her red scarf moves in the draft from the open door. Keep the lighting moody and the colours saturated, with a soft film grain over everything."
-                  : "@Mira and @Kenji waiting at a bus stop in the rain",
-                references: 1,
-              },
-              path: outputPathRequest.parse(JSON.parse(input)).path,
-              references: [
-                { path: "/media/coast.jpg", printId: null },
-                { path: "/media/forest-light.jpg", printId: null },
-                { path: "/media/alpine-lake.jpg", printId: null },
-              ],
-              characters: ["Mira", "Kenji"],
-            })
+          ? Promise.resolve(
+              fixtureOutput(outputPathRequest.parse(JSON.parse(input)).path),
+            )
           : method === "openOutput" && scenario === "gill-navigate"
             ? Promise.resolve({
                 printId: "fixture-last-output",
@@ -639,7 +665,11 @@ export function createPrintsFixture(
         }
         case "read-print-style":
           return Promise.resolve({
-            style: scenario === "studio" ? "Storybook gouache" : null,
+            // A style is for pictures; a recorded sound never has one.
+            style:
+              scenario === "studio" && !command.path.endsWith(".mp3")
+                ? "Storybook gouache"
+                : null,
           });
         case "list-characters":
           return Promise.resolve(characterList());
@@ -890,10 +920,29 @@ export function createPrintsFixture(
               retryable: true,
             },
           };
-        const video =
-          listPictureMediaModels().find(
-            (model) => model.id === input.settings.model,
-          )?.kind === "video";
+        const chosen = listMediaModels().find(
+          (model) => model.id === input.settings.model,
+        );
+        if (chosen?.kind === "audio") {
+          // The same decodable bytes under an .mp3 name; the viewer decodes by content.
+          const sound = synthClipBlob(
+            input.settings.durationSeconds ?? 8,
+            chosen.audio?.mode === "music" ? "music" : "speech",
+            input.settings.prompt.length,
+          );
+          files.set(input.destination.path, () => Promise.resolve(sound));
+          return {
+            kind: "succeeded" as const,
+            result: {
+              destination: { computerId, path: input.destination.path },
+              model: input.settings.model,
+              bytes: sound.size,
+              costMilliunits: 0,
+              format: "mp3" as const,
+            },
+          };
+        }
+        const video = chosen?.kind === "video";
         if (
           video &&
           (input.settings.width !== 1280 ||
@@ -916,8 +965,8 @@ export function createPrintsFixture(
             )
           : photograph(
               samples[0].name,
-              input.settings.width,
-              input.settings.height,
+              input.settings.width ?? 1,
+              input.settings.height ?? 1,
             );
         files.set(input.destination.path, () => Promise.resolve(blob));
         return {
@@ -954,7 +1003,7 @@ export function createPrintsFixture(
           : Promise.resolve({
               computerId,
               canGenerate: opt.canGenerate ?? true,
-              models: listPictureMediaModels(),
+              models: listMediaModels(),
             }),
       // A fixture host's own price list (the real Hub meters Darkroom's
       // estimate): video by the second, images flat; the UI only displays it.
@@ -965,12 +1014,7 @@ export function createPrintsFixture(
             ? (settings) => quoteFromHost(opt.quoteUrl, settings)
             : (settings) =>
                 Promise.resolve({
-                  costMilliunits:
-                    listMediaModels().find(
-                      (model) => model.id === settings.model,
-                    )?.kind === "video"
-                      ? 23_200 * (settings.durationSeconds ?? 1)
-                      : 4_000,
+                  costMilliunits: fixturePrice(settings),
                 }),
       restoreAttempt: (reference) => {
         const attempt = attempts.get(reference.requestId);
