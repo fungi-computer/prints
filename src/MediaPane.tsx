@@ -1349,6 +1349,7 @@ export function MediaPane({
     effects: {
       reserve: reserveSlot,
       failed: failSlot,
+      release: removeSlot,
       notifyFailure: notifyGenerationFailure,
       saved: ({ result }, selectedConnection) => {
         if (canRead)

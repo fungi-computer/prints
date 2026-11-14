@@ -1,5 +1,23 @@
 # @fungi.computer/prints
 
+## 0.15.0
+
+### Minor Changes
+
+- Changes since 0.14.3:
+
+  - fix(media): end stuck background renders and release stopped Prints slots
+  - fix(prints): re-baseline the stale workbench and mention browser proofs
+  - feat(prints): show @imageN in Image info as the reference thumbnails
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/caps@0.11.6
+  - @fungi.computer/darkroom@0.9.2
+  - @fungi.computer/parakeet@0.11.32
+
 ## 0.14.3
 
 ### Patch Changes

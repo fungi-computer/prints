@@ -73,6 +73,8 @@ export type GenerationEffects = {
   reserve: (slot: GallerySlot) => void;
   saved: (record: GenerationRecord, connection: MediaConnection) => void;
   failed: (key: string, message: string) => void;
+  /** Drop a reserved slot whose run was stopped, so the remembered record's Retry and Dismiss tile shows. */
+  release: (key: string) => void;
   /** One presentation owner for admission, execution and recovery failures. */
   notifyFailure: (message: string) => void;
 };
@@ -294,7 +296,12 @@ export function useMediaGeneration({
     },
     onError: (cause, run) => {
       reportCatchFailure("generate-media", cause);
-      if (run.controller.signal.aborted) return;
+      if (run.controller.signal.aborted) {
+        callbacks.current.release(
+          `${run.reference.computerId}:${run.input.destination.path}`,
+        );
+        return;
+      }
       const failure = generationFailureOf(cause);
       // The reason is remembered with the run, so it outlives a reload.
       void failGeneration(

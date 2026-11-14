@@ -52,6 +52,9 @@ import { formatDuration } from "./audio-waveform.js";
 import { formatPrintCost } from "./print-cost.js";
 import { PrintShareRows } from "./print-share.js";
 import { mediaShare } from "@fungi.computer/agar/media";
+import { MediaMentionTokens, mentionTokens } from "./media-composer-pieces.js";
+import type { ReferenceOption } from "./prompt-characters.js";
+import type { MediaReference } from "./reference-mentions.js";
 
 const PrintDownloadButton = lazy(async () => {
   const module = await import("./print-download-button.js");
@@ -169,8 +172,14 @@ const fileNameTail = 10;
 /** A prompt longer than this starts folded to a few lines. */
 const promptFoldCharacters = 240;
 
-/** The prompt as typed, with Copy, and Show more for a long one. */
-function PromptText({ prompt }: { prompt: string }) {
+/** The prompt as typed, its `@imageN` mentions drawn as thumbnails, with Copy, and Show more for a long one. */
+function PromptText({
+  prompt,
+  references,
+}: {
+  prompt: string;
+  references: readonly ReferenceOption[];
+}) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const long = prompt.length > promptFoldCharacters;
@@ -194,6 +203,7 @@ function PromptText({ prompt }: { prompt: string }) {
       >
         {prompt}
       </span>
+      <MediaMentionTokens tokens={mentionTokens(prompt, [], references, [])} />
       <span className="prints-info-prompt-tools">
         <button
           type="button"
@@ -282,6 +292,11 @@ export function PrintInfoDrawer({
         isAudioPath(image.file.name) ? null : (style.data?.style ?? null),
       )
     : null;
+  const thumbnailOf = (reference: MediaReference) =>
+    image.source.kind === "computer" &&
+    isReferenceOnComputer(reference, image.source.computerId)
+      ? referenceImages.find((entry) => entry.path === reference.path)
+      : undefined;
   const cost = details ? formatPrintCost(details.print.costMilliunits) : null;
   const recordedModel = details ? modelFor(models, details.print.model) : null;
   useEffect(() => {
@@ -340,7 +355,17 @@ export function PrintInfoDrawer({
         ) : null}
         {details ? (
           <Fact icon={MessageSquareText} label="Prompt">
-            <PromptText prompt={details.typed.prompt} />
+            <PromptText
+              prompt={details.typed.prompt}
+              references={details.references.map(
+                (reference, index): ReferenceOption => ({
+                  // A stored prompt names its references by attach order.
+                  number: index + 1,
+                  name: reference.path.split("/").at(-1) ?? reference.path,
+                  url: thumbnailOf(reference)?.url,
+                }),
+              )}
+            />
           </Fact>
         ) : null}
         {details ? (
@@ -368,13 +393,7 @@ export function PrintInfoDrawer({
             >
               {details.references.map((reference, index) => {
                 const name = reference.path.split("/").at(-1);
-                const thumbnail =
-                  image.source.kind === "computer" &&
-                  isReferenceOnComputer(reference, image.source.computerId)
-                    ? referenceImages.find(
-                        (entry) => entry.path === reference.path,
-                      )
-                    : undefined;
+                const thumbnail = thumbnailOf(reference);
                 return (
                   <li
                     key={`${String(index)}:${reference.path}`}
