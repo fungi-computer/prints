@@ -18,9 +18,11 @@ function Workbench({
   mediaSetup,
   imageCount,
   imageCopies,
+  quoteUrl,
 }: {
   imageCount?: number;
   imageCopies?: number;
+  quoteUrl?: string;
   scenario: Parameters<typeof createPrintsFixture>[0] | "disconnected";
   generationDelayMs?: number;
   beforeRead?: CaptureOptions["beforeRead"];
@@ -52,6 +54,7 @@ function Workbench({
     if (mediaSetup !== undefined) options.mediaSetup = mediaSetup;
     if (imageCount !== undefined) options.imageCount = imageCount;
     if (imageCopies !== undefined) options.imageCopies = imageCopies;
+    if (quoteUrl !== undefined) options.quoteUrl = quoteUrl;
     if (beforeRead !== undefined) options.beforeRead = beforeRead;
     if (finishGeneration !== undefined)
       options.finishGeneration = finishGeneration;
@@ -96,7 +99,29 @@ function Workbench({
   );
 }
 export const Studio = () => <Workbench scenario="studio" />;
+/**
+ * The composer's `@` mentions: attach pictures as references from the wall,
+ * then type `@` to name them; `test/reference-mentions.browser.mjs` drives it.
+ */
+export const ReferenceMentions = () => (
+  <Workbench scenario="studio" imageCount={4} />
+);
+/**
+ * The composer priced by a real host: `?oysterQuote=<url>` names an Oyster
+ * `/media/quote` route that `packages/oyster`'s `proof:oyster-quote` serves.
+ */
+export const OysterQuote = () => (
+  <Workbench
+    scenario="studio"
+    quoteUrl={
+      new URLSearchParams(globalThis.location.search).get("oysterQuote") ??
+      undefined
+    }
+  />
+);
 /** One picture: a deliberate showcase, never a window-high crop. */
+export const Library = () => <Workbench scenario="library" />;
+
 export const SingleImage = () => <Workbench scenario="studio" imageCount={1} />;
 /** Two pictures stay side by side inside the window. */
 export const TwoImages = () => <Workbench scenario="studio" imageCount={2} />;

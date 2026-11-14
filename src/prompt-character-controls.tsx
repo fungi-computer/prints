@@ -93,6 +93,10 @@ export function PromptCharactersDialog({
     saveProblems.push(
       `Use ${String(CHARACTER_NAME_LIMIT)} characters or fewer for the name.`,
     );
+  } else if (/^image\d+$/i.test(name)) {
+    saveProblems.push(
+      "image1, image2 and so on name attached references; pick another name.",
+    );
   } else if (!validName(name)) {
     saveProblems.push(
       "Use only letters, numbers, hyphens (-) and underscores (_).",

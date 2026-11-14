@@ -6,8 +6,11 @@ import {
   sizeForModel,
   type GenerationDraft,
   type MediaModel,
-  type MediaReference,
 } from "./generation-model.js";
+import {
+  relabelReferenceMentions,
+  type MediaReference,
+} from "./reference-mentions.js";
 
 /** Iterate from a print: load its request, add it as a reference, or animate it. */
 export type Iteration = "reuse" | "remix" | "animate";
@@ -159,7 +162,20 @@ export function iterationDraft(
     draft: {
       ...base,
       destination: undefined,
-      prompt: lineage.typed.prompt,
+      // The stored prompt names its own references by attach order; follow
+      // them to where this draft holds them (remix puts the print first).
+      prompt: relabelReferenceMentions(lineage.typed.prompt, (number) => {
+        const entry = own.at(number - 1);
+        const at =
+          entry === undefined
+            ? -1
+            : references.findIndex(
+                (reference) =>
+                  reference.path === entry.path &&
+                  reference.computerId === entry.computerId,
+              );
+        return at < 0 ? undefined : at + 1;
+      }),
       references,
       steps,
       style,

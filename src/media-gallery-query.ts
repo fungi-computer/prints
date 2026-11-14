@@ -16,8 +16,21 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { folderOf } from "./library-view.js";
+import { listFavorites } from "./library-methods.js";
 
 const pageSize = 24;
+/** What a gallery lists: one folder, every folder beneath the library, or the Team's favorites. */
+export type ListingSource =
+  | Readonly<{ kind: "folder"; path: string }>
+  | Readonly<{ kind: "all"; path: string }>
+  | Readonly<{ kind: "favorites"; path: string }>;
+const sourceKey = (source: ListingSource | null): string | null =>
+  source === null
+    ? null
+    : source.kind === "folder"
+      ? source.path
+      : `${source.kind}:${source.path}`;
 export const galleryKeys = {
   all: (app: AppRoot | null) => queryKeys.of(app, "prints", "gallery"),
   listings: (app: AppRoot | null) => [...galleryKeys.all(app), "listing"],
@@ -30,70 +43,136 @@ export const galleryKeys = {
     "file",
     path,
   ],
+  describedAll: (app: AppRoot | null) => [...galleryKeys.all(app), "described"],
+  described: (app: AppRoot | null, paths: readonly string[]) => [
+    ...galleryKeys.describedAll(app),
+    ...paths,
+  ],
 };
-type GalleryEntry = {
+export type GalleryEntry = {
   path: string;
   name: string;
   modifiedAt: number;
   size: number;
+  /** The library folder the file sits in, for All prints; absent at the root. */
+  folder?: string;
 };
+const mediaName = /\.(avif|gif|jpe?g|png|svg|webp|mp4)$/i;
+/** Where a listing stands: folders still to read, the offset into the first, and a favorites cursor. */
+type ListingCursor = Readonly<{
+  queue: readonly string[];
+  offset: number;
+  after: string | null;
+}>;
 
-/** Read enough directory entries to fill one image page, without dropping a tail. */
-export function galleryListingQuery(app: AppRoot | null, path: string | null) {
+/** Read enough entries to fill one page of prints, without dropping a tail. */
+export function galleryListingQuery(
+  app: AppRoot | null,
+  source: ListingSource | null,
+) {
   const computerId = app?.context.get().computerId;
+  const root = source?.path ?? null;
+  const initial: ListingCursor = {
+    queue: root === null ? [] : [root],
+    offset: 0,
+    after: null,
+  };
   return infiniteQueryOptions({
-    queryKey: galleryKeys.listing(app, path),
-    initialPageParam: 0,
+    queryKey: galleryKeys.listing(app, sourceKey(source)),
+    initialPageParam: initial,
     enabled: Boolean(
       computerId &&
-      path &&
+      root &&
       app.capabilities.has(computerList) &&
       app.capabilities.has(computerReadFile),
     ),
     queryFn: async ({ pageParam, signal }) => {
-      if (!app || !computerId || !path)
+      if (!app || !computerId || !source)
         throw new AppError("No Computer folder selected", {
           code: "SELECTION_CHANGED",
           retryable: false,
         });
-      const entries: GalleryEntry[] = [];
-      let offset: number | null = pageParam;
-      do {
+      const stillSelected = () => {
         signal.throwIfAborted();
         if (app.context.get().computerId !== computerId)
           throw new AppError("Computer selection changed", {
             code: "SELECTION_CHANGED",
             retryable: false,
           });
+      };
+      if (source.kind === "favorites") {
+        const noFolders: string[] = [];
+        stillSelected();
+        const page = await listFavorites(app, pageParam.after, pageSize);
+        stillSelected();
+        const entries: GalleryEntry[] = page.paths
+          .filter((path) => mediaName.test(path))
+          .map((path) => ({
+            path,
+            name: path.slice(path.lastIndexOf("/") + 1),
+            modifiedAt: 0,
+            size: 0,
+            ...folderCaption(source.path, path),
+          }));
+        return {
+          entries,
+          folders: noFolders,
+          next:
+            page.next === null
+              ? null
+              : { queue: [], offset: 0, after: page.next },
+        };
+      }
+      const entries: GalleryEntry[] = [];
+      const folders: string[] = [];
+      let queue = [...pageParam.queue];
+      let offset = pageParam.offset;
+      while (entries.length < pageSize && queue.length > 0) {
+        stillSelected();
+        const directory = queue[0];
         const page = await listComputerFiles(app.capabilities, {
-          path,
+          path: directory,
           limit: pageSize - entries.length,
           offset,
         });
-        signal.throwIfAborted();
+        stillSelected();
         if (page.nextOffset !== null && page.nextOffset <= offset)
           throw new AppError("Directory pagination did not advance", {
             code: "PROTOCOL",
             retryable: false,
           });
-        entries.push(
-          ...page.entries
-            .filter(
-              (entry) =>
-                entry.type === "file" &&
-                /\.(avif|gif|jpe?g|png|svg|webp|mp4)$/i.test(entry.name),
-            )
-            .map((entry) => ({
+        const base = page.path.replace(/\/$/, "");
+        for (const entry of page.entries) {
+          if (entry.name.startsWith(".")) continue;
+          if (entry.type === "directory") {
+            if (source.kind === "all") queue.push(`${base}/${entry.name}`);
+            else folders.push(entry.name);
+          } else if (entry.type === "file" && mediaName.test(entry.name))
+            entries.push({
               ...entry,
-              path: `${page.path.replace(/\/$/, "")}/${entry.name}`,
-            })),
-        );
-        offset = page.nextOffset;
-      } while (entries.length < pageSize && offset !== null);
-      return { entries, nextOffset: offset };
+              path: `${base}/${entry.name}`,
+              ...folderCaption(source.path, `${base}/${entry.name}`),
+            });
+        }
+        if (page.nextOffset === null) {
+          queue = queue.slice(1);
+          offset = 0;
+        } else offset = page.nextOffset;
+      }
+      return {
+        entries,
+        folders,
+        next: queue.length === 0 ? null : { queue, offset, after: null },
+      };
     },
-    getNextPageParam: (page) => page.nextOffset,
+    getNextPageParam: (page) => page.next,
   });
+}
+
+/** The library folder of a path, as a caption, when it is not the root. */
+function folderCaption(root: string, path: string): { folder?: string } {
+  const folder = folderOf(root, path);
+  return folder === undefined ? {} : { folder };
 }
 
 function galleryFileQuery(
@@ -134,7 +213,7 @@ function galleryFileQuery(
 
 export function useMediaGallery(
   connection: { app: AppRoot } | null,
-  path: string | null,
+  source: ListingSource | null,
 ) {
   const app = connection?.app ?? null;
   const computerId = useComputerId(app);
@@ -159,7 +238,7 @@ export function useMediaGallery(
     },
     [app, client, loadFile],
   );
-  const listingOptions = galleryListingQuery(app, path);
+  const listingOptions = galleryListingQuery(app, source);
   const listing = useInfiniteQuery(listingOptions);
   const entries = useMemo(
     () =>
@@ -225,8 +304,15 @@ export function useMediaGallery(
       cancel();
     };
   }, [app, computerId, connection, client]);
+  const folders = useMemo(
+    () => [
+      ...new Set(listing.data?.pages.flatMap((page) => page.folders) ?? []),
+    ],
+    [listing.data],
+  );
   return {
     entries,
+    folders,
     loadFile,
     retryFile,
     files: files.files,

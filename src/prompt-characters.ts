@@ -5,9 +5,12 @@ import type {
 } from "@fungi.computer/agar";
 import * as Schema from "effect/Schema";
 import { composePrompt } from "./prompt-styles.js";
-type MediaReference = NonNullable<
-  MediaGenerationInput["settings"]["references"]
->[number];
+import {
+  expandReferenceMentions,
+  type MediaReference,
+  referenceLabel,
+  referenceWording,
+} from "./reference-mentions.js";
 
 export const MAX_CHARACTERS = 50;
 export const CHARACTER_NAME_LIMIT = 32;
@@ -15,11 +18,15 @@ export const CHARACTER_DESCRIPTION_LIMIT = 500;
 export const MAX_CHARACTER_REFERENCES = 8;
 const MAX_SUGGESTIONS = 8;
 
-/** A name the prompt can mention as `@name`: letters, digits, `_` and `-`. */
+/**
+ * A name the prompt can mention as `@name`: letters, digits, `_` and `-`.
+ * `image1`, `image2`, ... name attached references, so characters cannot.
+ */
 export const characterName = Schema.String.pipe(
   Schema.check(Schema.isMinLength(1)),
   Schema.check(Schema.isMaxLength(CHARACTER_NAME_LIMIT)),
   Schema.check(Schema.isPattern(/^[\p{L}\p{N}_-]+$/u)),
+  Schema.check(Schema.isPattern(/^(?!image\d+$)/iu)),
 );
 const characterDescription = Schema.String.pipe(
   Schema.check(Schema.isMaxLength(CHARACTER_DESCRIPTION_LIMIT)),
@@ -177,17 +184,36 @@ export function planCharacters(
     references: NonNullable<MediaGenerationInput["settings"]["references"]>;
     computerId: string | null;
     model: Readonly<{ label: string; maxReferences: number }> | undefined;
+    /**
+     * Label number of each of `references`, as the prompt names them. Absent,
+     * `@imageN` is the Nth reference (the agent tool, which never removes one).
+     */
+    labels?: readonly number[] | undefined;
+    /** What the model should read for each of the merged references; absent, "image N" in order. */
+    wording?:
+      ((merged: readonly MediaReference[]) => readonly string[]) | undefined;
   }>,
 ): CharacterPlan {
-  const expansion = expandCharacters(
-    mentionNames(input.prompt, input.names ?? []),
-    input.saved,
-  );
+  const typed = mentionNames(input.prompt, input.names ?? []);
+  const expansion = expandCharacters(typed, input.saved);
   const references = withCharacterReferences(
     input.references,
     expansion.characters,
     input.computerId,
   );
+  const wording = (
+    input.wording ?? ((merged) => referenceWording(merged, undefined))
+  )(references);
+  const imaged = expandReferenceMentions(
+    typed,
+    input.labels ?? input.references.map((_reference, at) => at + 1),
+    wording.slice(0, input.references.length),
+  );
+  if (imaged.kind === "missing")
+    return {
+      kind: "refused",
+      message: `${imaged.labels.map((label) => `@${label}`).join(", ")} ${imaged.labels.length === 1 ? "names a reference that is" : "name references that are"} not attached. Remove ${imaged.labels.length === 1 ? "it" : "them"} from the prompt or attach the image again.`,
+    };
   const added = references.length - input.references.length;
   if (
     input.model !== undefined &&
@@ -205,7 +231,7 @@ export function planCharacters(
   }
   return {
     kind: "ready",
-    prompt: expansion.prompt,
+    prompt: expandCharacters(imaged.prompt, input.saved).prompt,
     references,
     characters: expansion.characters,
   };
@@ -222,6 +248,43 @@ export function mentionAt(
   return found === null
     ? null
     : { start: found.index, query: found.at(1) ?? "" };
+}
+
+/** An attached reference the prompt can mention as `@image1`. */
+export type ReferenceOption = Readonly<{
+  number: number;
+  /** The file name, shown beside the label. */
+  name: string;
+  url?: string | undefined;
+}>;
+
+/** One row of the `@` menu: an attached reference or a saved character. */
+export type MentionOption =
+  | Readonly<{ kind: "reference"; reference: ReferenceOption }>
+  | Readonly<{ kind: "character"; character: PromptCharacter }>;
+
+/** The attached references, then the saved characters, that match what was typed. */
+export function suggestMentions(
+  saved: readonly PromptCharacter[],
+  references: readonly ReferenceOption[],
+  query: string,
+): readonly MentionOption[] {
+  const wanted = query.toLowerCase();
+  const label = (entry: ReferenceOption) =>
+    referenceLabel(entry.number).toLowerCase();
+  return [
+    ...[
+      ...references.filter((entry) => label(entry).startsWith(wanted)),
+      ...references.filter(
+        (entry) =>
+          !label(entry).startsWith(wanted) && label(entry).includes(wanted),
+      ),
+    ].map((reference): MentionOption => ({ kind: "reference", reference })),
+    ...suggestCharacters(saved, query).map((character): MentionOption => ({
+      kind: "character",
+      character,
+    })),
+  ];
 }
 
 /** Saved characters whose name starts with, then contains, what was typed. */

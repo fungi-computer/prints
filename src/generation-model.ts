@@ -14,9 +14,7 @@ import { Result, Schema, SchemaIssue } from "effect";
 import { words } from "@fungi.computer/cairn";
 
 export type MediaModel = MediaGenerationSession["models"][number];
-export type MediaReference = NonNullable<
-  MediaGenerationInput["settings"]["references"]
->[number];
+import type { MediaReference } from "./reference-mentions.js";
 
 /** An omitted selector means the selected Computer, not a global path. */
 export function isReferenceOnComputer(
@@ -111,6 +109,11 @@ export function describeGenerationError(cause: unknown): ErrorDescription {
       title: "Couldn’t create image",
       message:
         "Media generation needs Team credits. Add credits in Billing, then retry.",
+    },
+    DAILY_LIMIT_REACHED: {
+      title: "Couldn’t create image",
+      message:
+        "Today's spending limit for this Oyster is used up. It resets at 00:00 UTC.",
     },
     // Each cause says what happened and what Retry changes, never a bare "failed".
     MEDIA_PROVIDER_FAILURE: {
@@ -600,11 +603,14 @@ export function referenceRolesFor(
  * Give every reference the role it will be sent with. A role the person chose
  * and the model documents is kept; the rest are filled in so the set is valid
  * whenever it can be: first frame, then last frame where the model has one,
- * else references. Image models take no roles.
+ * else references. Image models take no roles. `named` says the prompt
+ * mentions attached references (`@image1`): naming them means they are
+ * references, never a first/last frame pair, unless the person chose a frame.
  */
 export function resolveReferenceRoles(
   references: readonly MediaReference[],
   model: MediaModel | undefined,
+  named = false,
 ): readonly MediaReference[] {
   const supported = referenceRolesFor(model);
   if (model?.video == null)
@@ -620,6 +626,7 @@ export function resolveReferenceRoles(
   const lastFrame = supported.includes("last-frame");
   // More images than frames can hold are references.
   const asReferences =
+    (named && supported.includes("reference")) ||
     has("reference") ||
     (!has("first-frame") &&
       !has("last-frame") &&

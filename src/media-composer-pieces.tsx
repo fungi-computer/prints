@@ -14,9 +14,20 @@ import {
 } from "@fungi.computer/parakeet";
 import {
   mentionAt,
-  suggestCharacters,
+  mentionedNames,
+  suggestMentions,
+  type MentionOption,
   type PromptCharacter,
+  type ReferenceOption,
 } from "./prompt-characters.js";
+import {
+  advanceLedger,
+  emptyLedger,
+  referenceKey,
+  referenceLabel,
+  referenceNumbers,
+  type MediaReference,
+} from "./reference-mentions.js";
 import {
   useCallback,
   useEffect,
@@ -354,7 +365,7 @@ export function useMediaSlashSheet(
   };
 }
 
-/** The saved characters offered while an `@name` is being typed. */
+/** The attached references and saved characters offered while an `@name` is being typed. */
 export function MediaMentionSheet({
   images,
   index,
@@ -367,14 +378,28 @@ export function MediaMentionSheet({
   images: readonly Readonly<{ path: string; url: string }>[];
   index: number;
   listId: string;
-  matches: readonly PromptCharacter[];
+  matches: readonly MentionOption[];
   onHighlight: (index: number) => void;
   onPick: (index: number) => void;
 }): React.JSX.Element {
   return (
     <CompletionMenu
       open
-      rows={matches.map((character) => {
+      rows={matches.map((option) => {
+        if (option.kind === "reference")
+          return {
+            key: referenceLabel(option.reference.number),
+            label: `@${referenceLabel(option.reference.number)}`,
+            detail: option.reference.name,
+            media: (
+              <span className="prints-character-thumb mask mask-squircle">
+                {option.reference.url ? (
+                  <img src={option.reference.url} alt="" />
+                ) : null}
+              </span>
+            ),
+          };
+        const { character } = option;
         const first = character.references.at(0)?.path;
         const thumbnail = images.find((image) => image.path === first);
         return {
@@ -390,7 +415,7 @@ export function MediaMentionSheet({
       })}
       selected={index}
       listId={listId}
-      label="Characters"
+      label="References and characters"
       kind="characters"
       onHighlight={onHighlight}
       onChoose={onPick}
@@ -398,9 +423,91 @@ export function MediaMentionSheet({
   );
 }
 
-/** Typing `@` offers saved characters; picking one completes the name. */
-export function useCharacterMentions(
+/** The name a pick writes after the `@`. */
+const pickedName = (option: MentionOption) =>
+  option.kind === "reference"
+    ? referenceLabel(option.reference.number)
+    : option.character.name;
+
+/** One mention in the prompt, drawn as a token with its thumbnail. */
+export type MentionToken = Readonly<{
+  key: string;
+  label: string;
+  url?: string | undefined;
+  /** False for an `@imageN` whose reference is no longer attached. */
+  valid: boolean;
+}>;
+
+/** The references and saved characters the prompt mentions, in order of appearance. */
+export function mentionTokens(
+  prompt: string,
   characters: readonly PromptCharacter[],
+  references: readonly ReferenceOption[],
+  images: readonly Readonly<{ path: string; url: string }>[],
+): readonly MentionToken[] {
+  return mentionedNames(prompt).flatMap((name): MentionToken[] => {
+    const image = /^image(\d+)$/i.exec(name);
+    if (image !== null) {
+      const reference = references.find(
+        (entry) => entry.number === Number(image.at(1)),
+      );
+      return [
+        {
+          key: name.toLowerCase(),
+          label: `@${name.toLowerCase()}`,
+          url: reference?.url,
+          valid: reference !== undefined,
+        },
+      ];
+    }
+    const character = characters.find(
+      (entry) => entry.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (character === undefined) return [];
+    const first = character.references.at(0)?.path;
+    return [
+      {
+        key: `character:${String(character.id)}`,
+        label: `@${character.name}`,
+        url: images.find((entry) => entry.path === first)?.url,
+        valid: true,
+      },
+    ];
+  });
+}
+
+/** Inline tokens for the mentions in the prompt: thumbnail and name. */
+export function MediaMentionTokens({
+  tokens,
+}: {
+  tokens: readonly MentionToken[];
+}): React.JSX.Element | null {
+  if (tokens.length === 0) return null;
+  return (
+    <ul className="prints-mention-tokens" aria-label="Mentioned in the prompt">
+      {tokens.map((token) => (
+        <li
+          key={token.key}
+          className="prints-mention-token"
+          data-mention-token={token.label}
+          data-invalid={token.valid ? undefined : ""}
+          title={token.valid ? undefined : "No longer attached"}
+        >
+          <span className="prints-mention-thumb mask mask-squircle">
+            {token.url ? <img src={token.url} alt="" /> : null}
+          </span>
+          <span>{token.label}</span>
+          {token.valid ? null : <span> · not attached</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Typing `@` offers attached references and saved characters; picking one completes the name. */
+export function usePromptMentions(
+  characters: readonly PromptCharacter[],
+  references: readonly ReferenceOption[],
   draft: string,
 ) {
   const [caret, setCaret] = useState(0);
@@ -408,7 +515,9 @@ export function useCharacterMentions(
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [caretRequest, setCaretRequest] = useState<CaretRequest | null>(null);
   const typing = dismissed === draft ? null : mentionAt(draft, caret);
-  const matches = typing ? suggestCharacters(characters, typing.query) : [];
+  const matches = typing
+    ? suggestMentions(characters, references, typing.query)
+    : [];
   // A new draft re-ranks the matches, so the best match is highlighted again.
   useEffect(() => {
     setIndex(0);
@@ -429,15 +538,35 @@ export function useCharacterMentions(
           : 0,
       );
     },
-    /** The draft with the highlighted character completed, or null. */
+    /** The draft with the highlighted mention completed, or null. */
     complete: (at: number): string | null => {
-      const character = matches.at(at);
-      if (!typing || !character) return null;
-      const next = `${draft.slice(0, typing.start)}@${character.name} ${draft.slice(caret)}`;
-      const position = typing.start + character.name.length + 2;
+      const option = matches.at(at);
+      if (!typing || !option) return null;
+      const name = pickedName(option);
+      const next = `${draft.slice(0, typing.start)}@${name} ${draft.slice(caret)}`;
+      const position = typing.start + name.length + 2;
       setCaretRequest({ value: next, caret: position });
       setCaret(position);
       return next;
     },
   };
+}
+
+/**
+ * The label number of each attached reference, kept across renders so that
+ * removing one never renumbers the mentions already in the prompt.
+ */
+export function useReferenceLabels(
+  references: readonly MediaReference[],
+  prompt: string,
+  computerId: string | null,
+): readonly number[] {
+  const [ledger, setLedger] = useState(emptyLedger);
+  const keys = references.map((reference) =>
+    referenceKey(reference, computerId),
+  );
+  const next = advanceLedger(ledger, keys, prompt);
+  // Derived from the props alone; settle it in this render, not after a paint.
+  if (next !== ledger) setLedger(next);
+  return referenceNumbers(next, keys);
 }

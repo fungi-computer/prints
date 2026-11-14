@@ -26,6 +26,7 @@ import {
   generationInputFor,
   generationPendingLabel,
   modelFor,
+  resolveReferenceRoles,
   validationMessage,
   GENERATION_UNAVAILABLE_REASON,
   type GenerationDraft,
@@ -52,6 +53,11 @@ import {
   type PromptStyle,
 } from "./prompt-styles.js";
 import { planCharacters, type PromptCharacter } from "./prompt-characters.js";
+import {
+  mentionedReferenceNumbers,
+  referenceWording,
+  relabelReferenceMentions,
+} from "./reference-mentions.js";
 import type { useMediaFolder } from "./media-folder.js";
 import type { GallerySlot } from "./gallery-slots.js";
 import { reportCatchFailure } from "./log-event.js";
@@ -428,7 +434,14 @@ export function useMediaGeneration({
         autoResumed.current.add(id);
     }
   }, [connection, computerId, session, pending.isSuccess, records]);
-  const submit = async (draft: GenerationDraft) => {
+  /**
+   * `labels` are the label numbers of `draft.references`, as the prompt names
+   * them; absent, `@image1` is the first reference.
+   */
+  const submit = async (
+    draft: GenerationDraft,
+    labels: readonly number[] = draft.references.map((_item, at) => at + 1),
+  ) => {
     if (!connection?.app.capabilities.has(computerWriteFile) || !canGenerate)
       return false;
     if (folder.path === null) {
@@ -445,10 +458,15 @@ export function useMediaGeneration({
       });
       return false;
     }
+    // Naming references in the prompt makes every attachment a reference.
+    const named = mentionedReferenceNumbers(draft.prompt).length > 0;
     const plan = planCharacters({
       prompt: draft.prompt,
       saved: characters,
       references: draft.references,
+      labels,
+      wording: (merged) =>
+        referenceWording(resolveReferenceRoles(merged, model, named), model),
       computerId,
       model: { label: model.label, maxReferences: model.input.maxReferences },
     });
@@ -463,7 +481,10 @@ export function useMediaGeneration({
     // The typed prompt with the characters' references; the expanded prompt's
     // length is checked below, where the message can name what expanded it.
     const invalid = validationMessage(
-      { ...draft, references: plan.references },
+      {
+        ...draft,
+        references: resolveReferenceRoles(plan.references, model, named),
+      },
       model,
     );
     if (invalid) {
@@ -512,8 +533,12 @@ export function useMediaGeneration({
     const resolved = {
       ...draft,
       prompt: composed,
-      references: plan.references,
-      destination: generationDestinationFor(draft, folder.path, model),
+      references: resolveReferenceRoles(plan.references, model, named),
+      destination: generationDestinationFor(
+        draft,
+        folder.landingPath ?? folder.path,
+        model,
+      ),
     };
     const input = generationInputFor(resolved, model);
     let reference: MediaGenerationReference;
@@ -561,8 +586,13 @@ export function useMediaGeneration({
       reference,
       input,
       draft: resolved,
+      // Stored in attach order, so a recalled prompt names the references
+      // the way a fresh composer numbers them.
       typed: {
-        prompt: draft.prompt.trim(),
+        prompt: relabelReferenceMentions(draft.prompt.trim(), (number) => {
+          const at = labels.indexOf(number);
+          return at < 0 ? undefined : at + 1;
+        }),
         references: draft.references.length,
       },
       style: style?.name,
@@ -597,6 +627,7 @@ export function useMediaGeneration({
   return {
     state,
     models,
+    session,
     modelsLoading: modelQuery.isFetching,
     modelsError,
     canGenerate,

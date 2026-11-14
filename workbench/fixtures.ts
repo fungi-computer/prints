@@ -8,6 +8,7 @@ import type {
 import { appsOpen } from "@fungi.computer/agar/apps";
 import { appBackend, appMethods } from "@fungi.computer/agar/backend";
 import * as Schema from "effect/Schema";
+import type { MediaGenerationSelection } from "@fungi.computer/agar";
 import * as z from "zod";
 import {
   mediaRecoveryRequestSchema,
@@ -88,6 +89,7 @@ export type Scenario =
   | "images-loading"
   | "images-progressive"
   | "gill-navigate"
+  | "library"
   | "viewer-images"
   | "viewer-actual-size"
   | "viewer-video"
@@ -104,6 +106,10 @@ export type CaptureOptions = {
   folder?: string | null;
   folderExists?: boolean;
   canGenerate?: boolean;
+  /** False: a host that cannot price, so no estimate shows. */
+  quote?: boolean;
+  /** Ask a real host's `/media/quote` route (the Oyster proof) instead of the fixture price list. */
+  quoteUrl?: string;
   writable?: boolean;
   /** False leaves the Team without an App for the files role (no Inkcap). */
   filesEditor?: boolean;
@@ -209,6 +215,36 @@ export function createPrintsFixture(
         );
       }
     }
+  // A nested destination: loose prints, Characters/Mira, Characters/Kenji and Locations/Forest.
+  const favorites = new Set<string>();
+  const videos = new Map<string, number>();
+  if (scenario === "library") {
+    const place = (path: string, index: number) => {
+      files.set(
+        path,
+        async () => (await readPhotographs())[index % samples.length],
+      );
+    };
+    ["alpine-lake", "forest-light", "coast"].forEach((name, index) => {
+      place(`/media/${name}.jpg`, index);
+    });
+    ["mira-gate", "mira-rain", "mira-scarf"].forEach((name, index) => {
+      place(`/media/Characters/Mira/${name}.jpg`, index + 1);
+    });
+    ["kenji-bus", "kenji-coat"].forEach((name, index) => {
+      place(`/media/Characters/Kenji/${name}.jpg`, index + 3);
+    });
+    ["forest-dawn", "forest-fog", "forest-path"].forEach((name, index) => {
+      place(`/media/Locations/Forest/${name}.jpg`, index + 2);
+    });
+    place("/media/upload-reference.jpg", 5);
+    files.set("/media/mira-walks.mp4", () =>
+      videoFixture(new URL("./fixtures/viewer-testsrc.mp4", import.meta.url)),
+    );
+    videos.set("/media/mira-walks.mp4", 5);
+    favorites.add("/media/Characters/Mira/mira-gate.jpg");
+    favorites.add("/media/coast.jpg");
+  }
   if (scenario === "images-loading" || scenario === "images-progressive") {
     for (let index = 0; index < 24; index += 1) {
       const extension =
@@ -315,7 +351,21 @@ export function createPrintsFixture(
         opt.filesEditor === false ? null : { displayName: "Inkcap" },
       ),
   });
-  const folders = new Set(scenario === "folder-missing" ? [] : ["/media"]);
+  const folders = new Set(
+    scenario === "folder-missing"
+      ? []
+      : scenario === "library"
+        ? [
+            "/media",
+            "/media/Characters",
+            "/media/Characters/Mira",
+            "/media/Characters/Kenji",
+            "/media/Locations",
+            "/media/Locations/Forest",
+            "/media/Archive",
+          ]
+        : ["/media"],
+  );
   let mediaFolder: string | null =
     opt.folder === undefined
       ? scenario === "folder-unselected" || scenario === "folder-readonly"
@@ -381,43 +431,163 @@ export function createPrintsFixture(
       },
       typed: { prompt: "a mushroom knight", references: 0 },
     });
+  const underPath = (path: string) => (name: string) =>
+    name === path || name.startsWith(`${path}/`);
+  const libraryMethod = (method: string, input: string) => {
+    const body: unknown = JSON.parse(input);
+    if (method === "describeFiles") {
+      const { paths } = z.object({ paths: z.array(z.string()) }).parse(body);
+      return {
+        files: paths.map((path) => {
+          const known = files.has(path);
+          const model = path.endsWith(".mp4")
+            ? "Seedance 2.0"
+            : path.includes("/Characters/") || path.endsWith("alpine-lake.jpg")
+              ? "GPT Image 2"
+              : null;
+          return {
+            path,
+            kind:
+              !known || model === null
+                ? null
+                : path.endsWith(".mp4")
+                  ? "video"
+                  : "image",
+            model,
+            modelLabel: model,
+            durationSeconds: videos.get(path) ?? null,
+            favorite: favorites.has(path),
+          };
+        }),
+      };
+    }
+    if (method === "setFavorite") {
+      const { paths, favorite } = z
+        .object({ paths: z.array(z.string()), favorite: z.boolean() })
+        .parse(body);
+      for (const path of paths)
+        if (favorite) favorites.add(path);
+        else favorites.delete(path);
+      return { favorite, count: paths.length };
+    }
+    if (method === "listFavorites") {
+      const { after, limit } = z
+        .object({ after: z.string().nullable().optional(), limit: z.number() })
+        .parse(body);
+      const all = [...favorites].filter((path) => files.has(path)).sort();
+      const page = all
+        .filter((path) => after == null || path > after)
+        .slice(0, limit);
+      return {
+        paths: page,
+        next:
+          page.length === limit && all.at(-1) !== page.at(-1)
+            ? (page.at(-1) ?? null)
+            : null,
+      };
+    }
+    if (method === "moveFiles") {
+      const { paths, folder, name } = z
+        .object({
+          paths: z.array(z.string()),
+          folder: z.string().optional(),
+          name: z.string().optional(),
+        })
+        .parse(body);
+      const target = folder === undefined ? "/media" : `/media/${folder}`;
+      const moved: { from: string; to: string }[] = [];
+      const failed: { path: string; error: string }[] = [];
+      for (const from of paths) {
+        const to = `${target}/${name ?? from.slice(from.lastIndexOf("/") + 1)}`;
+        const exists = (path: string) => files.has(path) || folders.has(path);
+        if (!files.has(from) && !folders.has(from))
+          failed.push({ path: from, error: "not_found" });
+        else if (exists(to)) failed.push({ path: from, error: "conflict" });
+        else if (to.startsWith(`${from}/`))
+          failed.push({ path: from, error: "invalid" });
+        else {
+          folders.add(target);
+          for (const key of [...files.keys()].filter(underPath(from))) {
+            const read = files.get(key);
+            if (read === undefined) continue;
+            files.delete(key);
+            files.set(to + key.slice(from.length), read);
+            if (favorites.delete(key))
+              favorites.add(to + key.slice(from.length));
+          }
+          for (const dir of [...folders].filter(underPath(from))) {
+            folders.delete(dir);
+            folders.add(to + dir.slice(from.length));
+          }
+          moved.push({ from, to });
+        }
+      }
+      return { moved, failed };
+    }
+    return undefined;
+  };
   register(appMethods, {
     call: (method, input) =>
-      method === "getOutput" &&
-      (scenario === "studio" || scenario === "viewer-images")
-        ? Promise.resolve({
-            print: {
-              printId: "fixture-print-mira",
-              source: "recorded",
-              kind: "image",
-              model: "openai/gpt-image-2",
-              width: 1024,
-              height: 1024,
-              steps: null,
-              createdAt: Date.UTC(2026, 9, 26, 14, 30),
-            },
-            typed: {
-              prompt: "@Mira and @Kenji waiting at a bus stop in the rain",
-              references: 1,
-            },
-            path: outputPathRequest.parse(JSON.parse(input)).path,
-            references: [
-              { path: "/media/coast.jpg", printId: null },
-              { path: "/media/forest-light.jpg", printId: null },
-              { path: "/media/alpine-lake.jpg", printId: null },
-            ],
-            characters: ["Mira", "Kenji"],
-          })
-        : method === "openOutput" && scenario === "gill-navigate"
+      scenario === "library" &&
+      ["describeFiles", "setFavorite", "listFavorites", "moveFiles"].includes(
+        method,
+      )
+        ? Promise.resolve(libraryMethod(method, input) ?? {})
+        : method === "getOutput" &&
+            (scenario === "studio" ||
+              scenario === "viewer-images" ||
+              scenario === "library")
           ? Promise.resolve({
-              printId: "fixture-last-output",
-              path: "/media/print-47.svg",
-              byteOffset: 0,
-              content: "PA==",
-              encoding: "base64",
-              truncated: true,
+              print: {
+                printId: "fixture-print-mira",
+                source: "recorded",
+                kind: outputPathRequest
+                  .parse(JSON.parse(input))
+                  .path.endsWith(".mp4")
+                  ? "video"
+                  : "image",
+                model: outputPathRequest
+                  .parse(JSON.parse(input))
+                  .path.endsWith(".mp4")
+                  ? "bytedance/seedance-2.0"
+                  : "openai/gpt-image-2",
+                width: 1024,
+                height: 1024,
+                steps: null,
+                costMilliunits: 116_000,
+                durationSeconds: outputPathRequest
+                  .parse(JSON.parse(input))
+                  .path.endsWith(".mp4")
+                  ? 5
+                  : null,
+                createdAt: Date.UTC(2026, 9, 26, 14, 30),
+              },
+              typed: {
+                prompt: outputPathRequest
+                  .parse(JSON.parse(input))
+                  .path.endsWith(".mp4")
+                  ? "@Mira walks through the empty arcade at night, neon reflecting off the wet floor. The camera follows from behind at shoulder height, slowly drifting closer as she passes the cabinets. Her red scarf moves in the draft from the open door. Keep the lighting moody and the colours saturated, with a soft film grain over everything."
+                  : "@Mira and @Kenji waiting at a bus stop in the rain",
+                references: 1,
+              },
+              path: outputPathRequest.parse(JSON.parse(input)).path,
+              references: [
+                { path: "/media/coast.jpg", printId: null },
+                { path: "/media/forest-light.jpg", printId: null },
+                { path: "/media/alpine-lake.jpg", printId: null },
+              ],
+              characters: ["Mira", "Kenji"],
             })
-          : Promise.reject(new Error("No matching fixture output")),
+          : method === "openOutput" && scenario === "gill-navigate"
+            ? Promise.resolve({
+                printId: "fixture-last-output",
+                path: "/media/print-47.svg",
+                byteOffset: 0,
+                content: "PA==",
+                encoding: "base64",
+                truncated: true,
+              })
+            : Promise.reject(new Error("No matching fixture output")),
   });
   register(appBackend, {
     request: (input) => {
@@ -568,14 +738,18 @@ export function createPrintsFixture(
           }>(() => undefined);
         if (!folders.has(path))
           return Promise.reject(new Error("Folder missing"));
-        const entries = [...files.keys()]
-          .filter((name) => name.startsWith(`${path.replace(/\/$/, "")}/`))
-          .map((name) => ({
-            name: name.split("/").at(-1) ?? name,
-            type: "file" as const,
-            size: 0,
-            modifiedAt: 0,
-          }))
+        const base = path.replace(/\/$/, "");
+        const direct = new Map<string, "file" | "directory">();
+        for (const name of [...files.keys(), ...folders]) {
+          if (!name.startsWith(`${base}/`)) continue;
+          const rest = name.slice(base.length + 1).split("/");
+          if (rest[0] === "") continue;
+          if (rest.length === 1)
+            direct.set(rest[0], files.has(name) ? "file" : "directory");
+          else direct.set(rest[0], "directory");
+        }
+        const entries = [...direct]
+          .map(([name, type]) => ({ name, type, size: 0, modifiedAt: 0 }))
           .sort((a, b) => a.name.localeCompare(b.name));
         return Promise.resolve({
           path,
@@ -778,6 +952,22 @@ export function createPrintsFixture(
               canGenerate: opt.canGenerate ?? true,
               models: listMediaModels(),
             }),
+      // A fixture host's own price list (the real Hub meters Darkroom's
+      // estimate): video by the second, images flat; the UI only displays it.
+      quote:
+        opt.quote === false
+          ? undefined
+          : opt.quoteUrl !== undefined
+            ? (settings) => quoteFromHost(opt.quoteUrl, settings)
+            : (settings) =>
+                Promise.resolve({
+                  costMilliunits:
+                    listMediaModels().find(
+                      (model) => model.id === settings.model,
+                    )?.kind === "video"
+                      ? 23_200 * (settings.durationSeconds ?? 1)
+                      : 4_000,
+                }),
       restoreAttempt: (reference) => {
         const attempt = attempts.get(reference.requestId);
         if (reference.computerId !== computerId || attempt === undefined)
@@ -871,4 +1061,25 @@ export function createPrintsFixture(
       /* Story-local data is released with this fixture. */
     },
   };
+}
+
+/** The Oyster proof's price: the real `/media/quote` route, as an admitted owner. */
+async function quoteFromHost(
+  url: string | undefined,
+  settings: MediaGenerationSelection,
+) {
+  if (url === undefined) throw new Error("No quote host");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Oyster-Installation": "capability-fixture",
+      "x-who": "owner",
+    },
+    body: JSON.stringify({ settings }),
+  });
+  if (!response.ok) throw new Error("The host could not price this");
+  return Schema.decodeUnknownSync(
+    Schema.Struct({ costMilliunits: Schema.Int }),
+  )(await response.json());
 }

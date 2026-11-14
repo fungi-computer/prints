@@ -110,6 +110,13 @@ export function ensurePrintsIndexTables(sql: SqlStorage): void {
     ) STRICT`,
   );
   sql.exec(
+    `CREATE TABLE IF NOT EXISTS favorites (
+      computer_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      PRIMARY KEY(computer_id, path)
+    ) STRICT`,
+  );
+  sql.exec(
     `CREATE TABLE IF NOT EXISTS print_files (
       computer_id TEXT NOT NULL,
       path TEXT NOT NULL,
@@ -278,7 +285,7 @@ export function recordCompletedPrint(
   return print;
 }
 
-/** Read only this Installation's index on the admitted Computer. */
+/** Read only this Installation's index on the admitted Computer, at any depth under `folder`. */
 export function indexedOutput(
   sql: SqlStorage,
   computerId: string,
@@ -288,10 +295,9 @@ export function indexedOutput(
   const prefix = `${folder}/`;
   const row = sql
     .exec<PrintRow & { file_path: string }>(
-      "SELECT p.*, f.path AS file_path FROM prints p JOIN print_files f ON f.print_id=p.print_id AND f.computer_id=p.computer_id WHERE p.computer_id=? AND p.print_id=? AND f.state='present' AND substr(f.path,1,length(?))=? AND instr(substr(f.path,length(?)+1),'/')=0",
+      "SELECT p.*, f.path AS file_path FROM prints p JOIN print_files f ON f.print_id=p.print_id AND f.computer_id=p.computer_id WHERE p.computer_id=? AND p.print_id=? AND f.state='present' AND substr(f.path,1,length(?))=?",
       computerId,
       printId,
-      prefix,
       prefix,
       prefix,
     )
@@ -332,7 +338,7 @@ export function printReferences(
     });
 }
 
-/** Read one indexed output by its file path in this Installation's library. */
+/** Read one indexed output by its file path anywhere under this Installation's library. */
 export function indexedOutputAtPath(
   sql: SqlStorage,
   computerId: string,
@@ -342,10 +348,9 @@ export function indexedOutputAtPath(
   const prefix = `${folder}/`;
   const row = sql
     .exec<PrintRow & { file_path: string }>(
-      "SELECT p.*, f.path AS file_path FROM prints p JOIN print_files f ON f.print_id=p.print_id AND f.computer_id=p.computer_id WHERE p.computer_id=? AND f.path=? AND f.state='present' AND substr(f.path,1,length(?))=? AND instr(substr(f.path,length(?)+1),'/')=0",
+      "SELECT p.*, f.path AS file_path FROM prints p JOIN print_files f ON f.print_id=p.print_id AND f.computer_id=p.computer_id WHERE p.computer_id=? AND f.path=? AND f.state='present' AND substr(f.path,1,length(?))=?",
       computerId,
       filePath,
-      prefix,
       prefix,
       prefix,
     )
@@ -361,14 +366,17 @@ export function indexedOutputs(
   folder: string,
   after: Readonly<{ createdAt: number; printId: string }> | null,
   limit: number,
+  /** Walk every level under `folder`; otherwise only its own files. */
+  recursive: boolean,
 ) {
   const prefix = `${folder}/`;
   const rows = sql
     .exec<PrintRow & { file_path: string }>(
-      `SELECT p.*, f.path AS file_path FROM prints p JOIN print_files f ON f.print_id=p.print_id AND f.computer_id=p.computer_id WHERE p.computer_id=? AND f.state='present' AND substr(f.path,1,length(?))=? AND instr(substr(f.path,length(?)+1),'/')=0 AND (? IS NULL OR p.created_at<? OR (p.created_at=? AND p.print_id<?)) ORDER BY p.created_at DESC,p.print_id DESC LIMIT ?`,
+      `SELECT p.*, f.path AS file_path FROM prints p JOIN print_files f ON f.print_id=p.print_id AND f.computer_id=p.computer_id WHERE p.computer_id=? AND f.state='present' AND substr(f.path,1,length(?))=? AND (?=1 OR instr(substr(f.path,length(?)+1),'/')=0) AND (? IS NULL OR p.created_at<? OR (p.created_at=? AND p.print_id<?)) ORDER BY p.created_at DESC,p.print_id DESC LIMIT ?`,
       computerId,
       prefix,
       prefix,
+      recursive ? 1 : 0,
       prefix,
       after?.createdAt ?? null,
       after?.createdAt ?? null,
@@ -396,4 +404,131 @@ export function indexedOutputs(
         ? { createdAt: last.createdAt, printId: last.printId }
         : null,
   };
+}
+
+/** Which of these files the Team has favorited, on this Computer. */
+export function favoritePaths(
+  sql: SqlStorage,
+  computerId: string,
+  paths: readonly string[],
+): ReadonlySet<string> {
+  const favorites = new Set<string>();
+  for (const path of paths)
+    if (
+      sql
+        .exec(
+          "SELECT 1 FROM favorites WHERE computer_id=? AND path=?",
+          computerId,
+          path,
+        )
+        .toArray().length > 0
+    )
+      favorites.add(path);
+  return favorites;
+}
+
+/** Favorite or unfavorite files for the whole Team; repeating either is harmless. */
+export function setFavorites(
+  sql: SqlStorage,
+  computerId: string,
+  paths: readonly string[],
+  favorite: boolean,
+): void {
+  for (const path of paths)
+    sql.exec(
+      favorite
+        ? "INSERT OR IGNORE INTO favorites(computer_id,path) VALUES (?,?)"
+        : "DELETE FROM favorites WHERE computer_id=? AND path=?",
+      computerId,
+      path,
+    );
+}
+
+export type FavoritesPage = Readonly<{ paths: string[]; next: string | null }>;
+
+/** One page of favorited paths on this Computer, in path order, after `after`. */
+export function listFavorites(
+  sql: SqlStorage,
+  computerId: string,
+  folder: string,
+  after: string | null,
+  limit: number,
+): FavoritesPage {
+  const prefix = `${folder}/`;
+  const rows = sql
+    .exec<{ path: string }>(
+      "SELECT path FROM favorites WHERE computer_id=? AND substr(path,1,length(?))=? AND (? IS NULL OR path>?) ORDER BY path LIMIT ?",
+      computerId,
+      prefix,
+      prefix,
+      after,
+      after,
+      limit + 1,
+    )
+    .toArray();
+  const page = rows.slice(0, limit).map((row) => text(4096).parse(row.path));
+  return {
+    paths: page,
+    next: rows.length > limit ? (page.at(-1) ?? null) : null,
+  };
+}
+
+export type MovedPath = Readonly<{ from: string; to: string }>;
+
+/** SQL that rewrites a column holding a moved path or anything beneath a moved folder. */
+const rewritePath = (table: string, scope: string) =>
+  `UPDATE ${table} SET path = ? || substr(path, length(?) + 1) WHERE (path = ? OR substr(path, 1, length(?) + 1) = ? || '/') ${scope}`;
+
+/**
+ * Follow moves the Computer has already made: this Computer's indexed files,
+ * references that name this Computer, saved character references and favorites
+ * keep pointing at the same bytes. An exact path or a moved folder's whole
+ * subtree is rewritten. The Computer proved each destination absent, so a stale
+ * row there is dropped rather than allowed to collide. Call inside one
+ * transaction.
+ */
+export function rewriteMovedPaths(
+  sql: SqlStorage,
+  computerId: string,
+  moves: readonly MovedPath[],
+): void {
+  for (const { from, to } of moves) {
+    const under = `${to}/`;
+    sql.exec(
+      "DELETE FROM print_files WHERE computer_id=? AND (path=? OR substr(path,1,length(?))=?)",
+      computerId,
+      to,
+      under,
+      under,
+    );
+    sql.exec(
+      "DELETE FROM favorites WHERE computer_id=? AND (path=? OR substr(path,1,length(?))=?)",
+      computerId,
+      to,
+      under,
+      under,
+    );
+    const args = [to, from, from, from, from];
+    sql.exec(
+      rewritePath("print_files", "AND computer_id = ?"),
+      ...args,
+      computerId,
+    );
+    sql.exec(
+      rewritePath("favorites", "AND computer_id = ?"),
+      ...args,
+      computerId,
+    );
+    // A reference without a Computer names the one its print was made on.
+    sql.exec(
+      rewritePath(
+        "print_references",
+        "AND (computer_id = ? OR (computer_id IS NULL AND print_id IN (SELECT print_id FROM prints WHERE computer_id = ?)))",
+      ),
+      ...args,
+      computerId,
+      computerId,
+    );
+    sql.exec(rewritePath("prompt_character_references", ""), ...args);
+  }
 }

@@ -1,5 +1,47 @@
 # @fungi.computer/prints
 
+## 0.12.0
+
+### Minor Changes
+
+- Changes since 0.11.0:
+
+  - fix(prints): price the workbench quote from the Darkroom model list
+  - fix(oyster): satisfy anti-slop in the Oyster price proof
+  - fix(prints): show under-a-cent prices without a doubled ≈
+  - fix(prints): name quote settings by their Agar type
+  - fix(media): split the quote request out of the Hub JSON caller
+  - fix(prints): price without a catch and run the Hub quote test in a leg
+  - feat(prints): show the host's estimated price beside the send key
+  - fix(prints): keep the price rule's doc comment valid TSDoc
+  - fix(prints): show prices in cents, under a cent as <$0.01
+  - fix(prints): use optional chain in the cost row
+  - feat(prints): show a print's recorded cost in the image info drawer
+  - fix(prints): declare MediaReference once
+  - fix(prints): keep the backend off the browser form's modules
+  - fix(prints): import the shared MediaReference type
+  - fix(prints): naming references in a prompt makes attachments references
+  - feat(prints): mention attached references as @imageN in prompts
+  - fix(prints): let a folder with children drop in the tree
+  - fix(prints): polish the Library after review
+  - feat(prints): add the Library UI
+  - feat(prints): add the Library backend and share the Computer tree model
+  - feat(oyster): daily media hard stop with a plain spending-limit message
+  - feat(prints): add the Library backend and share the Computer tree model
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.13.0
+  - @fungi.computer/caps@0.11.4
+  - @fungi.computer/darkroom@0.7.0
+  - @fungi.computer/parakeet@0.11.26
+  - @fungi.computer/sigils@0.3.2
+
 ## 0.11.0
 
 ### Minor Changes

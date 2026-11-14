@@ -18,7 +18,19 @@ import {
 } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { mediaFolderQuery, printsKeys } from "./media-queries.js";
-import { galleryListingQuery, galleryKeys } from "./media-gallery-query.js";
+import {
+  galleryListingQuery,
+  galleryKeys,
+  type ListingSource,
+} from "./media-gallery-query.js";
+import { joinFolder, type RelativeFolder } from "./library-view.js";
+
+/** What the Library shows: one folder, every folder beneath the destination, or the Team's favorites. */
+export type LibraryView =
+  | Readonly<{ kind: "folder"; folder: RelativeFolder | undefined }>
+  | Readonly<{ kind: "all" }>
+  | Readonly<{ kind: "favorites" }>;
+const libraryRoot: LibraryView = { kind: "folder", folder: undefined };
 
 /** Query owns the stored choice; a mutation validates before changing it. */
 export function useMediaFolder(app: AppRoot | null) {
@@ -29,8 +41,21 @@ export function useMediaFolder(app: AppRoot | null) {
   const query = useQuery(mediaFolderQuery(app));
   // Validate with the gallery's first page rather than a separate probe read.
   const listing = useInfiniteQuery(
-    galleryListingQuery(app, query.data?.configured ? query.data.path : null),
+    galleryListingQuery(
+      app,
+      query.data?.configured ? { kind: "folder", path: query.data.path } : null,
+    ),
   );
+  // The view belongs to one destination on one Computer; changing either resets it.
+  const viewScope = `${computerId ?? ""}:${query.data?.path ?? ""}`;
+  const [viewState, setViewState] = useState<{
+    scope: string;
+    view: LibraryView;
+  }>({ scope: viewScope, view: libraryRoot });
+  const view = viewState.scope === viewScope ? viewState.view : libraryRoot;
+  const setView = (next: LibraryView) => {
+    setViewState({ scope: viewScope, view: next });
+  };
   const [editor, setEditor] = useState<{
     app: AppRoot | null;
     computerId: string | null;
@@ -119,10 +144,30 @@ export function useMediaFolder(app: AppRoot | null) {
     }
   };
   const unavailable = query.isError || listing.isError;
+  const destination =
+    unavailable || !query.data?.configured ? null : query.data.path;
+  // New prints and uploads land in the folder being viewed, else at the root.
+  const landingPath =
+    destination === null
+      ? null
+      : view.kind === "folder"
+        ? joinFolder(destination, view.folder)
+        : destination;
+  const source: ListingSource | null =
+    destination === null
+      ? null
+      : view.kind === "folder"
+        ? { kind: "folder", path: landingPath ?? destination }
+        : { kind: view.kind, path: destination };
   return {
+    view,
+    setView,
+    /** The destination itself, whatever folder is open. */
+    destination,
+    landingPath:
+      landingPath ?? (unavailable ? null : (query.data?.path ?? null)),
+    source,
     path: unavailable ? null : (query.data?.path ?? null),
-    galleryPath:
-      unavailable || !query.data?.configured ? null : query.data.path,
     computerId,
     available: app?.capabilities.has(appBackend) === true,
     writable: app?.capabilities.has(computerWriteFile) === true,

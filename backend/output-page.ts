@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { printRecordSchema } from "./print-records.js";
+import { folderArgumentSchema } from "./method-contracts.js";
 
 const cursor = z.strictObject({
   createdAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
@@ -36,6 +37,10 @@ export const outputAtPathInputSchema = z.strictObject({
   path: z.string().startsWith("/").min(2).max(4096),
 });
 export const outputPageInputSchema = z.strictObject({
+  /** The folder to list, inside the library; the library folder when absent. */
+  folder: folderArgumentSchema.optional(),
+  /** List every level under the folder, not only its own files. */
+  recursive: z.boolean().default(false),
   after: cursor.nullable().optional(),
   limit: z.number().int().min(1).max(24).default(24),
 });

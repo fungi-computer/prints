@@ -3,7 +3,7 @@
 Prints generates images and video from a prompt and keeps them in a gallery on
 your Computer.
 
-![Prints: a gallery of five generated images, two koi ponds, a knight dunking a basketball, an elf holding a basketball and a sunrise over water, above the prompt bar with the Flux 2 Klein 4b model and a 1024 × 768 size](docs/media/gallery.png)
+![Prints: the Library rail with All prints, Favorites and the folder tree on the left; on the right the open folder's folder tiles above a wall of prints, each with its model badge, above the prompt bar](docs/media/gallery.png)
 
 Prints is one of the starter Apps of
 [Oyster](https://github.com/fungi-computer/oyster), the open App host that runs
@@ -18,6 +18,13 @@ Container.
   otherwise, MP4 for video.
 - Add your own images as style references, on models that accept them.
 - Upload files into the same folder, or choose another folder for the gallery.
+- Organize inside your folder. The Library rail shows the folder as a tree, with
+  **All prints** and **Favorites** above it. Make folders such as Characters and
+  Locations, drag prints and folders onto them, rename them from the row menu,
+  or choose **Select** and **Move to…**; **Undo** puts a move back. A heart
+  favorites a print for your whole Team. Folders are real folders on the
+  Computer, so Inkcap and your Agents see them too. New prints and uploads land
+  in the folder you are viewing.
 - Browse the gallery newest first. Click a picture to see it fitted inside
   Prints; **Left** and **Right** step through the loaded wall, and **Esc**
   returns to the last-viewed tile. **Open in Inkcap** is an explicit editing
@@ -52,7 +59,7 @@ Container.
   window's status bar. A retry resumes the same attempt instead of generating
   again, and **Resume** picks up an unfinished image after a reload.
 
-<img alt="Prints on a phone in the light theme: a two-column gallery above the prompt bar" src="docs/media/gallery-phone.png" width="300">
+<img alt="Prints on a phone in the light theme: the Folders button, the Folder, All and Favorites switch, folder tiles and a two-column wall above the prompt bar" src="docs/media/gallery-phone.png" width="300">
 
 ## Get it
 
@@ -101,16 +108,23 @@ Agents call Prints through Oyster's MCP endpoint, or at
 `POST $OYSTER_URL/apps/prints/methods/<name>` with a key; see
 [Git, keys and MCP](https://github.com/fungi-computer/oyster#git-keys-and-mcp).
 
-| Method           | What it does                                                                                                                                 |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `listModels`     | Lists the image and video models, with their sizes, settings and how many references each takes.                                             |
-| `generateImage`  | Generates one image from a prompt and saves it to the gallery folder. Optional `characters` names saved characters to keep consistent.       |
-| `generateVideo`  | Generates one video. While it works, the method returns `{kind: "pending", retryAfterMs}`; call again with the same inputs after that delay. |
-| `listCharacters` | Lists the saved characters: name, description and reference image paths. Use the names as `characters` or `@name`.                           |
-| `listStyles`     | Lists the saved and built-in styles: name and text. Use a name as `style`.                                                                   |
-| `listOutputs`    | Lists the prints this App made, newest first.                                                                                                |
-| `getOutput`      | Reads one print by file path: its prompt, model, characters, style and the reference images it used.                                         |
-| `openOutput`     | Reads up to 128 KiB of one print per call.                                                                                                   |
+| Method           | What it does                                                                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `listModels`     | Lists the image and video models, with their sizes, settings and how many references each takes.                                                               |
+| `generateImage`  | Generates one image from a prompt and saves it to the gallery folder. Optional `characters` names saved characters to keep consistent.                         |
+| `generateVideo`  | Generates one video. While it works, the method returns `{kind: "pending", retryAfterMs}`; call again with the same inputs after that delay.                   |
+| `listCharacters` | Lists the saved characters: name, description and reference image paths. Use the names as `characters` or `@name`.                                             |
+| `listStyles`     | Lists the saved and built-in styles: name and text. Use a name as `style`.                                                                                     |
+| `listOutputs`    | Lists the prints this App made, newest first. `folder` and `recursive` list one folder or everything under it; each item has its model and a video's duration. |
+| `getOutput`      | Reads one print by file path, from any folder: its prompt, model, characters, style and the reference images it used.                                          |
+| `openOutput`     | Reads up to 128 KiB of one print per call.                                                                                                                     |
+| `listFolders`    | Lists the sub-folders of a folder in the library.                                                                                                              |
+| `moveFiles`      | Moves files or folders into a library folder (`createFolder` makes it). Use it instead of `mv`: prints keep their prompt, references and favorite.             |
+| `describeFiles`  | For up to 24 paths: whether Prints made each file, its model, a video's duration and whether it is a favorite.                                                 |
+| `setFavorite`    | Favorites or unfavorites files for the whole Team. `listFavorites` lists them.                                                                                 |
+
+`generateImage` and `generateVideo` take an optional `folder`, relative to the
+library folder (`Characters/Mira`), and save there; it is created if missing.
 
 Each generation carries a request id (`media_request_` and 21 lowercase letters
 or digits). Retrying with the same id and inputs recovers the same generation

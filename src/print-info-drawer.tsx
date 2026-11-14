@@ -12,15 +12,23 @@ import { capabilityQuery, queryKeys } from "@fungi.computer/agar/query";
 import { appMethods } from "@fungi.computer/agar/backend";
 import * as z from "zod";
 import { printStyleQuery } from "./media-queries.js";
+import { reportCatchFailure } from "./log-event.js";
 import { KeycapButton } from "@fungi.computer/caps/components/keycap";
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Surface } from "@fungi.computer/caps/components/surface";
 import { DataList, DataRow } from "@fungi.computer/caps/components/data-list";
 import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  CircleDollarSign,
   Clapperboard,
   Clock,
+  Copy,
   Cpu,
   FileImage,
+  FolderInput,
+  Heart,
   Images,
   MessageSquareText,
   Palette,
@@ -39,6 +47,7 @@ import {
   type MediaModel,
 } from "./generation-model.js";
 import type { GalleryImage } from "./media-gallery.js";
+import { formatPrintCost } from "./print-cost.js";
 import { PrintShareRows } from "./print-share.js";
 import { mediaShare } from "@fungi.computer/agar/media";
 
@@ -57,6 +66,9 @@ const outputDetailsSchema = z.object({
     width: z.number().nullable(),
     height: z.number().nullable(),
     steps: z.number().nullable(),
+    durationSeconds: z.number().nullable().optional(),
+    /** What the generation was charged, as metered when it completed. */
+    costMilliunits: z.number(),
     createdAt: z.number(),
   }),
   typed: z.object({ prompt: z.string(), references: z.number() }),
@@ -150,6 +162,70 @@ function FileName({ name }: { name: string }) {
   );
 }
 const fileNameTail = 10;
+/** A prompt longer than this starts folded to a few lines. */
+const promptFoldCharacters = 240;
+
+/** The prompt as typed, with Copy, and Show more for a long one. */
+function PromptText({ prompt }: { prompt: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const long = prompt.length > promptFoldCharacters;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+      }, 1_500);
+    } catch (cause) {
+      reportCatchFailure("copy-print-prompt", cause);
+    }
+  };
+  return (
+    <span className="prints-info-prompt">
+      <span
+        className="whitespace-pre-wrap"
+        data-print-prompt
+        data-folded={long && !expanded ? true : undefined}
+      >
+        {prompt}
+      </span>
+      <span className="prints-info-prompt-tools">
+        <button
+          type="button"
+          className="prints-info-link"
+          onClick={() => {
+            void copy();
+          }}
+        >
+          {copied ? (
+            <Check aria-hidden size={14} />
+          ) : (
+            <Copy aria-hidden size={14} />
+          )}{" "}
+          {copied ? "Copied" : "Copy"}
+        </button>
+        {long ? (
+          <button
+            type="button"
+            className="prints-info-link"
+            aria-expanded={expanded}
+            onClick={() => {
+              setExpanded(!expanded);
+            }}
+          >
+            {expanded ? (
+              <ChevronUp aria-hidden size={14} />
+            ) : (
+              <ChevronDown aria-hidden size={14} />
+            )}{" "}
+            {expanded ? "Show less" : "Show more"}
+          </button>
+        ) : null}
+      </span>
+    </span>
+  );
+}
 
 /** One non-modal information panel owns file actions; tiles stay uncluttered. */
 export function PrintInfoDrawer({
@@ -164,6 +240,7 @@ export function PrintInfoDrawer({
   models,
   canAnimate,
   onIterate,
+  library,
   onClose,
 }: {
   image: GalleryImage;
@@ -178,6 +255,12 @@ export function PrintInfoDrawer({
   canAnimate: boolean;
   /** Load the print into the composer; a message says why it could not. */
   onIterate: (action: Iteration, lineage: PrintLineage) => string | null;
+  /** Library actions for this file, when the Library is open. */
+  library?: Readonly<{
+    favorite: boolean;
+    onToggleFavorite: () => void;
+    onMove: (() => void) | undefined;
+  }>;
   onClose: () => void;
 }) {
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -192,6 +275,7 @@ export function PrintInfoDrawer({
   const lineage = details
     ? lineageOf(details, style.data?.style ?? null)
     : null;
+  const cost = details ? formatPrintCost(details.print.costMilliunits) : null;
   const recordedModel = details ? modelFor(models, details.print.model) : null;
   useEffect(() => {
     const previous = document.activeElement;
@@ -216,7 +300,16 @@ export function PrintInfoDrawer({
       }}
     >
       <div className="flex items-center justify-between gap-sm">
-        <h2 className="text-base font-semibold">Image info</h2>
+        <div className="prints-info-title">
+          <h2 className="text-base font-semibold" title={image.file.name}>
+            {image.file.name.replace(/\.[^.]+$/, "")}
+          </h2>
+          <span className="prints-info-subtitle">
+            {details
+              ? `${details.print.kind === "video" ? "Video" : "Image"} · ${madeAt.format(details.print.createdAt)}`
+              : "Image info"}
+          </span>
+        </div>
         <IconButton
           aria-label="Close image information"
           icon={<X />}
@@ -237,9 +330,7 @@ export function PrintInfoDrawer({
         ) : null}
         {details ? (
           <Fact icon={MessageSquareText} label="Prompt">
-            <span className="whitespace-pre-wrap" data-print-prompt>
-              {details.typed.prompt}
-            </span>
+            <PromptText prompt={details.typed.prompt} />
           </Fact>
         ) : null}
         {details ? (
@@ -286,6 +377,19 @@ export function PrintInfoDrawer({
             </ul>
           </Fact>
         ) : null}
+        {details?.print.kind === "video" &&
+        details.print.durationSeconds != null ? (
+          <Fact icon={Clock} label="Duration">
+            <span data-print-duration>
+              {String(details.print.durationSeconds)} s
+            </span>
+          </Fact>
+        ) : null}
+        {details?.print.source === "recorded" && cost !== null ? (
+          <Fact icon={CircleDollarSign} label="Cost">
+            <span data-print-cost>{cost}</span>
+          </Fact>
+        ) : null}
         {details ? (
           <Fact icon={Clock} label="Made">
             {madeAt.format(details.print.createdAt)}
@@ -328,6 +432,22 @@ export function PrintInfoDrawer({
                 onClick={() => {
                   setRefusal(onIterate("animate", lineage));
                 }}
+              />
+            ) : null}
+          </>
+        ) : null}
+        {library ? (
+          <>
+            <KeycapButton
+              label={library.favorite ? "Unfavorite" : "Favorite"}
+              icon={<Heart />}
+              onClick={library.onToggleFavorite}
+            />
+            {library.onMove ? (
+              <KeycapButton
+                label="Move to…"
+                icon={<FolderInput />}
+                onClick={library.onMove}
               />
             ) : null}
           </>

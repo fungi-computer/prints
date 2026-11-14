@@ -19,7 +19,23 @@ import { GenerationFrame } from "@fungi.computer/caps/components/generation-fram
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Loader } from "@fungi.computer/caps/components/loader";
 import { isVideoPath } from "./local-images.js";
-import { ImagePlus, Info, Check } from "lucide-react";
+import { Checkbox } from "@fungi.computer/caps/components/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@fungi.computer/caps/components/dropdown-menu";
+import {
+  Check,
+  Clock,
+  Ellipsis,
+  FolderInput,
+  Heart,
+  ImagePlus,
+  Info,
+  Upload,
+} from "lucide-react";
 
 /** One decoded image in the retained wall. */
 export type MediaMasonryItem = {
@@ -42,6 +58,19 @@ export type MediaMasonryItem = {
   prompt?: string | undefined;
   onRetry?: () => void;
   onDismiss?: () => void;
+  /** Where the print came from: its model and a clip's seconds, or an upload. */
+  badge?: Readonly<{ label: string | null; seconds: number | null }>;
+  /** The library folder a print sits in, shown where several folders mix. */
+  folderCaption?: string | undefined;
+  favorite?: boolean;
+  onToggleFavorite?: () => void;
+  onMove?: () => void;
+  /** In select mode a tile toggles instead of opening. */
+  select?: Readonly<{
+    active: boolean;
+    checked: boolean;
+    onToggle: () => void;
+  }>;
 };
 
 /** Wall finish: one gutter between tiles and around the wall, in px. It is
@@ -200,8 +229,10 @@ const MediaTileView = memo(function MediaTileView({
           data-media-thumb-wrap
           type="button"
           disabled={item.pending}
+          aria-pressed={item.select?.active ? item.select.checked : undefined}
           onClick={() => {
-            item.onOpen(item.path);
+            if (item.select?.active) item.select.onToggle();
+            else item.onOpen(item.path);
           }}
           onKeyDown={(event) => {
             if (
@@ -244,7 +275,9 @@ const MediaTileView = memo(function MediaTileView({
           </div>
         </button>
       )}
+      {!item.pending && !item.error ? <TileLibraryMarks item={item} /> : null}
       <div className="prints-gallery-tools">
+        {!item.pending && !item.error ? <TileMenu item={item} /> : null}
         {!item.pending && item.onInfo ? (
           <IconButton
             aria-label={`Image info: ${item.path}`}
@@ -269,6 +302,110 @@ const MediaTileView = memo(function MediaTileView({
     </div>
   );
 });
+
+const formatSeconds = (seconds: number): string => `${String(seconds)}s`;
+
+/** Library marks over the picture: a favorite heart or select box on the left, the
+ *  source badge below, and a menu of folder actions. Siblings of the open button. */
+function TileLibraryMarks({
+  item,
+}: {
+  item: MediaMasonryItem;
+}): React.JSX.Element | null {
+  const { select } = item;
+  return (
+    <>
+      <div
+        className="prints-tile-mark"
+        data-checked={select?.active ? select.checked : undefined}
+        data-favorite={item.favorite ? true : undefined}
+      >
+        {select?.active ? (
+          <Checkbox
+            appearance="compact"
+            aria-label={`Select ${item.path}`}
+            checked={select.checked}
+            onChange={select.onToggle}
+          />
+        ) : item.onToggleFavorite ? (
+          <IconButton
+            aria-label={`${item.favorite ? "Unfavorite" : "Favorite"}: ${item.path}`}
+            aria-pressed={item.favorite ?? false}
+            className="prints-tile-heart"
+            icon={<Heart fill={item.favorite ? "currentColor" : "none"} />}
+            onClick={item.onToggleFavorite}
+            title={item.favorite ? "Remove from favorites" : "Favorite"}
+          />
+        ) : null}
+      </div>
+      {item.badge ? (
+        <div className="prints-tile-badge" data-media-badge>
+          {item.badge.label === null ? (
+            <>
+              <Upload aria-hidden size={12} />
+              <span>Upload</span>
+            </>
+          ) : (
+            <>
+              <span className="prints-tile-badge-model">
+                {item.badge.label}
+              </span>
+              {item.badge.seconds === null ? null : (
+                <>
+                  <Clock aria-hidden size={12} />
+                  <span>{formatSeconds(item.badge.seconds)}</span>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      ) : null}
+      {item.folderCaption ? (
+        <div className="prints-tile-folder" title={item.folderCaption}>
+          {item.folderCaption}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** The tile's folder actions, beside Image info in the hover tools. */
+function TileMenu({
+  item,
+}: {
+  item: MediaMasonryItem;
+}): React.JSX.Element | null {
+  if (!item.onMove || item.select?.active) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <IconButton
+            aria-label={`More actions: ${item.path}`}
+            title="More actions"
+            icon={<Ellipsis />}
+          />
+        }
+      />
+      <DropdownMenuContent>
+        <DropdownMenuItem onSelect={item.onMove}>
+          <FolderInput aria-hidden size={16} /> Move to…
+        </DropdownMenuItem>
+        {item.onToggleFavorite ? (
+          <DropdownMenuItem onSelect={item.onToggleFavorite}>
+            <Heart aria-hidden size={16} />{" "}
+            {item.favorite ? "Remove from favorites" : "Favorite"}
+          </DropdownMenuItem>
+        ) : null}
+        {item.onInfo ? (
+          <DropdownMenuItem onSelect={item.onInfo}>
+            <Info aria-hidden size={16} /> Image info
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 /** The grid element — useMasonry renders the wall's container AS this
  *  component, so the grid keeps its data-media-grid receipt (masonic owns
@@ -379,7 +516,13 @@ function useMediaWallPositioner(
   paneWidth: number,
   paneHeight: number,
 ) {
-  const columnCount = Math.max(1, masonryColumnCount(items.length, paneWidth));
+  // A Library wall keeps two columns on a phone however few prints a folder holds.
+  const library = items.some((item) => item.select !== undefined);
+  const columnCount = Math.max(
+    1,
+    masonryColumnCount(items.length, paneWidth),
+    library && items.length >= 2 ? 2 : 1,
+  );
   const width = paneWidth - 2 * MASONRY_GAP;
   const regionHeight = paneHeight - 2 * MASONRY_GAP;
   return useMemo(() => {

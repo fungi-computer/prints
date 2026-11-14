@@ -13,6 +13,7 @@ import {
   mediaVideoBindingInputSchema,
 } from "@fungi.computer/darkroom/media-binding";
 import { defaultMediaLibraryPath } from "../library-folder.js";
+import { isInside, isRelativeFolder, joinFolder } from "../src/library-view.js";
 import {
   pending,
   pendingSchema,
@@ -34,6 +35,7 @@ import {
 } from "@fungi.computer/agar/backend-definition";
 import {
   type MethodActor,
+  folderArgumentSchema,
   generateImageInputSchema,
   generateImageCommandSchema,
   generatedImageSchema,
@@ -48,11 +50,16 @@ import {
   completeMethodGeneration,
 } from "./method-pending.js";
 import {
+  favoritePaths,
   indexedOutput,
   indexedOutputAtPath,
   indexedOutputs,
+  listFavorites,
   printReferences,
   printTyped,
+  rewriteMovedPaths,
+  setFavorites,
+  type MovedPath,
   type TypedInput,
 } from "./print-records.js";
 import {
@@ -83,6 +90,7 @@ import {
   mentionNames,
   planCharacters,
 } from "../src/prompt-characters.js";
+import { referenceWording } from "../src/reference-mentions.js";
 
 const empty = z.strictObject({});
 const id = z.string().min(1).max(256);
@@ -142,11 +150,22 @@ export type PrintsMethodContext = Readonly<{
         byteOffset: number;
         byteLength: number;
       }): Promise<WhistleJsonValue>;
+      move(input: {
+        from: string;
+        to: string;
+        createParents: boolean;
+      }): Promise<WhistleJsonValue>;
     }>;
   }>;
 }>;
 const refusal = (
-  error: "not_granted" | "unavailable" | "conflict" | "not_found",
+  error:
+    | "not_granted"
+    | "unavailable"
+    | "conflict"
+    | "not_found"
+    | "invalid_path"
+    | "invalid",
 ) => ({ error });
 
 function presentRefusal(value: z.output<typeof methodRefusalSchema>) {
@@ -242,6 +261,8 @@ export function composeGeneration<
     names: choices.characters,
     saved,
     references: settings.references ?? [],
+    // `@image1` is the first reference as the caller sent it, 1-based.
+    wording: (merged) => referenceWording(merged, model),
     computerId,
     model:
       model === undefined
@@ -305,6 +326,42 @@ const missingLibrary = () =>
     error: "library_unavailable",
     message: "Choose a Prints library folder on the selected Computer.",
   });
+
+const pathArgument = path.describe(
+  "An absolute path inside the library folder, as listOutputs returns it.",
+);
+const moveRefusals = [
+  "not_granted",
+  "not_found",
+  "conflict",
+  "invalid",
+  "unavailable",
+] as const;
+const movedReply = z.strictObject({ from: path, to: path });
+const listingReply = z.object({
+  entries: z.array(z.object({ name: z.string().min(1), type: z.string() })),
+  nextOffset: z.number().int().nonnegative().nullable(),
+});
+const notInLibrary = () => refusal("invalid_path");
+
+/** The folder's absolute path and the library's, or the refusal to return. */
+function libraryOf(
+  context: PrintsMethodContext,
+  caller: Readonly<{ computerId: string | null }>,
+) {
+  if (caller.computerId === null) return refusal("not_granted");
+  const selected = selectedLibrary(context, caller.computerId);
+  if (selected === null) return missingLibrary();
+  return { computerId: caller.computerId, selected };
+}
+
+/** What one Computer move said, as the single failure a caller can act on. */
+function moveFailure(reply: WhistleJsonValue): (typeof moveRefusals)[number] {
+  const refused = methodRefusalSchema.safeParse(reply);
+  if (!refused.success) return "unavailable";
+  const known = moveRefusals.find((error) => error === refused.data.error);
+  return known ?? "unavailable";
+}
 
 export const appBackend = defineAppBackend<PrintsMethodContext>({
   gills: [recentOutputsGill],
@@ -380,29 +437,273 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
     }),
     listOutputs: defineAppMethod({
       description:
-        "List this App's recorded outputs in its selected library on the admitted Computer, newest first. A file may have been removed since recording.",
+        "List this App's recorded outputs in its selected library on the admitted Computer, newest first. Pass folder (like Characters/Mira) to list one folder inside the library and recursive: true to include every folder beneath it; by default the library folder's own files. Each item carries its model and, for a video, its duration (print.model, print.durationSeconds). A file may have been removed since recording.",
       effect: "read",
       requires: ["computer.list"],
       input: outputPageInputSchema,
       output: z.union([outputPageSchema, methodRefusalSchema]),
       handler: (input, context, caller) => {
-        if (caller.computerId === null) return refusal("not_granted");
-        const selected = selectedLibrary(context, caller.computerId);
-        if (selected === null) return missingLibrary();
+        const library = libraryOf(context, caller);
+        if ("error" in library) return library;
         return outputPageSchema.parse(
           indexedOutputs(
             context.ctx.storage.sql,
-            caller.computerId,
-            selected,
+            library.computerId,
+            joinFolder(library.selected, input.folder),
             input.after ?? null,
             input.limit,
+            input.recursive,
           ),
+        );
+      },
+    }),
+    listFolders: defineAppMethod({
+      description:
+        "List the sub-folders of one folder in the selected library on the admitted Computer, by name (dot-folders are skipped). Pass folder (like Characters) for a folder inside the library; omit it for the library folder. A page holds at most the underlying listing page; pass next as after for more.",
+      effect: "read",
+      requires: ["computer.list"],
+      input: z.strictObject({
+        folder: folderArgumentSchema.optional(),
+        after: z
+          .number()
+          .int()
+          .nonnegative()
+          .max(Number.MAX_SAFE_INTEGER)
+          .nullable()
+          .optional(),
+        limit: z.number().int().min(1).max(100).default(100),
+      }),
+      output: z.union([
+        z.strictObject({
+          folders: z
+            .array(
+              z.strictObject({
+                name: z.string().min(1),
+                folder: folderArgumentSchema,
+              }),
+            )
+            .max(100),
+          next: z.number().int().nonnegative().nullable(),
+        }),
+        methodRefusalSchema,
+      ]),
+      handler: async (input, context, caller) => {
+        const library = libraryOf(context, caller);
+        if ("error" in library) return library;
+        const reply = await bindingCall(() =>
+          context.env.COMPUTER.list({
+            path: joinFolder(library.selected, input.folder),
+            limit: input.limit,
+            offset: input.after ?? 0,
+          }),
+        );
+        const refused = methodRefusalSchema.safeParse(reply);
+        if (refused.success) return presentRefusal(refused.data);
+        const listing = listingReply.parse(reply);
+        const folders = listing.entries
+          .filter(
+            (entry) =>
+              entry.type === "directory" && !entry.name.startsWith("."),
+          )
+          .map((entry) => ({
+            name: entry.name,
+            folder:
+              input.folder === undefined
+                ? entry.name
+                : `${input.folder}/${entry.name}`,
+          }))
+          .filter((entry) => isRelativeFolder(entry.folder));
+        return { folders, next: listing.nextOffset };
+      },
+    }),
+    moveFiles: defineAppMethod({
+      description:
+        "Move files or folders into a folder inside the selected library on the admitted Computer, keeping each one's name. Use this, not a shell mv: it keeps each print's prompt, references, favorite and saved-character links with the file. paths are absolute paths inside the library (as listOutputs returns them); folder is relative to the library (like Characters/Mira), omitted for the library folder itself; createFolder: true makes a missing folder. Pass name with exactly one path to rename it. Nothing is overwritten: a name already in the folder is a conflict, and a folder cannot move into itself. Returns what moved and, per path, why anything did not.",
+      effect: "write",
+      requires: ["computer.writeFile"],
+      input: z.strictObject({
+        paths: z.array(pathArgument).min(1).max(100),
+        folder: folderArgumentSchema.optional(),
+        createFolder: z.boolean().default(false),
+        name: z
+          .string()
+          .refine(isRelativeFolder, "A single new name")
+          .refine((name) => !name.includes("/"), "A single new name")
+          .optional()
+          .describe(
+            "Rename: the new name of the one path given, kept in folder.",
+          ),
+      }),
+      output: z.union([
+        z.strictObject({
+          moved: z.array(z.strictObject({ from: path, to: path })).max(100),
+          failed: z
+            .array(z.strictObject({ path, error: z.enum(moveRefusals) }))
+            .max(100),
+        }),
+        methodRefusalSchema,
+      ]),
+      handler: async (input, context, caller) => {
+        const library = libraryOf(context, caller);
+        if ("error" in library) return library;
+        const sources = [...new Set(input.paths)];
+        if (!sources.every((source) => isInside(library.selected, source)))
+          return notInLibrary();
+        if (input.name !== undefined && sources.length !== 1)
+          return refusal("invalid");
+        const target = joinFolder(library.selected, input.folder);
+        const moved: MovedPath[] = [];
+        const failed: { path: string; error: (typeof moveRefusals)[number] }[] =
+          [];
+        for (const from of sources) {
+          const to = `${target}/${input.name ?? from.slice(from.lastIndexOf("/") + 1)}`;
+          const reply = await bindingCall(() =>
+            context.env.COMPUTER.move({
+              from,
+              to,
+              createParents: input.createFolder,
+            }),
+          );
+          const done = movedReply.safeParse(reply);
+          if (done.success && done.data.from === from && done.data.to === to)
+            moved.push({ from, to });
+          else failed.push({ path: from, error: moveFailure(reply) });
+        }
+        // The index follows what the Computer actually moved, in one commit.
+        if (moved.length > 0)
+          context.ctx.storage.transactionSync(() => {
+            rewriteMovedPaths(
+              context.ctx.storage.sql,
+              library.computerId,
+              moved,
+            );
+          });
+        return { moved, failed };
+      },
+    }),
+    describeFiles: defineAppMethod({
+      description:
+        "Describe up to 24 files in the selected library on the admitted Computer in one call: for each path, whether Prints recorded it (kind image or video, model, modelLabel, and a video's durationSeconds, all null for a file Prints did not make) and whether the Team favorited it.",
+      effect: "read",
+      requires: ["computer.list"],
+      input: z.strictObject({
+        paths: z.array(pathArgument).min(1).max(24),
+      }),
+      output: z.union([
+        z.strictObject({
+          files: z
+            .array(
+              z.strictObject({
+                path,
+                kind: z.enum(["image", "video"]).nullable(),
+                model: z.string().min(1).max(256).nullable(),
+                modelLabel: z.string().min(1).max(256).nullable(),
+                durationSeconds: z.number().int().nonnegative().nullable(),
+                favorite: z.boolean(),
+              }),
+            )
+            .max(24),
+        }),
+        methodRefusalSchema,
+      ]),
+      handler: (input, context, caller) => {
+        const library = libraryOf(context, caller);
+        if ("error" in library) return library;
+        if (!input.paths.every((entry) => isInside(library.selected, entry)))
+          return notInLibrary();
+        const sql = context.ctx.storage.sql;
+        const favorites = favoritePaths(sql, library.computerId, input.paths);
+        const labels = new Map(
+          listMediaModels().map((entry) => [entry.id, entry.label]),
+        );
+        return {
+          files: input.paths.map((entry) => {
+            const indexed = indexedOutputAtPath(
+              sql,
+              library.computerId,
+              entry,
+              library.selected,
+            );
+            return {
+              path: entry,
+              kind: indexed?.print.kind ?? null,
+              model: indexed?.print.model ?? null,
+              modelLabel:
+                indexed === null
+                  ? null
+                  : (labels.get(indexed.print.model) ?? indexed.print.model),
+              durationSeconds: indexed?.print.durationSeconds ?? null,
+              favorite: favorites.has(entry),
+            };
+          }),
+        };
+      },
+    }),
+    setFavorite: defineAppMethod({
+      description:
+        "Favorite or unfavorite files in the selected library for the whole Team. paths are absolute paths inside the library. Repeating a call is harmless.",
+      effect: "write",
+      requires: [],
+      input: z.strictObject({
+        paths: z.array(pathArgument).min(1).max(100),
+        favorite: z.boolean(),
+      }),
+      output: z.union([
+        z.strictObject({
+          favorite: z.boolean(),
+          count: z.number().int().positive().max(100),
+        }),
+        methodRefusalSchema,
+      ]),
+      handler: (input, context, caller) => {
+        const library = libraryOf(context, caller);
+        if ("error" in library) return library;
+        const paths = [...new Set(input.paths)];
+        if (!paths.every((entry) => isInside(library.selected, entry)))
+          return notInLibrary();
+        context.ctx.storage.transactionSync(() => {
+          setFavorites(
+            context.ctx.storage.sql,
+            library.computerId,
+            paths,
+            input.favorite,
+          );
+        });
+        return { favorite: input.favorite, count: paths.length };
+      },
+    }),
+    listFavorites: defineAppMethod({
+      description:
+        "List the Team's favorited files in the selected library, in path order. Pass folder to limit it to one folder and everything beneath it; pass next as after for the next page.",
+      effect: "read",
+      requires: [],
+      input: z.strictObject({
+        folder: folderArgumentSchema.optional(),
+        after: path.nullable().optional(),
+        limit: z.number().int().min(1).max(100).default(100),
+      }),
+      output: z.union([
+        z.strictObject({
+          paths: z.array(path).max(100),
+          next: path.nullable(),
+        }),
+        methodRefusalSchema,
+      ]),
+      handler: (input, context, caller) => {
+        const library = libraryOf(context, caller);
+        if ("error" in library) return library;
+        return listFavorites(
+          context.ctx.storage.sql,
+          library.computerId,
+          joinFolder(library.selected, input.folder),
+          input.after ?? null,
+          input.limit,
         );
       },
     }),
     getOutput: defineAppMethod({
       description:
-        "Read one recorded output by its file path in the selected library on the admitted Computer: its prompt, model, the reference images it was generated from, the saved characters it used (characters) and the saved style it used (style, null when none). To remake or vary it, pass the same characters and style to generateImage with a new prompt.",
+        "Read one recorded output by its file path, at any depth in the selected library on the admitted Computer: its prompt, model, the reference images it was generated from, the saved characters it used (characters) and the saved style it used (style, null when none). To remake or vary it, pass the same characters and style to generateImage with a new prompt.",
       effect: "read",
       requires: ["computer.list"],
       input: outputAtPathInputSchema,
@@ -435,7 +736,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
     }),
     openOutput: defineAppMethod({
       description:
-        "Read at most 128 KiB of an indexed output in the selected library on the admitted Computer as base64. Use byteOffset to read the next chunk.",
+        "Read at most 128 KiB of an indexed output, from any folder in the selected library on the admitted Computer, as base64. Use byteOffset to read the next chunk.",
       effect: "read",
       requires: ["computer.readFile"],
       input: z.strictObject({
@@ -488,7 +789,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
     }),
     generateVideo: defineAppMethod({
       description:
-        "Generate one short MP4 in this App's library with a video model from listModels. Resolution, aspect, duration, audio and path-only frame references follow that model's catalog. The host chooses the Computer path. Workflows may omit requestId to derive it from the trusted caller key; otherwise use media_request_ followed by 21 random lowercase letters or digits. Pending means retry the same inputs and key after retryAfterMs. Existing billing and attachment budgets apply; the Workflow owns human review.",
+        "Generate one short MP4 in this App's library with a video model from listModels. Resolution, aspect, duration, audio and path-only frame references follow that model's catalog. @imageN in the prompt names the Nth reference sent; frames read as first or last frame. The host chooses the Computer path. Workflows may omit requestId to derive it from the trusted caller key; otherwise use media_request_ followed by 21 random lowercase letters or digits. Pending means retry the same inputs and key after retryAfterMs. Existing billing and attachment budgets apply; the Workflow owns human review.",
       effect: "write",
       requires: ["media.generation", "computer.writeFile"],
       pending: true,
@@ -526,7 +827,15 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             : await requestIdForCaller("generateVideo", caller.idempotencyKey));
         if (requestId === undefined)
           return methodRefusalSchema.parse({ error: "invalid" });
-        const { style, characters: characterNames, ...videoInput } = input;
+        const {
+          folder,
+          style,
+          characters: characterNames,
+          ...videoInput
+        } = input;
+        const library =
+          selectedLibrary(context, caller.computerId) ??
+          defaultMediaLibraryPath;
         const composed = composeGeneration(
           context.ctx.storage.sql,
           caller.computerId,
@@ -541,9 +850,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             settings: composed.settings,
             requestId,
           }),
-          libraryPath:
-            selectedLibrary(context, caller.computerId) ??
-            defaultMediaLibraryPath,
+          libraryPath: joinFolder(library, folder),
         });
         const actor: MethodActor =
           caller.actor.kind === "agent"
@@ -584,7 +891,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
         context.ctx.storage.sql.exec(
           "INSERT OR IGNORE INTO media_library_folders(computer_id,path) VALUES (?,?)",
           caller.computerId,
-          command.libraryPath,
+          library,
         );
         return {
           ...generatedVideoSchema.parse(completed.result),
@@ -594,7 +901,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
     }),
     generateImage: defineAppMethod({
       description:
-        "One image. Call listModels, listCharacters and listStyles first; prefer default. Input {requestId,characters,style,settings:{model,prompt,width,height,steps?,references?}}. steps: omit for fixed models; obey input.maxSteps. References {computerId?,path}: ANY attached Computer with its own read grant; omit computerId for selected. characters/style compose the prompt. priceEstimate is an estimate for stated settings, not the charge. requestId: media_request_ + 21 random [a-z0-9]; reuse for recovery. For up to 8 panels, await one call per panel in ONE execute, distinct ids, same characters/style. On attachment_budget_exceeded wait retryAfterMs, reuse id. Never retry retryable:false (AI Gateway credits). Return results in panel order, printId, receipt, summed costMilliunits; if env.computers exists, files.read destination.path first. Never fetch image bytes.",
+        "One image. Call listModels, listCharacters and listStyles first; prefer default. Input {requestId,characters,style,settings:{model,prompt,width,height,steps?,references?}}. steps: omit for fixed models; obey input.maxSteps. References {computerId?,path}: ANY attached Computer with its own read grant; omit computerId for selected. @imageN = Nth ref. characters/style compose the prompt. priceEstimate is an estimate for stated settings, not the charge. requestId: media_request_ + 21 random [a-z0-9]; reuse for recovery. For up to 8 panels, await one call per panel in ONE execute, distinct ids, same characters/style. On attachment_budget_exceeded wait retryAfterMs, reuse id. Never retry retryable:false (AI Gateway credits). Return results in panel order, printId, receipt, summed costMilliunits; if env.computers exists, files.read destination.path first. Never fetch image bytes.",
       effect: "write",
       requires: ["media.generation", "computer.writeFile"],
       input: generateImageInputSchema,
@@ -640,7 +947,15 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             : await requestIdForCaller("generateImage", caller.idempotencyKey));
         if (requestId === undefined)
           return methodRefusalSchema.parse({ error: "invalid" });
-        const { style, characters: characterNames, ...imageInput } = input;
+        const {
+          folder,
+          style,
+          characters: characterNames,
+          ...imageInput
+        } = input;
+        const library =
+          selectedLibrary(context, caller.computerId) ??
+          defaultMediaLibraryPath;
         const composed = composeGeneration(
           context.ctx.storage.sql,
           caller.computerId,
@@ -655,9 +970,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             settings: composed.settings,
             requestId,
           }),
-          libraryPath:
-            selectedLibrary(context, caller.computerId) ??
-            defaultMediaLibraryPath,
+          libraryPath: joinFolder(library, folder),
         });
         try {
           validateMediaGenerationSelection(command.settings);
@@ -707,7 +1020,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
         context.ctx.storage.sql.exec(
           "INSERT OR IGNORE INTO media_library_folders(computer_id,path) VALUES (?,?)",
           caller.computerId,
-          command.libraryPath,
+          library,
         );
         return {
           ...generatedImageSchema.parse(completed.result),

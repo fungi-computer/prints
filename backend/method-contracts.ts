@@ -11,6 +11,7 @@ import {
 } from "@fungi.computer/darkroom";
 import { mediaRequestIdSchema } from "@fungi.computer/agar/media-request-id";
 import { appMediaBrokerFailureSchema } from "@fungi.computer/darkroom/app-media-contracts";
+import { isRelativeFolder } from "../src/library-view.js";
 
 const id = z.string().min(1).max(256);
 export const methodActorSchema = z.strictObject({
@@ -37,7 +38,15 @@ const charactersArgumentSchema = z
   .describe(
     "Names of saved Prints characters. Each one's description is added to the prompt and its reference images to the references, counting against the model's reference limit. An unknown name is INVALID_ARGUMENT. The prompt may also mention characters as @name.",
   );
+/** A folder inside the chosen destination; absent means the destination itself. */
+export const folderArgumentSchema = z
+  .string()
+  .refine(isRelativeFolder, "A folder inside the library, like Characters/Mira")
+  .describe(
+    "A folder inside the library, relative to the library folder, like Characters/Mira. Omit it for the library folder itself.",
+  );
 export const generateImageInputSchema = generateImageCommandSchema.extend({
+  folder: folderArgumentSchema.optional(),
   requestId: mediaRequestIdSchema.optional(),
   style: styleArgumentSchema.optional(),
   characters: charactersArgumentSchema.optional(),
@@ -62,6 +71,7 @@ export const generateVideoCommandSchema =
   videoCommandSchema.superRefine(validateVideoCommand);
 export const generateVideoInputSchema = videoCommandSchema
   .extend({
+    folder: folderArgumentSchema.optional(),
     requestId: mediaRequestIdSchema.optional(),
     style: styleArgumentSchema.optional(),
     characters: charactersArgumentSchema.optional(),

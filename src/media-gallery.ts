@@ -80,7 +80,7 @@ export function useGalleryMedia(
   connection: MediaConnection | null,
   folder: ReturnType<typeof useMediaFolder>,
 ) {
-  const mediaDirectory = folder.path;
+  const mediaDirectory = folder.landingPath;
   const computerId = useComputerId(connection?.app);
   const reads = useRef(new Set<AbortController>());
   const readGeneration = useRef(0);
@@ -89,7 +89,7 @@ export function useGalleryMedia(
   const canBrowse = connection?.app.capabilities.has(computerList) === true;
   const canRead = connection?.app.capabilities.has(computerReadFile) === true;
   const canWrite = connection?.app.capabilities.has(computerWriteFile) === true;
-  const gallery = useMediaGallery(connection, folder.galleryPath);
+  const gallery = useMediaGallery(connection, folder.source);
   const [files, setFiles] = useState<GallerySource[]>([]);
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [failed, setFailed] = useState<string[]>([]);
