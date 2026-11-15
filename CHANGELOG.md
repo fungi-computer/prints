@@ -1,5 +1,25 @@
 # @fungi.computer/prints
 
+## 0.17.1
+
+### Patch Changes
+
+- Changes since 0.17.0:
+
+  - fix(prints): keep the library bar when the first listing fails
+  - fix(prints): hide the bar of an empty library and widen phone tiles
+  - fix(prints): end the phone model menu mid-row and fade only when more waits
+  - fix(prints): align model menu details, cue scrolling and keep guidance
+    legible
+  - fix(prints): group the model menu and keep the info sheet and guidance
+    compact
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.18.0
+  - @fungi.computer/darkroom@0.11.0
+  - @fungi.computer/parakeet@0.11.36
+
 ## 0.17.0
 
 ### Minor Changes

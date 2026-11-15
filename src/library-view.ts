@@ -94,3 +94,21 @@ export const walkCursorSchema = Schema.Struct({
     Schema.check(Schema.isGreaterThanOrEqualTo(0)),
   ),
 });
+
+/**
+ * Whether the library is known to be empty at its root: no prints, no folders,
+ * and the first listing succeeded. Only then is the view bar pointless; a
+ * failed or pending listing leaves the way to other folders and views open.
+ */
+export function isBareLibrary(
+  state: Readonly<{
+    selectable: boolean;
+    atFolderRoot: boolean;
+    loading: boolean;
+    failed: boolean;
+  }>,
+): boolean {
+  return (
+    !state.selectable && state.atFolderRoot && !state.loading && !state.failed
+  );
+}

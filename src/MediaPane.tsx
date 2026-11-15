@@ -48,6 +48,7 @@ import {
   NewFolderDialog,
   SelectBar,
 } from "./library-select.js";
+import { isBareLibrary } from "./library-view.js";
 import { useLibrary } from "./use-library.js";
 import {
   Dialog,
@@ -482,6 +483,14 @@ function GenerationSettings({
   );
 }
 
+/** One sentence for a notice shown beside or inside the prompt. */
+function guidanceText(notice: PrintsNotice): string {
+  if (notice.detail === undefined) return notice.title;
+  return notice.group === "Images"
+    ? notice.detail
+    : `${notice.title}. ${notice.detail}`;
+}
+
 function GenerationComposer({
   actions,
   guidance,
@@ -538,6 +547,16 @@ function GenerationComposer({
   onSubmit: () => Promise<boolean>;
 }): React.JSX.Element {
   const selected = modelFor(models, values.model);
+  const composerDisabled =
+    !mediaCapability || modelsLoading || models.length === 0;
+  // A blocking setup notice explains the empty, disabled prompt: it speaks in
+  // the placeholder, so it takes no row of its own.
+  const placeholderGuidance =
+    composerDisabled &&
+    guidance?.group === "Setup" &&
+    guidance.blocking === true
+      ? guidance
+      : undefined;
   const typedLength = values.prompt.trim().length;
   const promptOver =
     selected !== undefined &&
@@ -908,7 +927,14 @@ function GenerationComposer({
           >
             <form.Field name="prompt">
               {(field) => (
-                <div className="prints-prompt" id={regionId} ref={promptRef}>
+                <div
+                  className="prints-prompt"
+                  data-guidance-placeholder={
+                    placeholderGuidance ? "" : undefined
+                  }
+                  id={regionId}
+                  ref={promptRef}
+                >
                   {slash.slashOpen ? (
                     <MediaSlashSheet
                       index={slash.slashIndex}
@@ -957,12 +983,7 @@ function GenerationComposer({
                       const next = mentions.complete(mentions.index);
                       if (next !== null) field.handleChange(next);
                     }}
-                    disabled={
-                      !mediaCapability ||
-                      modelsLoading ||
-                      models.length === 0 ||
-                      submitting
-                    }
+                    disabled={composerDisabled || submitting}
                     maxLength={selected?.maxPromptLength}
                     addedLength={addedLength}
                     onChange={(value) => {
@@ -974,11 +995,13 @@ function GenerationComposer({
                       pickSlash(slash.slashIndex);
                     }}
                     placeholder={
-                      selected?.audio?.mode === "speech"
-                        ? "What should it say?"
-                        : selected?.audio?.mode === "music"
-                          ? "Describe the music"
-                          : "What are we making?"
+                      placeholderGuidance
+                        ? guidanceText(placeholderGuidance)
+                        : selected?.audio?.mode === "speech"
+                          ? "What should it say?"
+                          : selected?.audio?.mode === "music"
+                            ? "Describe the music"
+                            : "What are we making?"
                     }
                     slashCount={slash.slashMatches.length}
                     value={field.state.value}
@@ -1000,21 +1023,13 @@ function GenerationComposer({
               )}
             </form.Field>
           </form>
-          {guidance ? (
+          {guidance && !placeholderGuidance ? (
             <div
               className="prints-composer-guidance"
               role="status"
               data-composer-guidance
             >
-              <span>
-                {guidance.group === "Images" && guidance.detail ? (
-                  guidance.detail
-                ) : (
-                  <>
-                    {guidance.title}. {guidance.detail}
-                  </>
-                )}
-              </span>
+              <span>{guidanceText(guidance)}</span>
               {guidance.actions?.map((action) => (
                 <Button
                   key={action.label}
@@ -1079,6 +1094,18 @@ function GenerationComposer({
                 title="Open full-screen editor"
               />
             ) : null}
+            {placeholderGuidance
+              ? placeholderGuidance.actions?.map((action) => (
+                  <Button
+                    key={action.label}
+                    variant="ghost"
+                    size="xs"
+                    onClick={action.run}
+                  >
+                    {action.label}
+                  </Button>
+                ))
+              : null}
             {isAudio ? null : actions}
             {audioChoices.length > 0 ? (
               <KeycapButton
@@ -1304,6 +1331,14 @@ export function MediaPane({
     library.selecting ||
     gallery.entries.length > 0 ||
     galleryMedia.gallery.folders.length > 0;
+  // A library with no prints and no folders has nothing to switch between or
+  // open: the bar would only push the invitation down.
+  const bareLibrary = isBareLibrary({
+    selectable,
+    atFolderRoot: folder.view.kind === "folder" && !library.up,
+    loading: loading || gallery.loading,
+    failed: Boolean(gallery.error),
+  });
   useHostNavigation(libraryVisible ? connection.app.window.navigation : null, {
     canGoBack: library.history.canGoBack,
     canGoForward: library.history.canGoForward,
@@ -2232,28 +2267,30 @@ export function MediaPane({
         >
           {libraryVisible ? (
             <>
-              <LibraryBar
-                view={folder.view}
-                lastFolder={library.lastFolder}
-                onOpen={library.history.open}
-                onFolders={() => {
-                  setFoldersOpen(true);
-                }}
-                subfolders={
-                  folder.view.kind === "folder"
-                    ? galleryMedia.gallery.folders
-                    : []
-                }
-                onOpenSubfolder={(name) => {
-                  library.history.open({
-                    kind: "folder",
-                    folder:
-                      folder.view.kind === "folder" && folder.view.folder
-                        ? `${folder.view.folder}/${name}`
-                        : name,
-                  });
-                }}
-              />
+              {bareLibrary ? null : (
+                <LibraryBar
+                  view={folder.view}
+                  lastFolder={library.lastFolder}
+                  onOpen={library.history.open}
+                  onFolders={() => {
+                    setFoldersOpen(true);
+                  }}
+                  subfolders={
+                    folder.view.kind === "folder"
+                      ? galleryMedia.gallery.folders
+                      : []
+                  }
+                  onOpenSubfolder={(name) => {
+                    library.history.open({
+                      kind: "folder",
+                      folder:
+                        folder.view.kind === "folder" && folder.view.folder
+                          ? `${folder.view.folder}/${name}`
+                          : name,
+                    });
+                  }}
+                />
+              )}
               {library.selecting ? (
                 <SelectBar
                   count={library.selected.size}

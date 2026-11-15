@@ -402,7 +402,34 @@ span.prints-reference-role {
 }
 [data-generation-model-menu] {
   max-width: var(--available-width);
+  max-height: min(var(--available-height), 60vh, 400px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   white-space: normal;
+}
+/* A soft fade at the bottom edge says there is more below. */
+[data-generation-model-menu][data-more] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+}
+/* Touch rows are 44px: end the menu mid-row so the next group visibly peeks. */
+@media (pointer: coarse) {
+  [data-generation-model-menu] {
+    max-height: min(var(--available-height), 60vh, 450px);
+  }
+}
+/* The checkmark takes room only on the chosen row; reserve it on the others so
+   every detail shares one left edge. */
+[data-generation-model-option]:not([data-checked]) .prints-model-row {
+  margin-inline-end: 1.371rem;
+}
+/* What kind of output, and what it costs: quiet, at the row's far edge. */
+.prints-model-detail {
+  flex: none;
+  width: 8.5rem;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--stipe-fg-muted);
 }
 .prints-activity-tray {
   --caps-status-tray-width: 28rem;
@@ -471,6 +498,14 @@ span.prints-reference-role {
   /* Caps reserves the scrollbar gutter on the right only; mirror it on the
      left so the bezel is even on both sides. */
   padding-inline-start: var(--caps-scroll-gutter-width);
+}
+/* A phone gives the tiles the width: no mirrored gutter, and the thin scroll
+   track overlays the pane edge instead of reserving a strip beside the wall. */
+@container (max-width: 640px) {
+  .prints-gallery-region > .caps-scroll-area {
+    --caps-scroll-gutter-width: 0px;
+    padding-inline-start: 0;
+  }
 }
 .prints-info-drawer {
   flex: 0 0 var(--container-xs);
@@ -565,12 +600,19 @@ span.prints-reference-role {
     inset: auto 0 0;
     z-index: 5;
     flex: none;
-    max-height: min(60%, 26rem);
+    max-height: 70%;
     padding: var(--spacing-sm) var(--spacing-md);
     /* A clear top edge: its own surface above the wall, never a seam in it. */
     border-top: 2px solid var(--color-base-300);
     border-radius: var(--radius-box) var(--radius-box) 0 0;
     box-shadow: 0 -10px 24px rgb(0 0 0 / 0.22);
+  }
+}
+/* The sheet has the screen's lower part to itself: the composer steps aside
+   (its draft stays) until the sheet closes. */
+@container (max-width: 40rem) {
+  [data-app-pane="media"]:has(.prints-info-drawer) .prints-composer-dock {
+    display: none;
   }
 }
 /* Touch has no hover: the tools stay, quieter. */
@@ -1299,4 +1341,13 @@ span.prints-reference-role {
   .prints-library-bar [role="tab"] {
     min-height: var(--caps-touch-target, 2.75rem);
   }
+}
+
+/* A disabled prompt whose placeholder carries the guidance stays readable. */
+[data-guidance-placeholder] textarea:disabled {
+  opacity: 1;
+}
+[data-guidance-placeholder] textarea::placeholder {
+  color: var(--stipe-fg-muted);
+  opacity: 1;
 }
