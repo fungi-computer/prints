@@ -231,11 +231,17 @@ function recordedFixtureOutput(path: string) {
     path,
     references: audio
       ? []
-      : [
-          { path: "/media/coast.jpg", printId: null },
-          { path: "/media/forest-light.jpg", printId: null },
-          { path: "/media/alpine-lake.jpg", printId: null },
-        ],
+      : /^\/media\/print-\d+\.png$/.test(path)
+        ? // A gallery of generated prints references pictures inside it,
+          // so the drawer shows real thumbnails.
+          ["print-03", "print-05", "print-07"].map((name) => ({
+            path: `/media/${name}.png`,
+            printId: null,
+          }))
+        : ["coast", "forest-light", "alpine-lake"].map((name) => ({
+            path: `/media/${name}.jpg`,
+            printId: null,
+          })),
     characters: audio ? [] : ["Mira", "Kenji"],
   };
 }

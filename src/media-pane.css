@@ -677,7 +677,26 @@ span.prints-reference-role {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-xs);
+  column-gap: var(--spacing-md);
+  row-gap: var(--spacing-sm);
+}
+.prints-info-references li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 80px;
+  text-align: center;
+  min-width: 0;
+}
+.prints-info-references [data-print-reference-name] {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.6875rem;
+  color: var(--stipe-fg-muted);
 }
 .prints-info-references img {
   display: block;

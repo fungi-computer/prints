@@ -1,5 +1,19 @@
 # @fungi.computer/prints
 
+## 0.17.2
+
+### Patch Changes
+
+- Changes since 0.17.1:
+
+  - fix(prints): space and centre reference captions
+  - fix(prints): scope gallery reference fixtures to generated prints
+  - fix(prints): show reference thumbnails in the workbench and widen captions
+  - fix(prints): caption each reference thumbnail with its own name
+
+- Updated dependencies
+  - @fungi.computer/parakeet@0.11.37
+
 ## 0.17.1
 
 ### Patch Changes

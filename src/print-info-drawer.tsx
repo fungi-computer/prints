@@ -503,7 +503,8 @@ export function PrintInfoDrawer({
                     key={`${String(index)}:${reference.path}`}
                     title={reference.path}
                   >
-                    {thumbnail ? <img src={thumbnail.url} alt={name} /> : name}
+                    {thumbnail ? <img src={thumbnail.url} alt="" /> : null}
+                    <span data-print-reference-name>{name}</span>
                   </li>
                 );
               })}
