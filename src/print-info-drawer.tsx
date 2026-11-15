@@ -13,6 +13,7 @@ import { appMethods } from "@fungi.computer/agar/backend";
 import * as z from "zod";
 import { printStyleQuery } from "./media-queries.js";
 import { reportCatchFailure } from "./log-event.js";
+import { notifyPrintsError } from "./prints-error-toast.js";
 import { KeycapButton } from "@fungi.computer/caps/components/keycap";
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Surface } from "@fungi.computer/caps/components/surface";
@@ -286,7 +287,9 @@ export function PrintInfoDrawer({
   }>;
   onClose: () => void;
 }) {
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const refuse = (refusal: string | null) => {
+    if (refusal) notifyPrintsError(refusal, "prints-iterate-refusal");
+  };
   const panel = useRef<HTMLDivElement>(null);
   const style = useQuery(
     printStyleQuery(
@@ -353,11 +356,84 @@ export function PrintInfoDrawer({
           </span>
         </div>
         <IconButton
+          className="prints-info-close"
           aria-label="Close image information"
           icon={<X />}
           onClick={onClose}
         />
       </div>
+      <div
+        className="prints-info-actions"
+        role="group"
+        aria-label="Image actions"
+      >
+        {lineage && image.source.kind === "computer" ? (
+          <>
+            {editedFrom === null ? (
+              <KeycapButton
+                label="Reuse"
+                icon={<RotateCcw />}
+                disabled={style.isPending}
+                onClick={() => {
+                  refuse(onIterate("reuse", lineage));
+                }}
+              />
+            ) : null}
+            {lineage.kind === "audio" ? null : (
+              <KeycapButton
+                label="Remix"
+                icon={<Shuffle />}
+                disabled={style.isPending}
+                onClick={() => {
+                  refuse(onIterate("remix", lineage));
+                }}
+              />
+            )}
+            {canAnimate && lineage.kind === "image" ? (
+              <KeycapButton
+                label="Animate"
+                icon={<Clapperboard />}
+                disabled={style.isPending}
+                onClick={() => {
+                  refuse(onIterate("animate", lineage));
+                }}
+              />
+            ) : null}
+          </>
+        ) : null}
+        {library ? (
+          <>
+            <KeycapButton
+              label={library.favorite ? "Unfavorite" : "Favorite"}
+              icon={<Heart />}
+              onClick={library.onToggleFavorite}
+            />
+            {library.onMove ? (
+              <KeycapButton
+                label="Move to…"
+                icon={<FolderInput />}
+                onClick={library.onMove}
+              />
+            ) : null}
+          </>
+        ) : null}
+        {download}
+      </div>
+      {operations &&
+      details?.print.kind === "image" &&
+      image.source.kind === "computer" ? (
+        <PrintOperationsPanel
+          models={models}
+          source={{
+            computerId: image.source.computerId,
+            path: image.source.path,
+            width: image.width,
+            height: image.height,
+          }}
+          operations={operations}
+        />
+      ) : null}
+      {/* Actions lead: the facts and Share are for reading after, below them. */}
       <DataList density="compact" className="prints-info-facts">
         <Fact icon={FileImage} label="File">
           <FileName name={image.file.name} />
@@ -459,82 +535,6 @@ export function PrintInfoDrawer({
           <PrintShareRows app={app} printId={details.print.printId} />
         ) : null}
       </DataList>
-      <div
-        className="prints-info-actions"
-        role="group"
-        aria-label="Image actions"
-      >
-        {lineage && image.source.kind === "computer" ? (
-          <>
-            {editedFrom === null ? (
-              <KeycapButton
-                label="Reuse"
-                icon={<RotateCcw />}
-                disabled={style.isPending}
-                onClick={() => {
-                  setRefusal(onIterate("reuse", lineage));
-                }}
-              />
-            ) : null}
-            {lineage.kind === "audio" ? null : (
-              <KeycapButton
-                label="Remix"
-                icon={<Shuffle />}
-                disabled={style.isPending}
-                onClick={() => {
-                  setRefusal(onIterate("remix", lineage));
-                }}
-              />
-            )}
-            {canAnimate && lineage.kind === "image" ? (
-              <KeycapButton
-                label="Animate"
-                icon={<Clapperboard />}
-                disabled={style.isPending}
-                onClick={() => {
-                  setRefusal(onIterate("animate", lineage));
-                }}
-              />
-            ) : null}
-          </>
-        ) : null}
-        {library ? (
-          <>
-            <KeycapButton
-              label={library.favorite ? "Unfavorite" : "Favorite"}
-              icon={<Heart />}
-              onClick={library.onToggleFavorite}
-            />
-            {library.onMove ? (
-              <KeycapButton
-                label="Move to…"
-                icon={<FolderInput />}
-                onClick={library.onMove}
-              />
-            ) : null}
-          </>
-        ) : null}
-        {download}
-      </div>
-      {operations &&
-      details?.print.kind === "image" &&
-      image.source.kind === "computer" ? (
-        <PrintOperationsPanel
-          models={models}
-          source={{
-            computerId: image.source.computerId,
-            path: image.source.path,
-            width: image.width,
-            height: image.height,
-          }}
-          operations={operations}
-        />
-      ) : null}
-      {refusal ? (
-        <p role="alert" className="text-sm">
-          {refusal}
-        </p>
-      ) : null}
     </Surface>
   );
 }

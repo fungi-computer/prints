@@ -1,4 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { FileTree, useFileTree } from "@pierre/trees/react";
 import type { AppRoot } from "@fungi.computer/agar";
 import {
@@ -14,7 +20,9 @@ import { FolderInput, FolderPlus, Heart, Images, Pencil } from "lucide-react";
 import type { LibraryView } from "./media-folder.js";
 import { joinFolder, type RelativeFolder } from "./library-view.js";
 
-const ROW_HEIGHT_PX = 32;
+/** A tree row is a touch target on a coarse pointer: 44px there, 32px with a mouse. */
+const rowHeightPx = (): number =>
+  globalThis.matchMedia("(pointer: coarse)").matches ? 44 : 32;
 
 /**
  * Tree rows are named from the destination down, with its own name as the one
@@ -43,15 +51,19 @@ function folderOfRow(row: string) {
 const isRootRow = (row: string): boolean =>
   row.replace(/\/$/, "") === rootName();
 
-const treeStyle: CSSProperties & Record<`--${string}`, string> = {
+const treeStyleFor = (
+  rowHeight: number,
+): CSSProperties & Record<`--${string}`, string> => ({
   flex: 1,
   minHeight: 0,
-  "--trees-item-height": `${String(ROW_HEIGHT_PX)}px`,
+  "--trees-item-height": `${String(rowHeight)}px`,
   "--trees-padding-inline-override": "var(--spacing-xs)",
   "--trees-item-margin-x-override": "0px",
   "--trees-item-padding-x-override": "var(--spacing-xs)",
   "--trees-item-row-gap-override": "var(--spacing-xs)",
   "--trees-bg-override": "transparent",
+  "--trees-border-color-override": "var(--stipe-hairline)",
+  "--trees-focus-ring-color-override": "var(--color-primary)",
   "--trees-fg-override": "var(--color-base-content)",
   "--trees-bg-muted-override": "var(--color-base-200)",
   "--trees-selected-bg-override": "var(--color-base-300)",
@@ -60,7 +72,7 @@ const treeStyle: CSSProperties & Record<`--${string}`, string> = {
   "--trees-font-size-override": "13px",
   "--trees-search-bg-override": "var(--color-base-200)",
   "--trees-search-fg-override": "var(--color-base-content)",
-};
+});
 
 export type LibraryTreeProps = Readonly<{
   app: AppRoot;
@@ -137,9 +149,10 @@ export function LibraryTree({
     requestPage,
   };
   const editable = mode === "browse" && canWrite;
+  const [rowHeight] = useState(rowHeightPx);
   const { model } = useFileTree({
     paths: [],
-    itemHeight: ROW_HEIGHT_PX,
+    itemHeight: rowHeight,
     initialExpansion: 1,
     flattenEmptyDirectories: false,
     search: mode === "browse",
@@ -273,7 +286,7 @@ export function LibraryTree({
       <FileTree
         model={model}
         className="prints-tree-view"
-        style={treeStyle}
+        style={treeStyleFor(rowHeight)}
         renderContextMenu={
           mode === "browse"
             ? (item, context) => {

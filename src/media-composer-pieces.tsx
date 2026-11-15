@@ -8,10 +8,8 @@ import {
 } from "@fungi.computer/parakeet/completion-menu";
 import { completeSlash } from "@fungi.computer/parakeet/slash";
 import { Textarea } from "@fungi.computer/caps/components/textarea";
-import {
-  composerSendState,
-  useComposerTextareaSize,
-} from "@fungi.computer/parakeet";
+import { composerSendState } from "@fungi.computer/parakeet";
+import type { ComposerLayout } from "./media-composer-size.js";
 import {
   mentionAt,
   mentionedNames,
@@ -83,15 +81,47 @@ export function GenerateButton({
       disabled={disabled || promptOver}
       onClick={onGenerate}
       state={composerSendState({ draft, busy })}
-      title={disabled && disabledReason ? disabledReason : label}
+      title={
+        (disabled || promptOver) && disabledReason ? disabledReason : label
+      }
     />
   );
 }
 /** Where the caret belongs once `value` has been written by a mention pick. */
 export type CaretRequest = Readonly<{ value: string; caret: number }>;
 
+/** The sentence that names why a prompt over the model's limit cannot be sent. */
+export function promptOverMessage({
+  addedLength,
+  length,
+  maxLength,
+}: {
+  addedLength: number;
+  length: number;
+  maxLength: number;
+}): string {
+  return `${String(length)} / ${String(maxLength)} characters. This model accepts up to ${String(maxLength)}; shorten the prompt${addedLength > 0 ? " or its style and characters" : ""} by ${String(length - maxLength)} or pick another model.`;
+}
+
+/** The counter shows only near the limit, over the box's corner, so it never adds a row. */
+const COUNTER_FROM = 0.8;
+
+/** The height of one line of text, padding included. */
+function oneLine(field: HTMLTextAreaElement): number {
+  const style = window.getComputedStyle(field);
+  const lineHeight = Number.parseFloat(style.lineHeight);
+  return (
+    (Number.isFinite(lineHeight) ? lineHeight : 26) +
+    Number.parseFloat(style.paddingTop) +
+    Number.parseFloat(style.paddingBottom)
+  );
+}
+
 export function MediaComposerTextarea({
   caretRequest,
+  layout,
+  onOverflow,
+  onOver,
   disabled,
   maxLength,
   addedLength = 0,
@@ -110,6 +140,12 @@ export function MediaComposerTextarea({
   value,
 }: {
   caretRequest: CaretRequest | null;
+  /** The composer's size: the auto-grow cap, collapsed and full-screen state. */
+  layout: ComposerLayout;
+  /** Whether the text is taller than the box, for the phone's expand key. */
+  onOverflow: (overflowing: boolean) => void;
+  /** Called with the reason when a send is attempted over the model's limit. */
+  onOver: (message: string) => void;
   disabled?: boolean;
   /** The selected model's prompt limit; the box never truncates past it. */
   maxLength?: number | undefined;
@@ -159,13 +195,50 @@ export function MediaComposerTextarea({
     textarea.focus({ preventScroll: true });
   }, [caretRequest, value]);
 
-  useComposerTextareaSize(textareaRef, value);
+  const { cap, collapsed, fullscreen } = layout;
+  useLayoutEffect(() => {
+    const field = textareaRef.current;
+    if (!field) return;
+    if (fullscreen) {
+      // The editor's CSS fills the screen; there is no auto-grow to measure.
+      field.style.height = "";
+      onOverflow(false);
+      return;
+    }
+    // An empty box is one line; the text grows it up to the cap.
+    field.style.height = "auto";
+    const line = field.scrollHeight;
+    field.style.height = `${String(collapsed ? oneLine(field) : Math.min(line, cap))}px`;
+    onOverflow(!collapsed && line > cap + 1);
+    // A collapsed box shows its first line only, never a slice of the next.
+    if (collapsed) field.scrollTop = 0;
+    // A collapsed box that hides more text fades at its foot.
+    if (collapsed && line > field.clientHeight + 1)
+      field.setAttribute("data-clipped", "");
+    else field.removeAttribute("data-clipped");
+  }, [value, cap, collapsed, fullscreen, onOverflow]);
+
+  // Opening the editor lands the caret and the view at the end of the text.
+  useLayoutEffect(() => {
+    const field = textareaRef.current;
+    if (!field || !fullscreen) return;
+    field.setSelectionRange(field.value.length, field.value.length);
+    field.scrollTop = field.scrollHeight;
+  }, [fullscreen]);
 
   const send = useCallback(async () => {
     const draft = latestValue.current.trim();
     if (!draft || disabled || sendingRef.current) return;
-    if (maxLength !== undefined && draft.length + addedLength > maxLength)
+    if (maxLength !== undefined && draft.length + addedLength > maxLength) {
+      onOver(
+        promptOverMessage({
+          addedLength,
+          length: draft.length + addedLength,
+          maxLength,
+        }),
+      );
       return;
+    }
     restoreFocus.current =
       textareaRef.current === textareaRef.current?.ownerDocument.activeElement;
     sendingRef.current = true;
@@ -182,11 +255,13 @@ export function MediaComposerTextarea({
       sendingRef.current = false;
       setSending(false);
     }
-  }, [disabled, maxLength, onSend, addedLength]);
+  }, [disabled, maxLength, onOver, onSend, addedLength]);
 
   const typed = value.trim().length;
   const length = typed > 0 ? typed + addedLength : 0;
   const over = maxLength !== undefined && length > maxLength;
+  const counting =
+    maxLength !== undefined && length >= Math.floor(maxLength * COUNTER_FROM);
   return (
     <div className="relative min-w-0 flex-1">
       <Textarea
@@ -194,12 +269,16 @@ export function MediaComposerTextarea({
         aria-label="Prompt"
         className="w-full"
         data-generation-prompt
+        data-counting={counting ? "" : undefined}
         {...completionFieldProps(menu)}
         disabled={disabled === true || sending}
         onChange={(event) => {
           onChange(event.currentTarget.value);
           onCaret(event.currentTarget.selectionStart);
           setHistoryIndex(-1);
+        }}
+        onScroll={(event) => {
+          if (collapsed) event.currentTarget.scrollTop = 0;
         }}
         onSelect={(event) => {
           onCaret(event.currentTarget.selectionStart);
@@ -262,19 +341,29 @@ export function MediaComposerTextarea({
         }}
         placeholder={placeholder}
         ref={textareaRef}
+        style={{ maxHeight: fullscreen ? undefined : cap }}
         rows={1}
         value={value}
       />
-      {maxLength !== undefined && length > 0 ? (
+      {counting ? (
         <p
-          className={`px-3 pb-1 text-xs tabular-nums ${over ? "text-error" : "text-dim"}`}
+          className={`prints-prompt-counter ${over ? "text-error" : "text-dim"}`}
           data-prompt-counter
           id={PROMPT_COUNTER_ID}
-          role={over ? "alert" : "status"}
+          role="status"
+          title={
+            over
+              ? promptOverMessage({ addedLength, length, maxLength })
+              : undefined
+          }
         >
-          {over
-            ? `${String(length)} / ${String(maxLength)} characters. This model accepts up to ${String(maxLength)}; shorten the prompt${addedLength > 0 ? " or its style and characters" : ""} by ${String(length - maxLength)} or pick another model.`
-            : `${String(length)} / ${String(maxLength)}`}
+          {`${String(length)} / ${String(maxLength)}`}
+          {over ? (
+            <span className="sr-only">
+              {" "}
+              {promptOverMessage({ addedLength, length, maxLength })}
+            </span>
+          ) : null}
         </p>
       ) : null}
     </div>

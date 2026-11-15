@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AppRoot } from "@fungi.computer/agar";
 import {
   mediaShare,
@@ -10,6 +10,7 @@ import { DataRow } from "@fungi.computer/caps/components/data-list";
 import { KeycapButton } from "@fungi.computer/caps/components/keycap";
 import { Switch } from "@fungi.computer/caps/components/switch";
 import { Sigil } from "@fungi.computer/sigils";
+import { notifyPrintsError } from "./prints-error-toast.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Link } from "lucide-react";
 
@@ -65,6 +66,14 @@ export function PrintShareRows({
   const shared = status.data?.shared === true ? status.data : null;
   const prompted = shared === null ? showPrompt : shared.showPrompt;
   const busy = status.isPending || update.isPending;
+  const unavailable = update.isError || status.isError;
+  useEffect(() => {
+    if (unavailable)
+      notifyPrintsError(
+        "Sharing is unavailable right now. Try again.",
+        "prints-share-error",
+      );
+  }, [unavailable]);
   return (
     <>
       <DataRow>
@@ -125,13 +134,6 @@ export function PrintShareRows({
           </span>
         </span>
       </DataRow>
-      {update.isError || status.isError ? (
-        <DataRow>
-          <span role="alert" className="text-sm">
-            Sharing is unavailable right now. Try again.
-          </span>
-        </DataRow>
-      ) : null}
     </>
   );
 }

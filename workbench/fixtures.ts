@@ -129,6 +129,8 @@ export type CaptureOptions = {
   requestBrowserAction?: AppRoot["ui"]["requestBrowserAction"];
   /** The window's status bar; a story without a shell drops its items. */
   status?: Pick<AppRoot["ui"], "reportStatus" | "onStatusAction">;
+  /** The window header's navigation; a story without a shell drops it. */
+  navigation?: AppRoot["window"]["navigation"];
   writeFails?: boolean;
   finishUpload?: () => Promise<void>;
   /** Keep the real pending UI visible without an unfinishable fake job. */
@@ -1048,15 +1050,14 @@ export function createPrintsFixture(
           video &&
           (input.settings.width !== 1280 ||
             input.settings.height !== 720 ||
-            input.settings.durationSeconds !== 5 ||
-            input.settings.generateAudio === true)
+            input.settings.durationSeconds !== 5)
         )
           return {
             kind: "failed" as const,
             failure: {
               code: "INVALID_ARGUMENT" as const,
               message:
-                "The local video fixture supports silent 1280×720 for 5 seconds.",
+                "The local video fixture supports 1280×720 for 5 seconds.",
               retryable: false,
             },
           };
@@ -1184,7 +1185,7 @@ export function createPrintsFixture(
     theme: { get: () => "latte", subscribe: () => () => undefined },
     window: {
       onBeforeClose: () => () => undefined,
-      navigation: inertHostNavigation,
+      navigation: opt.navigation ?? inertHostNavigation,
     },
     ui: {
       openNavigation: ({ path }) => {

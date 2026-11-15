@@ -1,5 +1,5 @@
 .prints-study {
-  height: calc(100dvh - 2 * var(--spacing-xl));
+  height: 100dvh;
   min-height: 360px;
   display: flex;
   flex-direction: column;
@@ -21,4 +21,8 @@
 /* The host's page sets the app font; Ladle's bare body does not, and the Toaster portals into it. */
 body {
   font-family: var(--font-sans);
+}
+/* The workbench provider pads its page; the App fills the viewport like a real window. */
+.caps-workbench-provider:has(> .prints-study) {
+  padding: 0;
 }

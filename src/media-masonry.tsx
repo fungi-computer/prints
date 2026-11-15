@@ -263,7 +263,14 @@ const TileBody = memo(function TileBody({
               <GenerationFrame
                 data-media-pending={item.pending ? "true" : undefined}
                 indicator={
-                  <div className="prints-pending-loader">
+                  <div
+                    className="prints-pending-loader"
+                    data-run={
+                      item.pending && (item.prompt || item.onStop)
+                        ? ""
+                        : undefined
+                    }
+                  >
                     <Loader
                       decorative
                       size="fill"
@@ -311,6 +318,7 @@ const TileBody = memo(function TileBody({
         {!item.pending && !item.error ? <TileMenu item={item} /> : null}
         {!item.pending && item.onInfo ? (
           <IconButton
+            className="prints-gallery-secondary"
             aria-label={`Image info: ${item.path}`}
             title="Image info (I)"
             aria-keyshortcuts="I"
@@ -320,7 +328,7 @@ const TileBody = memo(function TileBody({
         ) : null}
         {!item.pending && item.onToggleReference ? (
           <IconButton
-            className="prints-gallery-reference"
+            className="prints-gallery-reference prints-gallery-secondary"
             aria-label={`${item.referenced ? "Remove reference" : "Add reference"}: ${item.path}`}
             title={item.referenced ? "Remove reference" : "Add reference"}
             aria-pressed={item.referenced ?? false}
@@ -449,6 +457,19 @@ function TileMenu({
         {item.onInfo ? (
           <DropdownMenuItem onSelect={item.onInfo}>
             <Info aria-hidden size={16} /> Image info
+          </DropdownMenuItem>
+        ) : null}
+        {item.onToggleReference ? (
+          <DropdownMenuItem
+            disabled={item.referenceDisabled}
+            onSelect={item.onToggleReference}
+          >
+            {item.referenced ? (
+              <Check aria-hidden size={16} />
+            ) : (
+              <ImagePlus aria-hidden size={16} />
+            )}{" "}
+            {item.referenced ? "Remove reference" : "Add reference"}
           </DropdownMenuItem>
         ) : null}
       </DropdownMenuContent>
@@ -594,6 +615,9 @@ function useMediaWallPositioner(
 }
 
 /** Each virtual cell preserves the image's aspect ratio. */
+/** Under this a tile cannot hold two 44px touch keys and its badge without overlap. */
+const SHORT_TILE_PX = 132;
+
 const WallCell = memo(function WallCell({
   data,
   width,
@@ -601,10 +625,12 @@ const WallCell = memo(function WallCell({
   data: MediaMasonryItem;
   width: number;
 }): React.JSX.Element {
+  const height = tileHeight(width, data);
   return (
     <div
       data-media-tile={data.key}
-      style={{ height: tileHeight(width, data), width }}
+      data-short={height < SHORT_TILE_PX ? "" : undefined}
+      style={{ height, width }}
     >
       <MediaTileView item={data} />
     </div>
@@ -736,7 +762,10 @@ const MediaMasonryWall = memo(function MediaMasonryWall({
       grid.getBoundingClientRect().top -
       viewport.getBoundingClientRect().top +
       viewport.scrollTop;
-    const top = offset + tile.top;
+    // The newest tile leads the wall, so its place is the top whatever the
+    // wall's width: an info drawer closing in this commit changes the width
+    // after this position was measured, but never the first tile's top.
+    const top = index === 0 ? 0 : offset + tile.top;
     const bottom = top + tile.height;
     if (
       top >= viewport.scrollTop &&

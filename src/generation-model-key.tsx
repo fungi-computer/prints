@@ -1,4 +1,6 @@
 import { ComposerModelKey } from "@fungi.computer/parakeet";
+import { KeycapButton } from "@fungi.computer/caps/components/keycap";
+import { ChevronDown, Cpu } from "lucide-react";
 import { useState } from "react";
 import {
   DropdownMenu,
@@ -11,12 +13,15 @@ import { modelName, type MediaModel } from "./generation-model.js";
 
 /** The generation model's native row key and single-choice menu. */
 export function GenerationModelKey({
+  compact = false,
   disabled,
   emptyLabel,
   models,
   onChange,
   value,
 }: {
+  /** An icon-only key for phones; the name stays in its tooltip and the menu. */
+  compact?: boolean;
   disabled: boolean;
   emptyLabel: string;
   models: readonly MediaModel[];
@@ -34,13 +39,28 @@ export function GenerationModelKey({
           aria-label="Generation model"
           data-generation-model={value}
           disabled={disabled || models.length === 0}
-          render={(props, state) => (
-            <ComposerModelKey
-              {...props}
-              expanded={state.open}
-              label={selected === undefined ? emptyLabel : modelName(selected)}
-            />
-          )}
+          render={(props, state) => {
+            const name =
+              selected === undefined ? emptyLabel : modelName(selected);
+            return compact ? (
+              <KeycapButton
+                {...props}
+                className="parakeet-composer-model-key"
+                expanded={state.open}
+                icon={<Cpu />}
+                label={null}
+                readout={
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="size-[var(--stipe-icon-size-sm)] shrink-0"
+                  />
+                }
+                title={name}
+              />
+            ) : (
+              <ComposerModelKey {...props} expanded={state.open} label={name} />
+            );
+          }}
         />
         <DropdownMenuContent
           data-generation-model-menu

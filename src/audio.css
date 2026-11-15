@@ -24,28 +24,20 @@
   opacity: 0.5;
 }
 
-/* Reference chip: the image reference's squircle, with a play key. */
-.prints-audio-face {
+/* Reference chip: the same slim chip as an image's, with a play key before
+   the length; a thin progress line runs along its foot. */
+.prints-reference-tile:has(.prints-audio-play) {
   position: relative;
-  display: grid;
-  place-items: center;
   background: color-mix(
     in oklab,
     var(--color-accent) 14%,
     var(--color-base-100)
   );
 }
-/* The remove key sits on the squircle's corner. Caps gives each key a touch
-   target wider than its glyph, so it is offset until that target no longer
-   reaches the play key's centre. */
-.prints-reference-tile .prints-audio-remove {
-  top: -8px;
-  right: -10px;
-}
 .prints-audio-face-progress {
   position: absolute;
-  inset: auto 12px 5px;
-  height: 3px;
+  inset: auto 8px 2px;
+  height: 2px;
   border-radius: 999px;
   overflow: hidden;
   background: color-mix(in oklab, var(--color-base-content) 16%, transparent);
@@ -157,4 +149,14 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--text-sm);
   color: var(--stipe-fg-muted);
+}
+
+/* The play key fits the slim chip; coarse pointers get the composer's 44px key. */
+@media (pointer: fine) {
+  .prints-reference-tile .prints-audio-play {
+    width: 1.25rem;
+    height: 1.25rem;
+    min-width: 0;
+    min-height: 0;
+  }
 }

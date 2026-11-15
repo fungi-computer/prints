@@ -9,7 +9,16 @@ import {
 import { useMediaGeneration } from "./media-generation.js";
 import type { AppRoot } from "@fungi.computer/agar";
 import { useForm, useSelector } from "@tanstack/react-form";
-import { AudioLines, SlidersHorizontal, Upload, X } from "lucide-react";
+import {
+  AudioLines,
+  ChevronDown,
+  ChevronUp,
+  Image as ImageIcon,
+  Maximize2,
+  SlidersHorizontal,
+  Upload,
+  X,
+} from "lucide-react";
 
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import { Button } from "@fungi.computer/caps/components/button";
@@ -17,6 +26,7 @@ import { KeycapButton } from "@fungi.computer/caps/components/keycap";
 import { ScrollArea } from "@fungi.computer/caps/components/scroll-area";
 import { Input } from "@fungi.computer/caps/components/input";
 import { Toaster, toast } from "@fungi.computer/caps/components/toaster";
+import { notifyPrintsError } from "./prints-error-toast.js";
 import { Field } from "@fungi.computer/caps/components/field";
 import { Select } from "@fungi.computer/caps/components/select";
 import { Switch } from "@fungi.computer/caps/components/switch";
@@ -27,6 +37,10 @@ import {
   useHostNavigation,
   useWindowStatus,
 } from "@fungi.computer/agar/react";
+import {
+  ComposerResizeHandle,
+  useComposerLayout,
+} from "./media-composer-size.js";
 import { LibraryRail } from "./library-rail.js";
 import {
   LibraryBar,
@@ -88,6 +102,7 @@ import { isAudioPath } from "./audio-media.js";
 import { galleryWithSlots } from "./gallery-slots.js";
 import {
   MediaComposerTextarea,
+  promptOverMessage,
   MediaMentionSheet,
   MediaMentionTokens,
   MediaSlashSheet,
@@ -100,7 +115,6 @@ import {
 import {
   mentionedReferenceNumbers,
   referenceLabel,
-  referenceWording,
 } from "./reference-mentions.js";
 import { quoteSettingsFor, useGenerationQuote } from "./generation-quote.js";
 import { usePromptCharacters } from "./use-prompt-characters.js";
@@ -108,7 +122,6 @@ import { PromptCharactersDialog } from "./prompt-character-controls.js";
 import {
   addedPromptLength,
   expandCharacters,
-  planCharacters,
   type PromptCharacter,
   type ReferenceOption,
 } from "./prompt-characters.js";
@@ -127,7 +140,6 @@ import {
   modelFor,
   nextReferenceRole,
   REFERENCE_ROLE_LABELS,
-  referenceRoleMessage,
   referenceRolesFor,
   resolveReferenceRoles,
   matchReferenceSize,
@@ -539,19 +551,21 @@ function GenerationComposer({
     selected,
     namesReferences,
   );
-  const roleProblem =
-    selected === undefined
-      ? undefined
-      : referenceRoleMessage(
-          shownReferences,
-          selected,
-          video?.formats.find(
-            (format) =>
-              format.width === values.width && format.height === values.height,
-          )?.resolution,
-        );
   const referenceLimit = selected?.input.maxReferences ?? 0;
   const referencesOver = values.references.length > referenceLimit;
+  const promptRef = useRef<HTMLDivElement>(null);
+  const regionId = useId();
+  const layout = useComposerLayout(promptRef);
+  const [overflowing, setOverflowing] = useState(false);
+  const promptLength = promptOver ? typedLength + addedLength : 0;
+  const promptOverReason =
+    selected !== undefined && promptOver
+      ? promptOverMessage({
+          addedLength,
+          length: promptLength,
+          maxLength: selected.maxPromptLength,
+        })
+      : undefined;
   const [customSize, setCustomSize] = useState(false);
   // "Match reference": the output takes the first attached image's shape.
   const [matchReference, setMatchReference] = useState(false);
@@ -653,26 +667,6 @@ function GenerationComposer({
   const promptId = useId();
   const slashListId = `${promptId}-commands`;
   const mentionListId = `${promptId}-characters`;
-  // Show what the typed @names will add before the person sends.
-  const usedCharacters = planCharacters({
-    computerId,
-    prompt: values.prompt,
-    saved: characters,
-    references: values.references,
-    labels: referenceLabels,
-    wording: (merged) =>
-      referenceWording(
-        resolveReferenceRoles(merged, selected, namesReferences),
-        selected,
-      ),
-    model:
-      selected === undefined
-        ? undefined
-        : {
-            label: selected.label,
-            maxReferences: selected.input.maxReferences,
-          },
-  });
   const mentioned = expandCharacters(values.prompt, characters).characters;
   const pickSlash = (index: number) => {
     const item = slash.slashMatches.at(index);
@@ -740,6 +734,7 @@ function GenerationComposer({
       form.setFieldValue("steps", nextDraft.steps);
   };
   const isAudio = selected?.kind === "audio";
+  const referenceCount = isAudio ? 0 : values.references.length;
   const audioChoices = audioOptionsOf(audioModelsOf(models));
   // The picture model to return to when the Audio key is pressed again.
   const lastPicture = useRef<string | null>(null);
@@ -808,9 +803,16 @@ function GenerationComposer({
     <ComposerShell
       aria-label={isAudio ? "Audio generation" : "Image generation"}
       data-generation-form
+      data-composer-collapsed={layout.collapsed ? "" : undefined}
+      data-composer-fullscreen={layout.fullscreen ? "" : undefined}
       attachments={
         !isAudio && values.references.length > 0 ? (
-          <div className="prints-reference-tray" aria-label="Image references">
+          <div
+            className="prints-reference-tray"
+            aria-label="Image references"
+            data-over-limit={referencesOver ? "" : undefined}
+            title={`${String(values.references.length)} / ${String(referenceLimit)} references`}
+          >
             {values.references.map((reference, index) => {
               const thumbnail =
                 computerId !== null &&
@@ -824,6 +826,7 @@ function GenerationComposer({
               return (
                 <div
                   className="prints-reference-tile"
+                  data-reference-chip
                   key={JSON.stringify([
                     reference.computerId ?? computerId,
                     reference.path,
@@ -905,7 +908,7 @@ function GenerationComposer({
           >
             <form.Field name="prompt">
               {(field) => (
-                <div className="prints-prompt">
+                <div className="prints-prompt" id={regionId} ref={promptRef}>
                   {slash.slashOpen ? (
                     <MediaSlashSheet
                       index={slash.slashIndex}
@@ -930,6 +933,9 @@ function GenerationComposer({
                   ) : null}
                   <MediaComposerTextarea
                     caretRequest={mentions.caretRequest}
+                    layout={layout}
+                    onOver={notifyGenerationFailure}
+                    onOverflow={setOverflowing}
                     menu={
                       slash.slashOpen
                         ? {
@@ -977,65 +983,15 @@ function GenerationComposer({
                     slashCount={slash.slashMatches.length}
                     value={field.state.value}
                   />
-                  {values.references.length > 0 ||
-                  roleProblem !== undefined ||
-                  mentioned.length > 0 ||
-                  mentionedTokens.length > 0 ? (
+                  {mentioned.length > 0 || mentionedTokens.length > 0 ? (
                     <div className="prints-composer-notes">
                       <MediaMentionTokens tokens={mentionedTokens} />
-                      {values.references.length > 0 ? (
-                        <span
-                          className="prints-reference-count"
-                          data-generation-references
-                          data-over-limit={referencesOver ? "" : undefined}
-                          role={referencesOver ? "alert" : undefined}
-                        >
-                          {values.references.length} / {referenceLimit}{" "}
-                          references
-                          {referencesOver
-                            ? referenceLimit === 0
-                              ? " — this model takes none; remove them or pick another model"
-                              : " — over this model's limit; remove some to generate"
-                            : null}
-                        </span>
-                      ) : null}
-                      {roleProblem !== undefined ? (
-                        <span
-                          className="prints-reference-count"
-                          data-generation-reference-roles
-                          data-over-limit=""
-                          role="alert"
-                        >
-                          {roleProblem}
-                        </span>
-                      ) : null}
-                      {usedCharacters.kind === "refused" &&
-                      mentioned.length === 0 ? (
-                        <span
-                          className="prints-reference-count"
-                          data-generation-mentions
-                          data-over-limit=""
-                          role="alert"
-                        >
-                          {usedCharacters.message}
-                        </span>
-                      ) : null}
                       {mentioned.length > 0 ? (
                         <span
                           className="prints-reference-count"
                           data-generation-characters
-                          data-over-limit={
-                            usedCharacters.kind === "refused" ? "" : undefined
-                          }
-                          role={
-                            usedCharacters.kind === "refused"
-                              ? "alert"
-                              : undefined
-                          }
                         >
-                          {usedCharacters.kind === "refused"
-                            ? usedCharacters.message
-                            : `Characters: ${mentioned.map((entry) => entry.name).join(", ")}`}
+                          {`Characters: ${mentioned.map((entry) => entry.name).join(", ")}`}
                         </span>
                       ) : null}
                     </div>
@@ -1076,6 +1032,53 @@ function GenerationComposer({
       row={{
         controls: (
           <>
+            {layout.fullscreen ? null : (
+              <KeycapButton
+                aria-controls={regionId}
+                aria-expanded={!layout.collapsed}
+                aria-label={
+                  layout.collapsed ? "Expand composer" : "Collapse composer"
+                }
+                data-composer-collapse
+                icon={layout.collapsed ? <ChevronUp /> : <ChevronDown />}
+                label={null}
+                onClick={() => {
+                  layout.setCollapsed(!layout.collapsed);
+                }}
+                onMouseDown={(event) => {
+                  // Keep the caret in the prompt when the key is clicked.
+                  event.preventDefault();
+                }}
+                title={
+                  layout.collapsed ? "Expand composer" : "Collapse composer"
+                }
+              />
+            )}
+            {layout.collapsed && referenceCount > 0 ? (
+              <span
+                aria-label={`${String(referenceCount)} ${referenceCount === 1 ? "reference" : "references"} attached`}
+                className="prints-composer-count"
+                data-composer-count
+                role="img"
+                title={`${String(referenceCount)} ${referenceCount === 1 ? "reference" : "references"} attached`}
+              >
+                <ImageIcon aria-hidden="true" />
+                {referenceCount}
+              </span>
+            ) : null}
+            {layout.coarse && overflowing && !layout.collapsed ? (
+              <KeycapButton
+                aria-label="Open full-screen editor"
+                data-composer-expand
+                icon={<Maximize2 />}
+                label={null}
+                onClick={() => {
+                  layout.setFullscreen(true);
+                  promptRef.current?.querySelector("textarea")?.focus();
+                }}
+                title="Open full-screen editor"
+              />
+            ) : null}
             {isAudio ? null : actions}
             {audioChoices.length > 0 ? (
               <KeycapButton
@@ -1096,6 +1099,7 @@ function GenerationComposer({
               <form.Field name="model">
                 {(field) => (
                   <GenerationModelKey
+                    compact={layout.coarse}
                     models={pictureModels(models)}
                     emptyLabel={
                       computerId === null
@@ -1146,7 +1150,7 @@ function GenerationComposer({
                 submitting ||
                 generateLimitReason !== undefined
               }
-              disabledReason={generateLimitReason}
+              disabledReason={generateLimitReason ?? promptOverReason}
               label={generateActionLabel(selected)}
               onGenerate={() => {
                 void onSubmit();
@@ -1182,6 +1186,18 @@ function GenerationComposer({
         },
       }}
     >
+      <ComposerResizeHandle layout={layout} />
+      <div className="prints-composer-editor-bar" data-composer-editor-bar>
+        <span>Prompt</span>
+        <KeycapButton
+          data-composer-done
+          label="Done"
+          onClick={() => {
+            layout.setFullscreen(false);
+            promptRef.current?.querySelector("textarea")?.focus();
+          }}
+        />
+      </div>
       {style.dialog}
       {characterDialog({
         open: charactersOpen,
@@ -1283,10 +1299,21 @@ export function MediaPane({
     canWrite,
   });
   const [foldersOpen, setFoldersOpen] = useState(false);
+  // Nothing to select in an empty library; Select lives in the window header.
+  const selectable =
+    library.selecting ||
+    gallery.entries.length > 0 ||
+    galleryMedia.gallery.folders.length > 0;
   useHostNavigation(libraryVisible ? connection.app.window.navigation : null, {
     canGoBack: library.history.canGoBack,
     canGoForward: library.history.canGoForward,
     crumbs: library.crumbs,
+    primary: selectable
+      ? [{ id: "select", label: "Select", variant: "outline" }]
+      : [],
+    onAction: (id) => {
+      if (id === "select") library.setSelecting(!library.selecting);
+    },
     onBack: library.history.back,
     onForward: library.history.forward,
     onCrumb: (id) => {
@@ -1325,6 +1352,13 @@ export function MediaPane({
       setViewerKey(null);
     }
   }, [printNavigation.target]);
+  useEffect(() => {
+    if (printNavigation.error)
+      notifyPrintsError(
+        "Could not open this print. It may no longer be available on this Computer.",
+        "prints-navigation-error",
+      );
+  }, [printNavigation.error]);
   const navigationListed = gallery.entries.some(
     (entry) => entry.path === printNavigation.target?.path,
   );
@@ -2121,6 +2155,19 @@ export function MediaPane({
     disabled: !canWrite || mediaDirectory === null,
     disabledReason: "Choose a writable Computer and folder to upload images.",
   };
+  // First run with no folder yet: the invitation itself opens the picker.
+  const chooseFolder =
+    !mediaSetupMissing &&
+    libraryEmpty === null &&
+    folder.computerId !== null &&
+    folder.available &&
+    mediaDirectory === null;
+  const chooseFolderAction = {
+    label: "Choose folder",
+    onSelect: () => {
+      folder.setEditing(true);
+    },
+  };
   const imageSetupAction = (
     <Button variant="ghost" loading={setupWaiting} onClick={openMediaSetup}>
       Set up image generation
@@ -2187,8 +2234,6 @@ export function MediaPane({
             <>
               <LibraryBar
                 view={folder.view}
-                title={library.title}
-                onUp={library.up}
                 lastFolder={library.lastFolder}
                 onOpen={library.history.open}
                 onFolders={() => {
@@ -2207,10 +2252,6 @@ export function MediaPane({
                         ? `${folder.view.folder}/${name}`
                         : name,
                   });
-                }}
-                selecting={library.selecting}
-                onToggleSelect={() => {
-                  library.setSelecting(!library.selecting);
                 }}
               />
               {library.selecting ? (
@@ -2300,13 +2341,19 @@ export function MediaPane({
                           ? libraryEmpty.description
                           : folder.computerId === null
                             ? "Your images will appear here."
-                            : folder.available && mediaDirectory === null
-                              ? "Pick a folder in the composer below, then describe something or drop in images."
+                            : chooseFolder
+                              ? "Choose where Prints saves, then describe something."
                               : "Describe something and it lands here, or drop in images from your Computer."
                     }
-                    primaryAction={mediaSetupMissing ? uploadAction : undefined}
+                    primaryAction={
+                      mediaSetupMissing
+                        ? uploadAction
+                        : chooseFolder
+                          ? chooseFolderAction
+                          : undefined
+                    }
                     actions={
-                      mediaSetupMissing ? (
+                      chooseFolder ? undefined : mediaSetupMissing ? (
                         <div className="prints-image-setup">
                           <span>{setupCause}</span>
                           {imageSetupAction}
@@ -2323,7 +2370,7 @@ export function MediaPane({
                       )
                     }
                     suggestions={
-                      mediaSetupMissing
+                      mediaSetupMissing || chooseFolder
                         ? undefined
                         : promptSuggestions.map((prompt) => ({
                             label: prompt,
@@ -2359,12 +2406,6 @@ export function MediaPane({
                 )}
               </div>
             </ScrollArea>
-            {printNavigation.error ? (
-              <p role="alert">
-                Could not open this print. It may no longer be available on this
-                Computer.
-              </p>
-            ) : null}
             {infoImage &&
             (infoImage.source.kind === "local" ||
               (infoImage.source.connection === connection &&
@@ -2381,6 +2422,11 @@ export function MediaPane({
           <MoveDialog
             app={connection.app}
             root={folder.destination}
+            from={
+              folder.view.kind === "folder"
+                ? { folder: folder.view.folder }
+                : null
+            }
             canWrite={canWrite}
             count={library.moving?.length ?? 0}
             open={library.moving !== null}

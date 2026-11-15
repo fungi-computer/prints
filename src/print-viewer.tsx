@@ -47,6 +47,7 @@ import {
 import { AudioViewerStage } from "./audio-viewer-stage.js";
 import { isAudioPath } from "./audio-media.js";
 import { isVideoPath } from "./local-images.js";
+import { notifyPrintsError } from "./prints-error-toast.js";
 import { reportCatchFailure } from "./log-event.js";
 
 const PrintDownloadButton = lazy(async () => {
@@ -232,36 +233,24 @@ function useInkcapOpen(
   source: Extract<GallerySource, { kind: "computer" }> | null,
 ) {
   const [pending, setPending] = useState(false);
-  const [failed, setFailed] = useState(false);
   return {
     pending,
-    failed,
     open: () => {
       if (!source) return;
       setPending(true);
-      setFailed(false);
       void openInInkcap(source)
         .catch((cause: unknown) => {
           reportCatchFailure("open-print-in-inkcap", cause);
-          setFailed(true);
+          notifyPrintsError(
+            `Could not open ${source.path} in Inkcap.`,
+            "prints-inkcap-open",
+          );
         })
         .finally(() => {
           setPending(false);
         });
     },
   };
-}
-
-function InkcapFailure({
-  source,
-}: {
-  source: Extract<GallerySource, { kind: "computer" }>;
-}) {
-  return (
-    <p role="alert" className="text-sm">
-      Could not open {source.path} in Inkcap.
-    </p>
-  );
 }
 
 /** Image actions: Download and Open in Inkcap as keys, or one More menu on a phone. */
@@ -305,7 +294,6 @@ function ImageActions({
           onClick={opener.open}
         />
       ) : null}
-      {computer && opener.failed ? <InkcapFailure source={computer} /> : null}
     </>
   );
 }

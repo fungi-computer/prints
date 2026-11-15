@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AppRoot } from "@fungi.computer/agar";
 import { Button } from "@fungi.computer/caps/components/button";
 import {
@@ -12,15 +12,7 @@ import {
 import { KeycapButton } from "@fungi.computer/caps/components/keycap";
 import { Input } from "@fungi.computer/caps/components/input";
 import { toast } from "@fungi.computer/caps/components/toaster";
-import {
-  ChevronLeft,
-  Folder,
-  FolderInput,
-  FolderTree,
-  Heart,
-  ListChecks,
-  X,
-} from "lucide-react";
+import { Folder, FolderInput, FolderTree, Heart, X } from "lucide-react";
 import { IconButton } from "@fungi.computer/caps/components/icon-button";
 import {
   Tabs,
@@ -98,6 +90,7 @@ export function SelectBar({
         <span className="prints-select-narrow">Move ({count})</span>
       </Button>
       <IconButton
+        className="prints-select-done"
         aria-label="Done selecting"
         title="Done selecting"
         icon={<X />}
@@ -108,53 +101,52 @@ export function SelectBar({
   );
 }
 
-/** Where you are, the way to move up, the narrow-width views, and Select. */
+/**
+ * The narrow-width views and the folders inside the open one. The window
+ * header already names where you are and carries Back and Select, so this row
+ * holds only what the header cannot: the rail takes over at wide widths.
+ */
 export function LibraryBar({
   view,
-  title,
-  onUp,
   lastFolder,
   onOpen,
   onFolders,
   subfolders,
   onOpenSubfolder,
-  selecting,
-  onToggleSelect,
 }: Readonly<{
   view: LibraryView;
-  title: string;
-  /** Open the parent folder; absent at the library folder and in All and Favorites. */
-  onUp: (() => void) | undefined;
   lastFolder: RelativeFolder | undefined;
   onOpen: (view: LibraryView) => void;
   onFolders: () => void;
   /** Folders inside the open folder, as chips in this row. */
   subfolders: readonly string[];
   onOpenSubfolder: (name: string) => void;
-  selecting: boolean;
-  onToggleSelect: () => void;
 }>): React.JSX.Element {
   return (
     <div className="prints-library-bar">
-      <Button
+      <KeycapButton
         className="prints-folders-button"
-        size="sm"
-        variant="ghost"
+        density="compact"
+        label={null}
+        aria-label="Folders"
+        title="Folders"
+        icon={<FolderTree size={16} />}
         onClick={onFolders}
+      />
+      <Tabs
+        className="prints-view-switch"
+        value={view.kind}
+        onValueChange={(value) => {
+          if (value === "all" || value === "favorites") onOpen({ kind: value });
+          else onOpen({ kind: "folder", folder: lastFolder });
+        }}
       >
-        <FolderTree aria-hidden size={16} /> Folders
-      </Button>
-      <div className="prints-library-title">
-        {onUp ? (
-          <IconButton
-            aria-label="Up one folder"
-            title="Up one folder"
-            icon={<ChevronLeft />}
-            onClick={onUp}
-          />
-        ) : null}
-        <h2 title={title}>{title}</h2>
-      </div>
+        <TabsList variant="segmented" aria-label="View">
+          <TabsTrigger value="folder">Folder</TabsTrigger>
+          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="favorites">Favorites</TabsTrigger>
+        </TabsList>
+      </Tabs>
       {subfolders.length > 0 ? (
         <div className="prints-folder-chips" role="list" aria-label="Folders">
           {subfolders.map((name) => (
@@ -172,30 +164,6 @@ export function LibraryBar({
           ))}
         </div>
       ) : null}
-      <Tabs
-        className="prints-view-switch"
-        value={view.kind}
-        onValueChange={(value) => {
-          if (value === "all" || value === "favorites") onOpen({ kind: value });
-          else onOpen({ kind: "folder", folder: lastFolder });
-        }}
-      >
-        <TabsList variant="segmented" aria-label="View">
-          <TabsTrigger value="folder">Folder</TabsTrigger>
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="favorites">Favorites</TabsTrigger>
-        </TabsList>
-      </Tabs>
-      <Button
-        size="sm"
-        variant={selecting ? "outline" : "ghost"}
-        aria-label="Select"
-        aria-pressed={selecting}
-        onClick={onToggleSelect}
-      >
-        <ListChecks aria-hidden size={16} />
-        <span className="prints-select-label">Select</span>
-      </Button>
     </div>
   );
 }
@@ -204,6 +172,7 @@ export function LibraryBar({
 export function MoveDialog({
   app,
   root,
+  from,
   canWrite,
   count,
   open,
@@ -213,6 +182,8 @@ export function MoveDialog({
 }: Readonly<{
   app: AppRoot;
   root: string;
+  /** The folder the items are in; null in All and Favorites, where they differ. */
+  from: Readonly<{ folder: RelativeFolder | undefined }> | null;
   canWrite: boolean;
   count: number;
   open: boolean;
@@ -220,8 +191,14 @@ export function MoveDialog({
   onClose: () => void;
   onMove: (folder: RelativeFolder | undefined, create: boolean) => void;
 }>): React.JSX.Element {
-  const [folder, setFolder] = useState<RelativeFolder | undefined>();
+  const [folder, setFolder] = useState<RelativeFolder | undefined>(
+    from?.folder,
+  );
   const [name, setName] = useState("");
+  // Each opening starts where the items already are.
+  useEffect(() => {
+    if (open) setFolder(from?.folder);
+  }, [open, from?.folder]);
   const trimmed = name.trim();
   const nameValid =
     trimmed === "" || (isRelativeFolder(trimmed) && !trimmed.includes("/"));
@@ -231,6 +208,7 @@ export function MoveDialog({
       : folder === undefined
         ? trimmed
         : `${folder}/${trimmed}`;
+  const inPlace = from !== null && trimmed === "" && target === from.folder;
   return (
     <Dialog
       open={open}
@@ -276,14 +254,15 @@ export function MoveDialog({
           </DialogClose>
           <Button
             size="sm"
-            disabled={!nameValid || !canWrite}
+            disabled={!nameValid || !canWrite || inPlace}
             onClick={() => {
               setName("");
               onMove(target, trimmed !== "");
             }}
           >
-            Move to{" "}
-            {target === undefined ? "Library" : target.split("/").at(-1)}
+            {inPlace
+              ? "Choose a folder"
+              : `Move to ${target === undefined ? "Library" : (target.split("/").at(-1) ?? "")}`}
           </Button>
         </DialogFooter>
       </DialogContent>

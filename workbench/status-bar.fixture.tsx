@@ -10,13 +10,13 @@ import {
 import { Button } from "@fungi.computer/caps/components/button";
 import { CountBadge } from "@fungi.computer/caps/components/count-badge";
 import { Status } from "@fungi.computer/caps/components/status";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 /**
  * A stand-in for the shell's window status bar in standalone stories: it
  * draws the App's declared text and button items and returns their clicks.
  */
-export function useWorkbenchStatusBar() {
+export function useWorkbenchStatusBar(note?: ReactNode) {
   const [items, setItems] = useState<readonly AppStatusItem[]>([]);
   const [channel] = useState(() => {
     let handler: AppStatusActionHandler | undefined;
@@ -68,6 +68,7 @@ export function useWorkbenchStatusBar() {
           <StatusReadout key={item.id}>{item.text}</StatusReadout>
         ),
       )}
+      {note}
     </AppStatusBar>
   );
   return { status: channel.status, bar };

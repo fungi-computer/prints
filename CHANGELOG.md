@@ -1,5 +1,26 @@
 # @fungi.computer/prints
 
+## 0.17.0
+
+### Minor Changes
+
+- Changes since 0.16.0:
+
+  - fix(prints): clean up the collapsed and full-screen composer edges
+  - fix(prints,caps): repair the four broken Prints workbench proofs
+  - fix(prints): polish the phone top row, short tiles and first-run card
+  - fix(prints): polish the phone composer controls and editor
+  - feat(prints): tighten the top of the App and the small things around it
+  - fix(prints): keep the composer minimum private
+  - fix(prints): report composer size storage failures
+  - feat(prints): resizable, tighter composer
+
+### Patch Changes
+
+- Updated dependencies
+  - @fungi.computer/caps@0.11.7
+  - @fungi.computer/parakeet@0.11.35
+
 ## 0.16.0
 
 ### Minor Changes

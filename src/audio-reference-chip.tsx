@@ -25,28 +25,26 @@ export function AudioReferenceChip({
   const playback = useAudioPlayback(url, notifyPlaybackFailure);
   return (
     <div className="prints-reference-tile" data-audio-reference title={name}>
-      <div className="prints-reference-face prints-audio-face mask mask-squircle">
-        <IconButton
-          aria-label={`${playback.playing ? "Pause" : "Play"} ${name}`}
-          className="prints-audio-face-play"
-          icon={playback.playing ? <Pause /> : <Play />}
-          iconSize="sm"
-          size="sm"
-          variant="accent"
-          onClick={playback.toggle}
-        />
-        {playback.progress > 0 ? (
-          <span aria-hidden="true" className="prints-audio-face-progress">
-            <span style={{ width: `${String(playback.progress * 100)}%` }} />
-          </span>
-        ) : null}
-      </div>
+      <IconButton
+        aria-label={`${playback.playing ? "Pause" : "Play"} ${name}`}
+        className="prints-audio-play"
+        icon={playback.playing ? <Pause /> : <Play />}
+        iconSize="sm"
+        size="xs"
+        variant="accent"
+        onClick={playback.toggle}
+      />
+      {playback.progress > 0 ? (
+        <span aria-hidden="true" className="prints-audio-face-progress">
+          <span style={{ width: `${String(playback.progress * 100)}%` }} />
+        </span>
+      ) : null}
       <span className="prints-reference-label" data-reference-label>
         {formatDuration(durationSeconds)}
       </span>
       <IconButton
         icon={<X />}
-        className="prints-reference-remove prints-audio-remove"
+        className="prints-reference-remove"
         aria-label={`Remove ${name}`}
         onClick={onRemove}
       />

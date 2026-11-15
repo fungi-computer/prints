@@ -7,6 +7,8 @@ import { MediaPane } from "../src/MediaPane.js";
 import { createPrintsFixture, type CaptureOptions } from "./fixtures.js";
 import { fixtureNotices } from "./notice-store.js";
 import { useWorkbenchStatusBar } from "./status-bar.fixture.js";
+import { useWorkbenchWindowHeader } from "./window-header.fixture.js";
+import { AppStatusItem as StatusReadout } from "@fungi.computer/caps/blocks/app-status-bar";
 import "../src/media.css";
 import "./workbench.css";
 export default { title: "Prints" } satisfies StoryDefault;
@@ -34,7 +36,18 @@ function Workbench({
   const [navigation, setNavigation] = useState("");
   const [imageReads, setImageReads] = useState(0);
   const [download, setDownload] = useState("");
-  const statusBar = useWorkbenchStatusBar();
+  const header = useWorkbenchWindowHeader();
+  const statusBar = useWorkbenchStatusBar(
+    <>
+      <StatusReadout>Local fixture · no charges</StatusReadout>
+      {navigation ? (
+        <output> Open in editor requested: {navigation}</output>
+      ) : null}
+      {download ? (
+        <output data-viewer-download> Download requested: {download}</output>
+      ) : null}
+    </>,
+  );
   const [client] = useState(createQueryClient);
   useEffect(
     () => () => {
@@ -47,6 +60,7 @@ function Workbench({
     const options: NonNullable<Parameters<typeof createPrintsFixture>[3]> = {
       noticeStore: fixtureNotices,
       status: statusBar.status,
+      navigation: header.navigation,
       onRead: () => {
         setImageReads((count) => count + 1);
       },
@@ -82,16 +96,7 @@ function Workbench({
   });
   return (
     <div className="prints-study" data-image-reads={imageReads}>
-      <div className="prints-study-note">
-        Real Prints UI · local fixture · painted samples, not AI output · no
-        generation charges.
-        {navigation ? (
-          <output> Open in editor requested: {navigation}</output>
-        ) : null}
-        {download ? (
-          <output data-viewer-download> Download requested: {download}</output>
-        ) : null}
-      </div>
+      <header.Header />
       <div className="prints-study-surface">
         <QueryClientProvider client={client}>
           <MediaPane connection={connection} />
