@@ -7,6 +7,10 @@ import { AppError, type CapabilityDirectory } from "@fungi.computer/agar";
 import type { MediaGenerationReference } from "@fungi.computer/agar/media";
 import * as Schema from "effect/Schema";
 import {
+  GenerationLimitError,
+  generationLimitRefusalSchema,
+} from "./generation-limit.js";
+import {
   type GenerationFailure,
   normalizePendingGeneration,
   pendingGenerationSchema,
@@ -21,9 +25,10 @@ export async function rememberGeneration(
     onExcessProperty: "error",
   })(record);
   const expected = normalizePendingGeneration(expectedWire);
-  const confirmedWire = Schema.decodeUnknownSync(pendingGenerationSchema, {
-    onExcessProperty: "error",
-  })(
+  const answer = Schema.decodeUnknownSync(
+    Schema.Union([pendingGenerationSchema, generationLimitRefusalSchema]),
+    { onExcessProperty: "error" },
+  )(
     await capabilities.require(appBackend).request(
       JSON.stringify({
         operation: "remember-generation",
@@ -31,6 +36,8 @@ export async function rememberGeneration(
       }),
     ),
   );
+  if ("error" in answer) throw new GenerationLimitError(answer.message);
+  const confirmedWire = answer;
   const confirmed = normalizePendingGeneration(confirmedWire);
   if (JSON.stringify(confirmed) !== JSON.stringify(expected))
     throw new AppError(

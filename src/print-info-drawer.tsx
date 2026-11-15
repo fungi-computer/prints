@@ -36,6 +36,7 @@ import {
   Ruler,
   Shuffle,
   Users,
+  Wand2,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -55,6 +56,11 @@ import { mediaShare } from "@fungi.computer/agar/media";
 import { MediaMentionTokens, mentionTokens } from "./media-composer-pieces.js";
 import type { ReferenceOption } from "./prompt-characters.js";
 import type { MediaReference } from "./reference-mentions.js";
+import {
+  PrintOperationsPanel,
+  type PrintOperations,
+} from "./print-operations-panel.js";
+import { OPERATION_LABELS } from "./print-operations.js";
 
 const PrintDownloadButton = lazy(async () => {
   const module = await import("./print-download-button.js");
@@ -254,6 +260,7 @@ export function PrintInfoDrawer({
   models,
   canAnimate,
   onIterate,
+  operations,
   library,
   onClose,
 }: {
@@ -269,6 +276,8 @@ export function PrintInfoDrawer({
   canAnimate: boolean;
   /** Load the print into the composer; a message says why it could not. */
   onIterate: (action: Iteration, lineage: PrintLineage) => string | null;
+  /** Remove background and Upscale; absent leaves them out. */
+  operations?: PrintOperations;
   /** Library actions for this file, when the Library is open. */
   library?: Readonly<{
     favorite: boolean;
@@ -297,8 +306,19 @@ export function PrintInfoDrawer({
     isReferenceOnComputer(reference, image.source.computerId)
       ? referenceImages.find((entry) => entry.path === reference.path)
       : undefined;
-  const cost = details ? formatPrintCost(details.print.costMilliunits) : null;
   const recordedModel = details ? modelFor(models, details.print.model) : null;
+  const cost = details ? formatPrintCost(details.print.costMilliunits) : null;
+  // An image edit records its source as its one reference and the operation as
+  // its model, so Image info can say which print it came from.
+  const operation = recordedModel?.transform?.operation;
+  const sourceReference = details?.references.at(0);
+  const editedFrom =
+    operation !== undefined && sourceReference !== undefined
+      ? {
+          operation: OPERATION_LABELS[operation],
+          sourcePath: sourceReference.path,
+        }
+      : null;
   useEffect(() => {
     const previous = document.activeElement;
     panel.current?.focus();
@@ -353,7 +373,7 @@ export function PrintInfoDrawer({
             {style.data.style}
           </Fact>
         ) : null}
-        {details ? (
+        {details && editedFrom === null ? (
           <Fact icon={MessageSquareText} label="Prompt">
             <PromptText
               prompt={details.typed.prompt}
@@ -374,6 +394,14 @@ export function PrintInfoDrawer({
               {recordedModel
                 ? modelName(recordedModel)
                 : `${details.print.model} (no longer available)`}
+            </span>
+          </Fact>
+        ) : null}
+        {details && editedFrom !== null ? (
+          <Fact icon={Wand2} label="Made from">
+            <span data-print-source>
+              {editedFrom.operation} of{" "}
+              {editedFrom.sourcePath.split("/").at(-1) ?? editedFrom.sourcePath}
             </span>
           </Fact>
         ) : null}
@@ -438,14 +466,16 @@ export function PrintInfoDrawer({
       >
         {lineage && image.source.kind === "computer" ? (
           <>
-            <KeycapButton
-              label="Reuse"
-              icon={<RotateCcw />}
-              disabled={style.isPending}
-              onClick={() => {
-                setRefusal(onIterate("reuse", lineage));
-              }}
-            />
+            {editedFrom === null ? (
+              <KeycapButton
+                label="Reuse"
+                icon={<RotateCcw />}
+                disabled={style.isPending}
+                onClick={() => {
+                  setRefusal(onIterate("reuse", lineage));
+                }}
+              />
+            ) : null}
             {lineage.kind === "audio" ? null : (
               <KeycapButton
                 label="Remix"
@@ -486,6 +516,20 @@ export function PrintInfoDrawer({
         ) : null}
         {download}
       </div>
+      {operations &&
+      details?.print.kind === "image" &&
+      image.source.kind === "computer" ? (
+        <PrintOperationsPanel
+          models={models}
+          source={{
+            computerId: image.source.computerId,
+            path: image.source.path,
+            width: image.width,
+            height: image.height,
+          }}
+          operations={operations}
+        />
+      ) : null}
       {refusal ? (
         <p role="alert" className="text-sm">
           {refusal}

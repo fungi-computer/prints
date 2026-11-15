@@ -41,7 +41,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@fungi.computer/caps/components/dialog";
-import { Folder } from "lucide-react";
 import { folderStatusItem } from "./folder-status.js";
 import { ComposerShell } from "@fungi.computer/parakeet";
 import {
@@ -64,6 +63,7 @@ import {
 } from "./prints-activity.js";
 import { noticesFor } from "./prints-notices.js";
 import { useNoticeDismissals } from "./notice-dismissals.js";
+import { generationLimitReason } from "./generation-limit.js";
 import { reportCatchFailure } from "./log-event.js";
 import type { UploadQueueProps } from "@fungi.computer/caps/blocks/upload-queue";
 
@@ -479,6 +479,7 @@ function GenerationComposer({
   modelsLoading,
   mediaCapability,
   submitting,
+  generateLimitReason,
   values,
   computerId,
   mediaDirectory,
@@ -512,6 +513,8 @@ function GenerationComposer({
   mediaCapability: boolean;
   /** Why generating is off until the person connects a model; shown on the controls. */
   submitting: boolean;
+  /** Set while the person is at the in-flight limit: why Generate is off. */
+  generateLimitReason: string | undefined;
   values: GenerationDraft;
   computerId: string | null;
   mediaDirectory: string | null;
@@ -1140,8 +1143,10 @@ function GenerationComposer({
                 !mediaCapability ||
                 modelsLoading ||
                 models.length === 0 ||
-                submitting
+                submitting ||
+                generateLimitReason !== undefined
               }
+              disabledReason={generateLimitReason}
               label={generateActionLabel(selected)}
               onGenerate={() => {
                 void onSubmit();
@@ -1341,17 +1346,34 @@ export function MediaPane({
   );
   const promptStyles = usePromptStyles(connection?.app ?? null);
   const promptCharacters = usePromptCharacters(connection?.app ?? null);
+  /** Slots whose run saved and now wait for the picture to decode. */
+  const [previewLoading, setPreviewLoading] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const generation = useMediaGeneration({
     connection,
     folder,
     styles: promptStyles.styles,
     characters: promptCharacters.characters,
     effects: {
-      reserve: reserveSlot,
+      reserve: (slot) => {
+        setPreviewLoading((keys) => {
+          if (!keys.has(slot.key)) return keys;
+          const next = new Set(keys);
+          next.delete(slot.key);
+          return next;
+        });
+        reserveSlot(slot);
+      },
       failed: failSlot,
       release: removeSlot,
       notifyFailure: notifyGenerationFailure,
       saved: ({ result }, selectedConnection) => {
+        setPreviewLoading((keys) =>
+          new Set(keys).add(
+            `${result.destination.computerId}:${result.destination.path}`,
+          ),
+        );
         if (canRead)
           void addComputerFile(
             result.destination.path,
@@ -1486,7 +1508,7 @@ export function MediaPane({
       submit: () => {
         if (
           formRef.current.store.state.isSubmitting ||
-          generationRef.current.isRunning()
+          generationRef.current.atLimit
         )
           return Promise.resolve(false);
         return formRef.current.submitCurrent();
@@ -1663,7 +1685,6 @@ export function MediaPane({
                 "New prints you make here land in it. You can also drop in images or move prints from another folder.",
             }
       : null;
-  const hasPendingGeneration = generationState.kind === "pending";
   const activeRuns = [...activeGenerations].sort().join("|");
   const failedSlots = gallerySlots.filter(
     (slot) => slot.error !== undefined,
@@ -1727,17 +1748,13 @@ export function MediaPane({
           pending: true,
           error,
           prompt:
-            error === undefined
-              ? undefined
-              : (pendingGenerations.find(
-                  (record) =>
-                    record.reference.computerId === slot.computerId &&
-                    record.input.destination.path === slot.path,
-                )?.typed.prompt ??
-                (failedSlots === 1 ? generation.failedPrompt : undefined)),
+            pendingGenerations.find(
+              (record) =>
+                record.reference.computerId === slot.computerId &&
+                record.input.destination.path === slot.path,
+            )?.typed.prompt ?? generation.promptAt(slot.path),
           pendingLabel:
-            upload?.status === "complete" ||
-            generationState.kind === "completed"
+            upload?.status === "complete" || previewLoading.has(slot.key)
               ? "Loading preview…"
               : slot.uploadId
                 ? "Uploading image…"
@@ -1749,6 +1766,12 @@ export function MediaPane({
                     )
                   : slot.pendingLabel,
           onOpen: () => undefined,
+          onStop:
+            error === undefined && slot.uploadId === undefined
+              ? () => {
+                  generationRef.current.stopPath(slot.path);
+                }
+              : undefined,
           onRetry:
             error && (canRead || (upload && upload.status !== "complete"))
               ? () => {
@@ -1785,17 +1808,16 @@ export function MediaPane({
       interruptedItems,
       pendingGenerations,
       failedSlots,
-      generation.failedPrompt,
+      generation.promptAt,
+      previewLoading,
       listedItems,
       gallerySlots,
       uploads.items,
-      generationState.kind,
       canRead,
       models,
       progressNow,
     ],
   );
-  const generationBusy = submitting || hasPendingGeneration;
   const startersEnabled =
     !mediaSetupMissing &&
     mediaCapability &&
@@ -1805,40 +1827,45 @@ export function MediaPane({
     generationState.kind === "ready" &&
     !modelsLoading &&
     models.length > 0;
-  const tileFailed = gallerySlots.some((slot) => slot.error !== undefined);
   const currentUploads = uploads.items.filter(
     (item) => item.computerId === folder.computerId,
   );
-  const generationError =
-    generationState.kind === "error" && modelsError === null
-      ? {
-          key: generation.errorKey,
-          mediaKind: generationState.mediaKind,
-          message: generationState.message,
-          billing:
-            generationState.action === "billing" && connection
-              ? () => {
-                  void connection.app.ui
-                    .openTeamBilling()
-                    .catch((cause: unknown) => {
-                      reportCatchFailure("open-team-billing", cause);
-                      if (connectionRef.current === connection)
-                        generation.reportRecoveryError(cause);
-                    });
-                }
-              : undefined,
-          prompt: generation.failedPrompt,
-          retry: tileFailed ? generation.retry : undefined,
-          dismiss: tileFailed
-            ? () => {
-                // The tile and the Activity row go together with the remembered run.
-                for (const slot of gallerySlots)
-                  if (slot.error !== undefined) removeSlot(slot.key);
-                generation.dismissFailed();
-              }
-            : undefined,
-        }
-      : null;
+  const openBilling = () => {
+    if (!connection) return;
+    void connection.app.ui.openTeamBilling().catch((cause: unknown) => {
+      reportCatchFailure("open-team-billing", cause);
+      if (connectionRef.current === connection)
+        generation.reportRecoveryError(cause);
+    });
+  };
+  // A refused admission, then one entry per failed run so none hides another.
+  const generationErrors = [
+    ...(generationState.kind === "error" && modelsError === null
+      ? [
+          {
+            key: "generation:draft",
+            mediaKind: generationState.mediaKind,
+            message: generationState.message,
+            billing:
+              generationState.action === "billing" ? openBilling : undefined,
+          },
+        ]
+      : []),
+    ...generation.failures.map((failure) => ({
+      key: failure.key,
+      mediaKind: failure.mediaKind,
+      message: failure.message,
+      billing: failure.action === "billing" ? openBilling : undefined,
+      prompt: failure.prompt,
+      retry: failure.retry,
+      dismiss: () => {
+        // The tile and the Activity row go together with the remembered run.
+        for (const slot of gallerySlots)
+          if (slot.path === failure.path) removeSlot(slot.key);
+        failure.dismiss();
+      },
+    })),
+  ];
   const notices = noticesFor({
     connected: connection !== null,
     mediaCapability,
@@ -1849,10 +1876,11 @@ export function MediaPane({
     canGenerate,
     mediaSetupMissing,
     canWrite,
-    generationError,
+    generationErrors,
     recoveryError,
     pendingGenerations,
     activeGenerations,
+    atGenerationLimit: generation.atLimit,
     gallerySlots,
     computerId: folder.computerId,
     failed,
@@ -2016,6 +2044,29 @@ export function MediaPane({
         referenceImages={composerImages}
         models={models}
         canAnimate={animateModelFor(models) !== undefined}
+        operations={{
+          session: generation.session,
+          atLimit: generation.atLimit,
+          onRun: async (operation, megapixels) => {
+            if (image.source.kind !== "computer") return;
+            const reason = await generation.operate(
+              {
+                computerId: image.source.computerId,
+                path: image.source.path,
+                width: image.width,
+                height: image.height,
+              },
+              operation,
+              megapixels,
+            );
+            if (reason !== null) {
+              notifyGenerationFailure(reason);
+              return;
+            }
+            setInfoImage(null);
+            if (viewerKey !== null) closeViewer(galleryImageKey(image));
+          },
+        }}
         download={download}
         library={
           libraryVisible &&
@@ -2143,6 +2194,20 @@ export function MediaPane({
                 onFolders={() => {
                   setFoldersOpen(true);
                 }}
+                subfolders={
+                  folder.view.kind === "folder"
+                    ? galleryMedia.gallery.folders
+                    : []
+                }
+                onOpenSubfolder={(name) => {
+                  library.history.open({
+                    kind: "folder",
+                    folder:
+                      folder.view.kind === "folder" && folder.view.folder
+                        ? `${folder.view.folder}/${name}`
+                        : name,
+                  });
+                }}
                 selecting={library.selecting}
                 onToggleSelect={() => {
                   library.setSelecting(!library.selecting);
@@ -2172,36 +2237,6 @@ export function MediaPane({
                 />
               ) : null}
             </>
-          ) : null}
-          {libraryVisible &&
-          folder.view.kind === "folder" &&
-          galleryMedia.gallery.folders.length > 0 ? (
-            <div
-              className="prints-folder-tiles"
-              role="list"
-              aria-label="Folders"
-            >
-              {galleryMedia.gallery.folders.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  role="listitem"
-                  className="prints-folder-tile"
-                  onClick={() => {
-                    library.history.open({
-                      kind: "folder",
-                      folder:
-                        folder.view.kind === "folder" && folder.view.folder
-                          ? `${folder.view.folder}/${name}`
-                          : name,
-                    });
-                  }}
-                >
-                  <Folder aria-hidden size={18} />
-                  <span>{name}</span>
-                </button>
-              ))}
-            </div>
           ) : null}
           <div className="prints-gallery-region">
             <ScrollArea
@@ -2453,7 +2488,7 @@ export function MediaPane({
                 <PromptStyleSelect
                   styles={promptStyles.styles}
                   selected={values.style}
-                  disabled={!mediaCapability || modelsLoading || generationBusy}
+                  disabled={!mediaCapability || modelsLoading || submitting}
                   onSelect={(name) => {
                     form.setFieldValue("style", name);
                   }}
@@ -2544,7 +2579,10 @@ export function MediaPane({
             models={models}
             modelsLoading={modelsLoading}
             onSubmit={form.submitCurrent}
-            submitting={generationBusy}
+            submitting={submitting}
+            generateLimitReason={
+              generation.atLimit ? generationLimitReason : undefined
+            }
             values={values}
             computerId={folder.computerId}
             mediaDirectory={mediaDirectory}

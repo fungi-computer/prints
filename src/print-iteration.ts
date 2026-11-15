@@ -105,7 +105,19 @@ export function iterationDraft(
       message: "No video model on this Computer takes a first frame.",
     };
   const recorded = modelFor(models, lineage.model);
-  const model = animateModel ?? recorded ?? modelFor(models, current.model);
+  // An image edit (remove background, upscale) has no prompt and is not a
+  // generator the composer can pick; iterating on it starts from the print.
+  const edited = recorded?.transform != null;
+  if (edited && action === "reuse")
+    return {
+      kind: "refused",
+      message:
+        "This print was an image edit, so there is no prompt to reuse. Remix or animate it instead.",
+    };
+  const model =
+    animateModel ??
+    (edited ? undefined : recorded) ??
+    modelFor(models, current.model);
   if (model === undefined)
     return {
       kind: "refused",
@@ -115,7 +127,9 @@ export function iterationDraft(
     animateModel === undefined && recorded === undefined
       ? `This print was made with ${lineage.model}, which is no longer available. Loaded it with ${modelName(model)} instead.`
       : null;
-  const own = lineage.references.slice(0, lineage.typed.references);
+  const own = edited
+    ? []
+    : lineage.references.slice(0, lineage.typed.references);
   // Animate makes the print the clip's first frame.
   const print: MediaReference =
     action === "animate"
@@ -164,18 +178,21 @@ export function iterationDraft(
       destination: undefined,
       // The stored prompt names its own references by attach order; follow
       // them to where this draft holds them (remix puts the print first).
-      prompt: relabelReferenceMentions(lineage.typed.prompt, (number) => {
-        const entry = own.at(number - 1);
-        const at =
-          entry === undefined
-            ? -1
-            : references.findIndex(
-                (reference) =>
-                  reference.path === entry.path &&
-                  reference.computerId === entry.computerId,
-              );
-        return at < 0 ? undefined : at + 1;
-      }),
+      prompt: relabelReferenceMentions(
+        edited ? "" : lineage.typed.prompt,
+        (number) => {
+          const entry = own.at(number - 1);
+          const at =
+            entry === undefined
+              ? -1
+              : references.findIndex(
+                  (reference) =>
+                    reference.path === entry.path &&
+                    reference.computerId === entry.computerId,
+                );
+          return at < 0 ? undefined : at + 1;
+        },
+      ),
       references,
       steps,
       style,

@@ -118,6 +118,10 @@ export const AudioStudio = () => <Workbench scenario="studio" />;
 export const AudioGenerating = () => (
   <Workbench scenario="studio" generationDelayMs={60_000} />
 );
+/** Prints that take a minute to make, to run several at once. */
+export const ParallelGenerating = () => (
+  <Workbench scenario="studio" generationDelayMs={60_000} />
+);
 /** A sound the host refuses, for the failure toast. */
 export const AudioFailed = () => <Workbench scenario="studio" fail="error" />;
 /** A platform that refuses to play audio, for the playback-failure toast. */

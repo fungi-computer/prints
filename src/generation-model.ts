@@ -1,4 +1,5 @@
 import { AUDIO_TILE_SIZE } from "./audio-media.js";
+import { GenerationLimitError } from "./generation-limit.js";
 import {
   appErrorCodes,
   describeAppError,
@@ -74,7 +75,6 @@ export type GenerationState =
   | Readonly<{ kind: "loading" }>
   | Readonly<{ kind: "ready" }>
   | Readonly<{ draft: GenerationDraft; kind: "pending" }>
-  | Readonly<{ kind: "completed"; record: GenerationRecord }>
   | Readonly<{
       kind: "error";
       /** The failed attempt's model kind; null before a model is known. */
@@ -97,6 +97,12 @@ function needsGatewayCredits(cause: unknown): cause is MediaGenerationError {
 
 /** Prints owns recovery copy; the provider owns classification and F5 the typed action. */
 export function describeGenerationError(cause: unknown): ErrorDescription {
+  if (cause instanceof GenerationLimitError)
+    return {
+      title: "Too many generations",
+      message: cause.message,
+      retryable: true,
+    };
   if (needsGatewayCredits(cause))
     return {
       title: "AI Gateway credits unavailable",
@@ -241,11 +247,17 @@ export function generateActionLabel(model: MediaModel | undefined): string {
   return model?.kind === "video" ? "Generate video" : "Generate image";
 }
 
-/** Models the image composer picks from; audio has its own controls. */
+/**
+ * Models the image composer picks from. Audio has its own controls, and a
+ * model that edits a source image (remove background, upscale) is an action on
+ * a print, never a choice of generator.
+ */
 export function pictureModels(
   models: readonly MediaModel[],
 ): readonly MediaModel[] {
-  return models.filter((model) => model.kind !== "audio");
+  return models.filter(
+    (model) => model.kind !== "audio" && model.transform === null,
+  );
 }
 
 /** Models the audio composer picks from. */
@@ -288,6 +300,9 @@ export function generationPendingLabel(
     return model.audio?.mode === "music"
       ? "Composing music…"
       : "Making speech…";
+  if (model.transform?.operation === "remove_background")
+    return "Removing background…";
+  if (model.transform?.operation === "upscale") return "Upscaling…";
   if (model.kind !== "video") return "Creating image…";
   if (elapsedMs === undefined)
     return "Creating video… Videos take about 2 minutes";

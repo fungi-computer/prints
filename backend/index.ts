@@ -6,6 +6,11 @@ import { DurableObject } from "cloudflare:workers";
 import * as Schema from "effect/Schema";
 import { reportCatchFailure } from "../src/log-event.js";
 import {
+  MAX_GENERATIONS_IN_FLIGHT,
+  generationHoldMs,
+  generationLimitRefusal,
+} from "../src/generation-limit.js";
+import {
   appBackendActorHeader,
   appBackendComputerHeader,
 } from "@fungi.computer/agar/backend";
@@ -97,8 +102,19 @@ class PrintsFacet extends DurableObject<PrintsEnv, unknown> {
       "CREATE TABLE IF NOT EXISTS media_library_folders (computer_id TEXT PRIMARY KEY, path TEXT NOT NULL) STRICT",
     );
     ctx.storage.sql.exec(
-      "CREATE TABLE IF NOT EXISTS pending_generations (actor_id TEXT NOT NULL, request_id TEXT NOT NULL, computer_id TEXT NOT NULL, record_json TEXT NOT NULL, PRIMARY KEY(actor_id,request_id)) STRICT",
+      "CREATE TABLE IF NOT EXISTS pending_generations (actor_id TEXT NOT NULL, request_id TEXT NOT NULL, computer_id TEXT NOT NULL, record_json TEXT NOT NULL, created_at INTEGER NOT NULL DEFAULT 0, dismissed INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(actor_id,request_id)) STRICT",
     );
+    // Rows remembered before the limit have no start time (0 reads as long
+    // finished) and are not dismissed; their record_json is untouched.
+    const known = ctx.storage.sql
+      .exec<{ name: string }>("PRAGMA table_info(pending_generations)")
+      .toArray()
+      .map((column) => column.name);
+    for (const column of ["created_at", "dismissed"])
+      if (!known.includes(column))
+        ctx.storage.sql.exec(
+          `ALTER TABLE pending_generations ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0`,
+        );
     ensurePrintsIndexTables(ctx.storage.sql);
     ensurePromptStyleTables(ctx.storage.sql);
     ensureMethodGenerationTables(ctx.storage.sql);
@@ -247,12 +263,42 @@ class PrintsFacet extends DurableObject<PrintsEnv, unknown> {
         const refused = requireComputer(record.reference.computerId);
         if (refused !== null) return refused;
         const encoded = JSON.stringify(record);
+        // A run that is already in flight is a replay; a new or retried run
+        // needs room under the person's limit, whichever tab asks. A run holds
+        // its place until it finishes or fails, or until no run can still be
+        // going. A stopped run holds it too: Stop ends the waiting, not the
+        // paid provider call.
+        const now = Date.now();
         sql.exec(
-          "INSERT OR IGNORE INTO pending_generations(actor_id,request_id,computer_id,record_json) VALUES (?,?,?,?)",
+          "DELETE FROM pending_generations WHERE dismissed=1 AND created_at<=?",
+          now - generationHoldMs,
+        );
+        const counted = sql
+          .exec<{ others: number; self: number }>(
+            `SELECT
+               COALESCE(SUM(request_id<>?),0) AS others,
+               COALESCE(SUM(request_id=?),0) AS self
+             FROM pending_generations
+             WHERE actor_id=? AND created_at>?
+               AND (json_extract(record_json,'$.failure') IS NULL
+                 OR json_extract(record_json,'$.failure.reason')='CANCELLED')`,
+            record.reference.requestId,
+            record.reference.requestId,
+            actor.value,
+            now - generationHoldMs,
+          )
+          .one();
+        if (counted.self === 0 && counted.others >= MAX_GENERATIONS_IN_FLIGHT)
+          // A value, not a status: the host turns every non-2xx answer into
+          // one generic failure, which would lose this copy.
+          return Response.json(generationLimitRefusal);
+        sql.exec(
+          "INSERT OR IGNORE INTO pending_generations(actor_id,request_id,computer_id,record_json,created_at) VALUES (?,?,?,?,?)",
           actor.value,
           record.reference.requestId,
           record.reference.computerId,
           encoded,
+          now,
         );
         const stored = sql
           .exec<{ record_json: string }>(
@@ -284,6 +330,14 @@ class PrintsFacet extends DurableObject<PrintsEnv, unknown> {
             record.reference.requestId,
           );
         }
+        // Remembering again means the run starts now. Only an accepted
+        // remember restarts the window, never one refused above.
+        sql.exec(
+          "UPDATE pending_generations SET created_at=?, dismissed=0 WHERE actor_id=? AND request_id=?",
+          now,
+          actor.value,
+          record.reference.requestId,
+        );
         return Response.json(record);
       }
       if (input.operation === "fail-generation") {
@@ -321,8 +375,19 @@ class PrintsFacet extends DurableObject<PrintsEnv, unknown> {
       if (input.operation === "forget-generation") {
         const refused = requireComputer(input.reference.computerId);
         if (refused !== null) return refused;
+        // Dismissing a stopped run hides it but does not free its place:
+        // its provider call may still be going. It frees at the end of the hold.
         sql.exec(
-          "DELETE FROM pending_generations WHERE actor_id=? AND request_id=? AND computer_id=?",
+          `UPDATE pending_generations SET dismissed=1
+           WHERE actor_id=? AND request_id=? AND computer_id=? AND created_at>?
+             AND json_extract(record_json,'$.failure.reason')='CANCELLED'`,
+          actor.value,
+          input.reference.requestId,
+          input.reference.computerId,
+          Date.now() - generationHoldMs,
+        );
+        sql.exec(
+          "DELETE FROM pending_generations WHERE actor_id=? AND request_id=? AND computer_id=? AND dismissed=0",
           actor.value,
           input.reference.requestId,
           input.reference.computerId,
@@ -360,7 +425,7 @@ class PrintsFacet extends DurableObject<PrintsEnv, unknown> {
       // Bounded pages do not impose a lifetime limit on accepted generations.
       const rows = sql
         .exec<{ request_id: string; record_json: string }>(
-          "SELECT request_id,record_json FROM pending_generations WHERE actor_id=? AND computer_id=? AND request_id>? ORDER BY request_id LIMIT 51",
+          "SELECT request_id,record_json FROM pending_generations WHERE actor_id=? AND computer_id=? AND dismissed=0 AND request_id>? ORDER BY request_id LIMIT 51",
           actor.value,
           verifiedComputer.value,
           input.after ?? "",

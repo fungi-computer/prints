@@ -3,6 +3,7 @@ import type { PendingGeneration } from "./media-recovery-contract.js";
 import type { GallerySlot } from "./gallery-slots.js";
 import type { useComputerUploads } from "./use-computer-uploads.js";
 import type { PrintsNotice } from "./prints-activity.js";
+import { generationLimitReason } from "./generation-limit.js";
 import { modelFor, type MediaModel } from "./generation-model.js";
 
 export type NoticeState = {
@@ -16,7 +17,8 @@ export type NoticeState = {
   /** The host says no image model is connected; the setup notice owns that, not Permissions. */
   mediaSetupMissing: boolean;
   canWrite: boolean;
-  generationError: {
+  /** One entry per failed run, so a failure never hides another. */
+  generationErrors: readonly {
     key: string;
     mediaKind: MediaModel["kind"] | null;
     message: string;
@@ -25,10 +27,12 @@ export type NoticeState = {
     dismiss?: () => void;
     /** What the failed print was asked for. */
     prompt?: string;
-  } | null;
+  }[];
   recoveryError: string | null;
   pendingGenerations: readonly PendingGeneration[];
   activeGenerations: ReadonlySet<string>;
+  /** The person has as many runs going as they may, so Generate is off. */
+  atGenerationLimit: boolean;
   gallerySlots: readonly GallerySlot[];
   computerId: string | null;
   failed: readonly string[];
@@ -58,10 +62,11 @@ export function noticesFor({
   canGenerate,
   mediaSetupMissing,
   canWrite,
-  generationError,
+  generationErrors,
   recoveryError,
   pendingGenerations,
   activeGenerations,
+  atGenerationLimit,
   gallerySlots,
   computerId,
   failed,
@@ -149,7 +154,7 @@ export function noticesFor({
       title: "Read-only Computer",
       detail: "Uploads and new prints are off.",
     });
-  if (generationError !== null) {
+  for (const generationError of generationErrors) {
     const kind = generationError.mediaKind ?? "media";
     const failure = `${kindNames[kind]} failed`;
     notices.push({
@@ -172,6 +177,17 @@ export function noticesFor({
       ],
     });
   }
+  if (atGenerationLimit)
+    notices.push({
+      key: "generation-limit",
+      group: "Images",
+      tone: "info",
+      short: "At the limit",
+      title: "At the limit",
+      detail: generationLimitReason,
+      // It explains the disabled Generate key, so it cannot be dismissed.
+      blocking: true,
+    });
   if (recoveryError !== null)
     notices.push({
       key: `recovery:${recoveryError}`,

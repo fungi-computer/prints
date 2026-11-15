@@ -1,5 +1,8 @@
 import { AppError, mediaGeneration } from "@fungi.computer/agar";
-import { describeAppError } from "@fungi.computer/agar/errors";
+import {
+  describeAppError,
+  type ErrorDescription,
+} from "@fungi.computer/agar/errors";
 import { useComputerId } from "@fungi.computer/agar/react";
 import { computerWriteFile } from "@fungi.computer/agar/computer";
 import {
@@ -35,6 +38,21 @@ import {
   type GenerationRecord,
   type GenerationState,
 } from "./generation-model.js";
+
+import {
+  MAX_GENERATIONS_IN_FLIGHT,
+  GenerationLimitError,
+  generationHoldMs,
+  generationLimitReason,
+} from "./generation-limit.js";
+import {
+  operationInputFor,
+  operationModelFor,
+  operationRefusal,
+  OPERATION_LABELS,
+  type OperationSource,
+  type PrintOperation,
+} from "./print-operations.js";
 import { mediaModelsQuery } from "./media-queries.js";
 import {
   completeGeneration,
@@ -99,6 +117,16 @@ type Run = Command & {
   recoveryKey: QueryKey;
   ticket: number;
 };
+/** One run's failure, kept beside the others so none overwrites another. */
+type RunFailure = Readonly<{
+  requestId: string;
+  path: string;
+  mediaKind: Extract<GenerationState, { kind: "error" }>["mediaKind"];
+  message: string;
+  action: ErrorDescription["action"] | undefined;
+  /** What the run was asked for, so the failure says which print. */
+  prompt: string;
+}>;
 const readReference = Schema.decodeUnknownOption(
   Schema.Struct({ reference: mediaGenerationReferenceSchema }),
 );
@@ -177,7 +205,18 @@ export function useMediaGeneration({
   const active = useRef(new Map<string, AbortController>());
   const autoResumed = useRef(new Set<string>());
   const ticket = useRef(0);
-  const retry = useRef<Command | null>(null);
+  /** Every run's command until it succeeds or is dismissed, by request id. */
+  const commands = useRef(new Map<string, Command>());
+  /** Runs the person stopped, so their abort records a Retry-able failure. */
+  const stopping = useRef(new Set<string>());
+  /**
+   * When each stopped run was stopped. Stop ends the waiting, not the paid
+   * provider call, so a stopped run keeps its place until the hold passes.
+   */
+  const stoppedAt = useRef(new Map<string, number>());
+  const holdTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const [, setHoldTick] = useState(0);
+  const [failures, setFailures] = useState<readonly RunFailure[]>([]);
   const [admissionError, setAdmissionError] = useState<Extract<
     GenerationState,
     { kind: "error" }
@@ -241,6 +280,24 @@ export function useMediaGeneration({
         },
     );
   };
+  /** Show a run that is not in the remembered list yet, with its failure. */
+  const upsertRecord = (queryKey: QueryKey, record: PendingGeneration) => {
+    client.setQueryData<RecoveryPages>(queryKey, (previous) => {
+      if (!previous) return previous;
+      const known = previous.pages.some((page) =>
+        page.records.some(
+          (entry) => entry.reference.requestId === record.reference.requestId,
+        ),
+      );
+      if (known) return previous;
+      return {
+        ...previous,
+        pages: previous.pages.map((page, at) =>
+          at === 0 ? { ...page, records: [record, ...page.records] } : page,
+        ),
+      };
+    });
+  };
   const generate = useMutation({
     mutationKey: [...key, "run"],
     mutationFn: async (run: Run): Promise<GenerationRecord> => {
@@ -289,17 +346,52 @@ export function useMediaGeneration({
     },
     onSuccess: (record, run) => {
       removeRecord(run.recoveryKey, run.reference.requestId);
-      if (retry.current?.reference.requestId === run.reference.requestId)
-        retry.current = null;
+      commands.current.delete(run.reference.requestId);
       if (!selected(run) || run.controller.signal.aborted) return;
       callbacks.current.saved(record, run.connection);
     },
     onError: (cause, run) => {
       reportCatchFailure("generate-media", cause);
       if (run.controller.signal.aborted) {
+        // Only the person's Stop is a result worth keeping; closing Prints is not.
+        if (stopping.current.delete(run.reference.requestId)) {
+          const stopped: GenerationFailure = {
+            reason: "CANCELLED",
+            message: "Stopped. Retry to run it again.",
+          };
+          void failGeneration(
+            run.connection.app.capabilities,
+            run.reference,
+            stopped,
+          ).catch((failed: unknown) => {
+            reportCatchFailure("fail-generation", failed);
+          });
+          upsertRecord(
+            run.recoveryKey,
+            normalizePendingGeneration({
+              reference: run.reference,
+              input: run.input,
+              typed: run.typed,
+              style: run.style,
+              characters: run.characters,
+              failure: stopped,
+            }),
+          );
+          markFailure(run.recoveryKey, run.reference.requestId, stopped);
+        }
         callbacks.current.release(
           `${run.reference.computerId}:${run.input.destination.path}`,
         );
+        return;
+      }
+      if (cause instanceof GenerationLimitError) {
+        // The backend refused before remembering anything, so there is no run
+        // to keep: say so once in the toast and drop the reserved tile.
+        commands.current.delete(run.reference.requestId);
+        callbacks.current.release(
+          `${run.reference.computerId}:${run.input.destination.path}`,
+        );
+        if (selected(run)) callbacks.current.notifyFailure(cause.message);
         return;
       }
       const failure = generationFailureOf(cause);
@@ -313,6 +405,20 @@ export function useMediaGeneration({
       });
       if (!selected(run)) return;
       markFailure(run.recoveryKey, run.reference.requestId, failure);
+      const described = describeGenerationError(cause);
+      const runFailure: RunFailure = {
+        requestId: run.reference.requestId,
+        path: run.input.destination.path,
+        mediaKind:
+          modelFor(run.session.models, run.input.settings.model)?.kind ?? null,
+        message: described.message,
+        action: described.action,
+        prompt: run.typed.prompt,
+      };
+      setFailures((previous) => [
+        ...previous.filter((entry) => entry.requestId !== runFailure.requestId),
+        runFailure,
+      ]);
       folder.recheck();
       // The tile and Activity say it once; a toast would say it a third time.
       callbacks.current.failed(
@@ -334,8 +440,10 @@ export function useMediaGeneration({
     },
     onSuccess: (_result, run) => {
       removeRecord(run.recoveryKey, run.reference.requestId);
-      if (retry.current?.reference.requestId === run.reference.requestId)
-        retry.current = null;
+      commands.current.delete(run.reference.requestId);
+      setFailures((previous) =>
+        previous.filter((entry) => entry.requestId !== run.reference.requestId),
+      );
     },
     onError: (cause, run) => {
       if (selected(run)) failRecovery(describeAppError(cause).message);
@@ -352,11 +460,27 @@ export function useMediaGeneration({
         .requestId,
   });
   const activeGenerations = new Set(running.filter((id) => id !== undefined));
+  // Runs going now, and runs stopped here within the hold, count. A remembered
+  // run with nothing behind it (Prints was closed) shows Retry and Dismiss and
+  // holds no place here; the backend lets it go once no run can still be alive.
+  const now = Date.now();
+  const inFlight = new Set([
+    ...activeGenerations,
+    ...[...stoppedAt.current]
+      .filter(([, at]) => now - at < generationHoldMs)
+      .map(([id]) => id),
+  ]);
+  const atLimit = inFlight.size >= MAX_GENERATIONS_IN_FLIGHT;
   useEffect(() => {
     autoResumed.current.clear();
     setAdmissionError(null);
     setRecoveryError(null);
-    retry.current = null;
+    commands.current.clear();
+    stopping.current.clear();
+    stoppedAt.current.clear();
+    for (const timer of holdTimers.current) clearTimeout(timer);
+    holdTimers.current.clear();
+    setFailures([]);
     const selectedRecoveryKey = queryKeys.of(
       app,
       "prints",
@@ -393,8 +517,22 @@ export function useMediaGeneration({
       lifecycle?.();
       grants?.();
       stop();
+      for (const timer of holdTimers.current) clearTimeout(timer);
+      holdTimers.current.clear();
     };
   }, [app, computerId, connection, client]);
+  /** Forget one failed run: its remembered command, its error and its record. */
+  const dismissRun = (requestId: string) => {
+    setFailures((previous) =>
+      previous.filter((entry) => entry.requestId !== requestId),
+    );
+    const command = commands.current.get(requestId);
+    if (!command || active.current.has(requestId)) return;
+    commands.current.delete(requestId);
+    const controller = new AbortController();
+    active.current.set(requestId, controller);
+    discard.mutate({ ...command, controller, recoveryKey });
+  };
   const run = (command: Command & { resumed?: boolean }) => {
     const id = command.reference.requestId;
     if (active.current.has(id)) return false;
@@ -406,9 +544,18 @@ export function useMediaGeneration({
       failRecovery("Media access is unavailable for the original Computer.");
       return false;
     }
+    // A run already counted (resumed after a reload) fits by definition.
+    if (!inFlight.has(id) && atLimit) {
+      failRecovery(generationLimitReason);
+      return false;
+    }
     const controller = new AbortController();
     active.current.set(id, controller);
-    retry.current = command;
+    commands.current.set(id, command);
+    stoppedAt.current.delete(id);
+    setFailures((previous) =>
+      previous.filter((entry) => entry.requestId !== id),
+    );
     setAdmissionError(null);
     setRecoveryError(null);
     ticket.current += 1;
@@ -456,7 +603,10 @@ export function useMediaGeneration({
       folder.setEditing(true);
       return false;
     }
-    retry.current = null;
+    if (atLimit) {
+      callbacks.current.notifyFailure(generationLimitReason);
+      return false;
+    }
     const model = modelFor(models, draft.model);
     if (model === undefined) {
       refuseAdmission({
@@ -618,21 +768,61 @@ export function useMediaGeneration({
       characters: characterNames,
     });
   };
+  /**
+   * Start an image action on a print: one run, counted against the cap like any
+   * generation, that saves a new print beside the source. Resolves to the
+   * reason it could not start, or null once it has (a later failure shows on
+   * the run's own tile).
+   */
+  const operate = async (
+    source: OperationSource,
+    operation: PrintOperation,
+    megapixels?: number,
+  ): Promise<string | null> => {
+    if (!connection?.app.capabilities.has(computerWriteFile) || !canGenerate)
+      return GENERATION_UNAVAILABLE_REASON;
+    if (!session) return GENERATION_UNAVAILABLE_REASON;
+    if (atLimit) return generationLimitReason;
+    const model = operationModelFor(models, operation);
+    if (model === undefined)
+      return `${OPERATION_LABELS[operation]} is not available on this Computer.`;
+    const refusal = operationRefusal(model, source);
+    if (refusal !== undefined) return refusal;
+    const captured = connection;
+    const id = captured.app.context.get().computerId;
+    if (source.computerId !== id)
+      return "Select this print's Computer to edit it.";
+    const admissionTicket = ticket.current;
+    const { input, draft } = operationInputFor(model, source, megapixels);
+    let reference: MediaGenerationReference;
+    try {
+      const attempt = await session.createAttempt();
+      reference = attempt.reference;
+      attempt[Symbol.dispose]();
+    } catch (cause) {
+      return describeGenerationError(cause).message;
+    }
+    if (
+      ticket.current !== admissionTicket ||
+      current.current !== captured ||
+      captured.app.context.get().computerId !== id
+    )
+      return "The selected Computer changed. Try again.";
+    run({
+      connection: captured,
+      reference,
+      input,
+      draft,
+      typed: { prompt: input.settings.prompt, references: 1 },
+      characters: [],
+    });
+    return null;
+  };
   const latest = generate.variables;
   const attemptState: GenerationState | null =
     admissionError ??
-    (latest && selected(latest) && latest.ticket === ticket.current
-      ? generate.isPending
-        ? { kind: "pending", draft: latest.draft }
-        : generate.isError
-          ? {
-              kind: "error",
-              mediaKind:
-                modelFor(latest.session.models, latest.input.settings.model)
-                  ?.kind ?? null,
-              ...describeGenerationError(generate.error),
-            }
-          : { kind: "completed", record: generate.data }
+    (activeGenerations.size > 0 && latest
+      ? { kind: "pending", draft: latest.draft }
       : null);
   const state: GenerationState =
     attemptState ??
@@ -655,7 +845,29 @@ export function useMediaGeneration({
       void modelQuery.refetch();
     },
     submit,
-    isRunning: () => active.current.size > 0,
+    operate,
+    atLimit,
+    /** Stop the run whose tile sits at `path`; the others keep going. */
+    stopPath: (path: string) => {
+      for (const [id, command] of commands.current) {
+        const controller = active.current.get(id);
+        if (
+          command.input.destination.path !== path ||
+          !controller ||
+          !activeGenerations.has(id)
+        )
+          continue;
+        stopping.current.add(id);
+        stoppedAt.current.set(id, Date.now());
+        // Re-render when the hold ends, so Generate comes back on its own.
+        const timer = setTimeout(() => {
+          holdTimers.current.delete(timer);
+          setHoldTick((tick) => tick + 1);
+        }, generationHoldMs + 1000);
+        holdTimers.current.add(timer);
+        controller.abort();
+      }
+    },
     activeGenerations,
     pendingGenerations: records,
     recoveryError:
@@ -681,6 +893,12 @@ export function useMediaGeneration({
     },
     discard: (record: PendingGeneration) => {
       if (!connection || active.current.has(record.reference.requestId)) return;
+      commands.current.delete(record.reference.requestId);
+      setFailures((previous) =>
+        previous.filter(
+          (entry) => entry.requestId !== record.reference.requestId,
+        ),
+      );
       const controller = new AbortController();
       active.current.set(record.reference.requestId, controller);
       discard.mutate({
@@ -691,34 +909,38 @@ export function useMediaGeneration({
         recoveryKey,
       });
     },
-    retryPath: (path: string) => {
-      const command = retry.current;
-      if (command?.input.destination.path !== path || !selected(command))
-        return false;
-      run(command);
-      return true;
-    },
-    retry:
-      retry.current && selected(retry.current)
+    failures: failures.map((failure) => ({
+      ...failure,
+      key: `generation:${failure.requestId}`,
+      retry: commands.current.has(failure.requestId)
         ? () => {
-            if (retry.current) run(retry.current);
+            const command = commands.current.get(failure.requestId);
+            if (command && selected(command)) run(command);
           }
         : undefined,
-    /** What the failed attempt was asked for, so a failure says which print. */
-    failedPrompt: retry.current?.typed.prompt,
-    /** Forget the failed attempt: drop its remembered command and its error. */
-    dismissFailed: () => {
-      const command = retry.current;
-      if (!command || active.current.has(command.reference.requestId)) {
-        generate.reset();
-        return;
+      dismiss: () => {
+        dismissRun(failure.requestId);
+      },
+    })),
+    /** Retry the failed run whose tile sits at `path`. */
+    retryPath: (path: string) => {
+      for (const command of commands.current.values()) {
+        if (command.input.destination.path !== path || !selected(command))
+          continue;
+        return run(command);
       }
-      retry.current = null;
-      generate.reset();
-      const controller = new AbortController();
-      active.current.set(command.reference.requestId, controller);
-      discard.mutate({ ...command, controller, recoveryKey });
+      return false;
     },
-    errorKey: `generation:${retry.current?.reference.requestId ?? "draft"}:${String(ticket.current)}`,
+    /** What the run at `path` was asked for, so its failed tile says which print. */
+    promptAt: (path: string) => {
+      for (const command of commands.current.values())
+        if (command.input.destination.path === path)
+          return command.typed.prompt;
+      return undefined;
+    },
+    dismissPath: (path: string) => {
+      for (const [id, command] of commands.current)
+        if (command.input.destination.path === path) dismissRun(id);
+    },
   };
 }

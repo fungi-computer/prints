@@ -1,5 +1,32 @@
 # @fungi.computer/prints
 
+## 0.16.0
+
+### Minor Changes
+
+- Changes since 0.15.1:
+
+  - fix(prints): tidy an edit result's Image info and the narrow sheet
+  - fix(prints): put image action prices in the keys and failures in toasts
+  - feat(prints): remove background and upscale from Image info
+  - fix(prints): format backend and type the seed helper
+  - fix(prints): hold stopped runs' places, migrate old rows safely, calmer
+    at-cap UI
+  - fix(prints): keep source-image operations out of the generator picker
+  - feat(prints): readable Stop, run captions, stale rows and limit copy
+  - fix(prints): fit library folder chips in the phone title row
+  - fix(prints): satisfy anti-slop, format and unused-export checks
+  - feat(prints): run several generations at once
+  - fix(prints): put library folders in the title row as chips
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.17.0
+  - @fungi.computer/darkroom@0.10.0
+  - @fungi.computer/parakeet@0.11.34
+
 ## 0.15.1
 
 ### Patch Changes

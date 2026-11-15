@@ -372,7 +372,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
   methods: {
     listModels: defineAppMethod({
       description:
-        "List image, video and audio models available through this App's admitted Media access.",
+        "List image, video and audio models available through this App's admitted Media access. A model with a non-null transform edits one source image (remove background, upscale) and is not a generator; do not use it with generateImage.",
       effect: "read",
       requires: ["media.generation"],
       input: empty,

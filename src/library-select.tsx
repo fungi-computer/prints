@@ -9,10 +9,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@fungi.computer/caps/components/dialog";
+import { KeycapButton } from "@fungi.computer/caps/components/keycap";
 import { Input } from "@fungi.computer/caps/components/input";
 import { toast } from "@fungi.computer/caps/components/toaster";
 import {
   ChevronLeft,
+  Folder,
   FolderInput,
   FolderTree,
   Heart,
@@ -114,6 +116,8 @@ export function LibraryBar({
   lastFolder,
   onOpen,
   onFolders,
+  subfolders,
+  onOpenSubfolder,
   selecting,
   onToggleSelect,
 }: Readonly<{
@@ -124,6 +128,9 @@ export function LibraryBar({
   lastFolder: RelativeFolder | undefined;
   onOpen: (view: LibraryView) => void;
   onFolders: () => void;
+  /** Folders inside the open folder, as chips in this row. */
+  subfolders: readonly string[];
+  onOpenSubfolder: (name: string) => void;
   selecting: boolean;
   onToggleSelect: () => void;
 }>): React.JSX.Element {
@@ -148,6 +155,23 @@ export function LibraryBar({
         ) : null}
         <h2 title={title}>{title}</h2>
       </div>
+      {subfolders.length > 0 ? (
+        <div className="prints-folder-chips" role="list" aria-label="Folders">
+          {subfolders.map((name) => (
+            <KeycapButton
+              key={name}
+              role="listitem"
+              density="compact"
+              className="prints-folder-chip"
+              icon={<Folder size={16} />}
+              label={name}
+              onClick={() => {
+                onOpenSubfolder(name);
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
       <Tabs
         className="prints-view-switch"
         value={view.kind}

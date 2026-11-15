@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@fungi.computer/caps/components/dropdown-menu";
+import { toast } from "@fungi.computer/caps/components/toaster";
 import { Download, MoreHorizontal } from "lucide-react";
 import type { GallerySource } from "./media-gallery.js";
 import {
@@ -98,6 +99,18 @@ export function PrintDownloadButton({
     : download.data?.kind === "refused"
       ? describePrintDownloadRefusal(download.data)
       : null;
+  // A failure is said once in the shared toast, never as text that reflows the panel.
+  const failureText = failure ? `${failure.title}. ${failure.message}` : null;
+  useEffect(() => {
+    if (failureText === null) {
+      toast.dismiss("prints-download-error");
+      return;
+    }
+    toast.error(failureText, {
+      id: "prints-download-error",
+      toasterId: "prints-generation-notices",
+    });
+  }, [failureText]);
   const preparing = preparation.isIdle || preparation.isPending;
   const startDownload = () => {
     if (
@@ -159,11 +172,6 @@ export function PrintDownloadButton({
           onClick={startDownload}
         />
       )}
-      {failure ? (
-        <p role="alert" className="text-sm">
-          {failure.title}. {failure.message}
-        </p>
-      ) : null}
     </>
   );
 }

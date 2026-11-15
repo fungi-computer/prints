@@ -61,6 +61,63 @@ body,
 .prints-gallery-tile[data-referenced] .prints-gallery-tools {
   opacity: 1;
 }
+/* A generating tile: the loader keeps clear of the bottom row that holds the
+   run's caption and its Stop. */
+.prints-pending-loader {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding-bottom: 3rem;
+}
+.prints-tile-run {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs);
+  pointer-events: none;
+}
+.prints-tile-caption {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: var(--text-xs, 0.75rem);
+  line-height: 1.25;
+  color: var(--stipe-fg-muted);
+  overflow-wrap: anywhere;
+}
+.prints-tile-stop {
+  flex: none;
+  pointer-events: auto;
+  min-width: 2rem;
+  min-height: 2rem;
+  background: var(--color-base-100);
+  color: var(--color-base-content);
+}
+.prints-tile-stop:hover,
+.prints-tile-stop:focus-visible {
+  background: var(--color-base-300);
+}
+.prints-tile-stop:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .prints-tile-stop {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .prints-pending-loader {
+    padding-bottom: 3.25rem;
+  }
+}
 .prints-reference-tray {
   display: flex;
   align-items: center;
@@ -259,11 +316,32 @@ span.prints-reference-role {
   max-width: 100%;
   overflow: auto;
   padding: var(--spacing-md);
-  background: var(--color-base-200);
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--spacing-md);
+  /* A taller panel scrolls: a thin bar always shows, and a soft shadow marks
+     each edge that has more beyond it. */
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  background:
+    linear-gradient(var(--color-base-200) 30%, transparent) top / 100% 2rem
+      no-repeat local,
+    linear-gradient(transparent, var(--color-base-200) 70%) bottom / 100% 2rem
+      no-repeat local,
+    radial-gradient(
+        farthest-side at 50% 0,
+        color-mix(in oklab, var(--color-base-content) 22%, transparent),
+        transparent
+      )
+      top / 100% 0.75rem no-repeat scroll,
+    radial-gradient(
+        farthest-side at 50% 100%,
+        color-mix(in oklab, var(--color-base-content) 22%, transparent),
+        transparent
+      )
+      bottom / 100% 0.75rem no-repeat scroll,
+    var(--color-base-200);
 }
 .prints-viewer-frame {
   display: flex;
@@ -323,12 +401,14 @@ span.prints-reference-role {
   .prints-info-drawer {
     position: absolute;
     inset: auto 0 0;
-    z-index: 1;
+    z-index: 5;
     flex: none;
     max-height: min(50%, 22rem);
     padding: var(--spacing-sm) var(--spacing-md);
-    border-top: var(--border) solid var(--stipe-hairline);
-    box-shadow: 0 -6px 16px rgb(0 0 0 / 0.12);
+    /* A clear top edge: its own surface above the wall, never a seam in it. */
+    border-top: 2px solid var(--color-base-300);
+    border-radius: var(--radius-box) var(--radius-box) 0 0;
+    box-shadow: 0 -10px 24px rgb(0 0 0 / 0.22);
   }
 }
 /* Touch has no hover: the tools stay, quieter. */
@@ -403,6 +483,28 @@ span.prints-reference-role {
   --caps-keycap-justify: center;
   --caps-keycap-font-size: var(--text-sm);
   --caps-keycap-font-weight: 600;
+}
+/* An odd last key takes the full row, so no cell is left alone at half width. */
+.prints-info-actions > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* Image actions: each key names its price; the size is one segmented choice. */
+.prints-info-operations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  --caps-keycap-face: var(--color-base-100);
+  --caps-keycap-height: 2.25rem;
+  --caps-keycap-justify: center;
+  --caps-keycap-font-size: var(--text-sm);
+  --caps-keycap-font-weight: 600;
+}
+.prints-info-hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-base-content);
+  opacity: 0.75;
 }
 
 /* Saved characters: thumbnails in the list and the reference picker. */
@@ -582,7 +684,7 @@ span.prints-reference-role {
 }
 .prints-rail-view:focus-visible,
 .prints-view-option:focus-visible,
-.prints-folder-tile:focus-visible {
+.prints-folder-chip:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
 }
@@ -626,7 +728,7 @@ span.prints-reference-role {
   align-items: center;
   gap: var(--spacing-xs);
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
 }
 .prints-library-title h2 {
   margin: 0;
@@ -684,30 +786,52 @@ span.prints-reference-role {
 .prints-select-spacer {
   flex: 1;
 }
-.prints-folder-tiles {
+/* Hidden folders fade at whichever edge overflows; the scroll position drives it. */
+@property --prints-chips-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --prints-chips-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes prints-chips-fade {
+  0% {
+    --prints-chips-fade-start: 0px;
+    --prints-chips-fade-end: var(--spacing-xl);
+  }
+  8%,
+  92% {
+    --prints-chips-fade-start: var(--spacing-xl);
+    --prints-chips-fade-end: var(--spacing-xl);
+  }
+  100% {
+    --prints-chips-fade-start: var(--spacing-xl);
+    --prints-chips-fade-end: 0px;
+  }
+}
+.prints-folder-chips {
   display: flex;
-  gap: var(--spacing-sm);
-  padding-inline: var(--spacing-xs);
+  flex: 1 1 0;
+  min-width: 0;
+  margin-inline-start: var(--spacing-md);
+  gap: var(--spacing-xs);
   overflow-x: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--prints-chips-fade-start),
+    #000 calc(100% - var(--prints-chips-fade-end)),
+    transparent
+  );
+  animation: prints-chips-fade linear both;
+  animation-timeline: scroll(self inline);
 }
-.prints-folder-tile {
-  display: inline-flex;
+.prints-folder-chip {
   flex: none;
-  align-items: center;
-  gap: var(--spacing-sm);
-  min-height: 2.75rem;
-  padding: 0 var(--spacing-md);
-  border: var(--border) solid var(--stipe-hairline);
-  border-radius: var(--radius-box);
-  background: var(--color-base-100);
-  color: inherit;
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
-.prints-folder-tile:hover {
-  background: var(--color-base-300);
 }
 .prints-tile-mark {
   position: absolute;
@@ -811,7 +935,6 @@ span.prints-reference-role {
   .prints-library-bar .prints-select-label {
     display: none;
   }
-  .prints-folder-tile,
   .prints-view-option,
   .prints-rail-view {
     min-height: 2.75rem;

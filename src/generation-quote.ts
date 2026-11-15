@@ -132,6 +132,31 @@ function generationQuoteQuery(
   });
 }
 
+/** Where a price stands: nothing to price, on its way, known, or the host could not give one. */
+export type QuoteStatus =
+  | Readonly<{ state: "idle" }>
+  | Readonly<{ state: "loading" }>
+  | Readonly<{ state: "ready"; price: string | null }>
+  | Readonly<{ state: "unavailable" }>;
+
+/**
+ * The host's price for the settings and how far along it is, so a control can
+ * show a waiting state instead of a missing price. A zero price is `ready`
+ * with a null price: free or unknown shows nothing, never "$0".
+ */
+export function useGenerationQuoteStatus(
+  session: Pick<MediaGenerationSession, "computerId" | "quote"> | undefined,
+  settings: MediaGenerationInput["settings"] | null,
+): QuoteStatus {
+  const key = settings === null ? null : JSON.stringify(settings);
+  const settled = useSettled(settings, QUOTE_DELAY_MS);
+  const query = useQuery(generationQuoteQuery(session, settled));
+  if (settings === null || session === undefined) return { state: "idle" };
+  if (settled.key !== key || query.isPending) return { state: "loading" };
+  if (query.isError || query.data == null) return { state: "unavailable" };
+  return { state: "ready", price: formatPrintCost(query.data.costMilliunits) };
+}
+
 /**
  * The host's price for the draft as "$1.16", or null: nothing to price, the
  * draft is still changing, the host cannot quote, the request failed, or the
@@ -141,9 +166,6 @@ export function useGenerationQuote(
   session: Pick<MediaGenerationSession, "computerId" | "quote"> | undefined,
   settings: MediaGenerationInput["settings"] | null,
 ): string | null {
-  const key = settings === null ? null : JSON.stringify(settings);
-  const settled = useSettled(settings, QUOTE_DELAY_MS);
-  const query = useQuery(generationQuoteQuery(session, settled));
-  if (settled.key !== key || query.data == null) return null;
-  return formatPrintCost(query.data.costMilliunits);
+  const status = useGenerationQuoteStatus(session, settings);
+  return status.state === "ready" ? status.price : null;
 }

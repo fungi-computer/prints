@@ -143,9 +143,20 @@ function fixturePrice(
     model: string;
     prompt: string;
     durationSeconds?: number | undefined;
+    targetMegapixels?: number | undefined;
   }>,
 ): number {
   const model = listMediaModels().find((entry) => entry.id === settings.model);
+  if (model?.transform != null)
+    return (
+      model.transform.milliunits ??
+      model.transform.sizes.find(
+        (size) =>
+          size.megapixels ===
+          (settings.targetMegapixels ?? model.transform?.defaultMegapixels),
+      )?.milliunits ??
+      0
+    );
   if (model?.audio != null)
     return (
       model.audio.milliunitsPerUnit *
@@ -159,7 +170,31 @@ function fixturePrice(
 }
 
 /** The recorded facts of a fixture print: a clip, a sound, or the painted picture. */
-function fixtureOutput(path: string) {
+/** What the fixture host recorded for an image edit it ran: its model, source and label. */
+type FixtureEdit = Readonly<{ model: string; source: string; prompt: string }>;
+function fixtureOutput(path: string, edit?: FixtureEdit) {
+  if (edit !== undefined) {
+    const original = recordedFixtureOutput(edit.source);
+    return {
+      ...original,
+      print: {
+        ...original.print,
+        printId: `fixture-edit-${path}`,
+        model: edit.model,
+        width: null,
+        height: null,
+        costMilliunits: 2_000,
+        createdAt: Date.UTC(2026, 10, 14, 9, 15),
+      },
+      typed: { prompt: edit.prompt, references: 1 },
+      path,
+      references: [{ path: edit.source, printId: original.print.printId }],
+      characters: [],
+    };
+  }
+  return recordedFixtureOutput(path);
+}
+function recordedFixtureOutput(path: string) {
   const video = path.endsWith(".mp4");
   const audio = path.endsWith(".mp3");
   return {
@@ -228,8 +263,38 @@ const pause = (ms: number, signal: AbortSignal) =>
     };
     signal.addEventListener("abort", abort, { once: true });
   });
-/** Draw a deterministic sample locally so the workbench needs no network. */
-function photograph(name: string, width: number, height: number): Blob {
+/**
+ * Draw a deterministic sample locally so the workbench needs no network: a real
+ * PNG where the browser can paint one (so Download and the provenance export
+ * see a raster image, as they do for a real print), else the painted SVG.
+ */
+async function photograph(
+  name: string,
+  width: number,
+  height: number,
+): Promise<Blob> {
+  const painted = paintedSample(name, width, height);
+  if (!("document" in globalThis) || navigator.userAgent.includes("jsdom"))
+    return painted;
+  const url = URL.createObjectURL(painted);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d")?.drawImage(image, 0, 0, width, height);
+    return await new Promise<Blob>((resolve) => {
+      canvas.toBlob((blob) => {
+        resolve(blob ?? painted);
+      }, "image/png");
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+function paintedSample(name: string, width: number, height: number): Blob {
   let hue = 0;
   for (const character of name)
     hue = (hue * 31 + character.charCodeAt(0)) % 360;
@@ -263,10 +328,13 @@ export function createPrintsFixture(
       return Promise.resolve({ keys: merged });
     });
   const files = new Map<string, () => Promise<Blob>>();
-  const photographs = samples.map((sample) =>
-    photograph(sample.name, sample.width, sample.height),
+  const edits = new Map<string, FixtureEdit>();
+  const photographs = Promise.all(
+    samples.map((sample) =>
+      photograph(sample.name, sample.width, sample.height),
+    ),
   );
-  const readPhotographs = () => Promise.resolve(photographs);
+  const readPhotographs = () => photographs;
   if (
     scenario === "studio" ||
     scenario === "retry" ||
@@ -605,7 +673,10 @@ export function createPrintsFixture(
               scenario === "viewer-images" ||
               scenario === "library")
           ? Promise.resolve(
-              fixtureOutput(outputPathRequest.parse(JSON.parse(input)).path),
+              (() => {
+                const { path } = outputPathRequest.parse(JSON.parse(input));
+                return fixtureOutput(path, edits.get(path));
+              })(),
             )
           : method === "openOutput" && scenario === "gill-navigate"
             ? Promise.resolve({
@@ -942,6 +1013,36 @@ export function createPrintsFixture(
             },
           };
         }
+        if (chosen?.transform != null) {
+          // An image edit names no size: the cutout keeps the print's shape and
+          // an upscale grows toward its target (kept small for the browser).
+          const side =
+            input.settings.targetMegapixels === undefined
+              ? 1024
+              : Math.min(
+                  2048,
+                  Math.round(Math.sqrt(input.settings.targetMegapixels * 1e6)),
+                );
+          const edited = await photograph(samples[0].name, side, side);
+          files.set(input.destination.path, () => Promise.resolve(edited));
+          const source = input.settings.references?.at(0);
+          if (source !== undefined)
+            edits.set(input.destination.path, {
+              model: input.settings.model,
+              source: source.path,
+              prompt: input.settings.prompt,
+            });
+          return {
+            kind: "succeeded" as const,
+            result: {
+              destination: { computerId, path: input.destination.path },
+              model: input.settings.model,
+              bytes: edited.size,
+              costMilliunits: 0,
+              format: "jpeg" as const,
+            },
+          };
+        }
         const video = chosen?.kind === "video";
         if (
           video &&
@@ -963,7 +1064,7 @@ export function createPrintsFixture(
           ? await videoFixture(
               new URL("./fixtures/viewer-generation.mp4", import.meta.url),
             )
-          : photograph(
+          : await photograph(
               samples[0].name,
               input.settings.width ?? 1,
               input.settings.height ?? 1,

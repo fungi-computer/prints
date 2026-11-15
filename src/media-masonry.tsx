@@ -36,6 +36,7 @@ import {
   Heart,
   ImagePlus,
   Info,
+  Square,
   Upload,
 } from "lucide-react";
 
@@ -60,6 +61,8 @@ export type MediaMasonryItem = {
   prompt?: string | undefined;
   onRetry?: () => void;
   onDismiss?: () => void;
+  /** Stops this run only, while its tile is still generating. */
+  onStop?: () => void;
   /** Where the print came from: its model and a clip's seconds, or an upload. */
   badge?: Readonly<{ label: string | null; seconds: number | null }>;
   /** The library folder a print sits in, shown where several folders mix. */
@@ -260,12 +263,14 @@ const TileBody = memo(function TileBody({
               <GenerationFrame
                 data-media-pending={item.pending ? "true" : undefined}
                 indicator={
-                  <Loader
-                    decorative
-                    size="fill"
-                    tone="accent"
-                    variant="bloom"
-                  />
+                  <div className="prints-pending-loader">
+                    <Loader
+                      decorative
+                      size="fill"
+                      tone="accent"
+                      variant="bloom"
+                    />
+                  </div>
                 }
                 label={item.pendingLabel ?? "Preparing image…"}
                 status={item.pending ? "generating" : "done"}
@@ -278,6 +283,29 @@ const TileBody = memo(function TileBody({
           </div>
         </button>
       )}
+      {item.pending && !item.error && (item.prompt || item.onStop) ? (
+        // Which run this is, in the failed tile's small caption, with its Stop.
+        // One bottom row keeps both clear of the loader at any tile width.
+        <div className="prints-tile-run" data-media-run>
+          {item.prompt ? (
+            <p className="prints-tile-caption" data-media-caption>
+              {item.prompt}
+            </p>
+          ) : null}
+          {item.onStop ? (
+            <IconButton
+              aria-label="Stop"
+              title="Stop"
+              size="sm"
+              variant="outline"
+              iconSize="sm"
+              className="prints-tile-stop"
+              onClick={item.onStop}
+              icon={<Square fill="currentColor" />}
+            />
+          ) : null}
+        </div>
+      ) : null}
       {!item.pending && !item.error ? <TileLibraryMarks item={item} /> : null}
       <div className="prints-gallery-tools">
         {!item.pending && !item.error ? <TileMenu item={item} /> : null}
