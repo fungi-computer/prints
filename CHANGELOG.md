@@ -1,5 +1,13 @@
 # @fungi.computer/prints
 
+## 0.17.4
+
+### Patch Changes
+
+- Changes since 0.17.3:
+
+  - fix(prints): show failed style and character saves as toasts
+
 ## 0.17.3
 
 ### Patch Changes

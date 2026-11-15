@@ -1,6 +1,7 @@
 import type { AppRoot } from "@fungi.computer/agar";
 import { describeAppError } from "@fungi.computer/agar/errors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { notifyPrintsError } from "./prints-error-toast.js";
 import { printsKeys, promptStylesQuery } from "./media-queries.js";
 import { deleteStyle, saveStyle, type PromptStyle } from "./prompt-styles.js";
 
@@ -42,23 +43,36 @@ export function usePromptStyles(app: AppRoot | null) {
       deleteStyle(owner.capabilities, computerId, id),
     ),
   );
-  const failure = save.error ?? remove.error ?? query.error;
   return {
     styles: query.data?.styles ?? [],
-    error: failure ? describeAppError(failure).message : null,
+    error: query.error ? describeAppError(query.error).message : null,
     busy: save.isPending || remove.isPending,
     save: (
       style: Readonly<{ id?: number | undefined; name: string; text: string }>,
       done: (saved: PromptStyle | undefined) => void,
     ) => {
       save.mutate(style, {
+        onError: () => {
+          notifyPrintsError(
+            "The style could not be saved. Try again.",
+            "prints-style-save",
+          );
+        },
         onSuccess: (data) => {
           done(data.styles.find((entry) => entry.name === style.name));
         },
       });
     },
     remove: (id: number, done: () => void) => {
-      remove.mutate(id, { onSuccess: done });
+      remove.mutate(id, {
+        onSuccess: done,
+        onError: () => {
+          notifyPrintsError(
+            "The style could not be deleted. Try again.",
+            "prints-style-delete",
+          );
+        },
+      });
     },
   };
 }
