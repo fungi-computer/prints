@@ -1,5 +1,17 @@
 # @fungi.computer/prints
 
+## 0.17.3
+
+### Patch Changes
+
+- Changes since 0.17.2:
+
+  - fix(prints): follow the disconnected notice into the prompt placeholder
+  - fix(parakeet): make composer keys 44px touch targets on phones
+
+- Updated dependencies
+  - @fungi.computer/parakeet@0.11.38
+
 ## 0.17.2
 
 ### Patch Changes

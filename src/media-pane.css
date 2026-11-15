@@ -313,9 +313,6 @@ textarea[data-counting] {
 }
 /* Phones: composer keys are 44px touch targets. */
 @media (pointer: coarse) {
-  .prints-composer-dock .parakeet-composer-shell {
-    --caps-status-tray-key-height: 2.75rem;
-  }
   .prints-composer-dock .parakeet-composer-row .caps-keycap-button,
   .prints-composer-dock .prints-generate,
   .prints-composer-dock .prints-composer-editor-bar button,
