@@ -95,6 +95,73 @@ function needsGatewayCredits(cause: unknown): cause is MediaGenerationError {
   );
 }
 
+/** One plain line per provider failure class; the provider names the class. */
+function providerReasonCopy(cause: unknown): ErrorDescription | undefined {
+  if (!(cause instanceof MediaGenerationError) || cause.stage !== "provider")
+    return undefined;
+  const provider = cause.provider;
+  if (provider === undefined || !("code" in provider)) return undefined;
+  const uncharged =
+    cause.code === "MEDIA_PROVIDER_FAILURE_UNCHARGED"
+      ? " You weren’t charged."
+      : "";
+  const line = (
+    title: string,
+    message: string,
+    retryable: boolean,
+  ): ErrorDescription => ({ title, message: message + uncharged, retryable });
+  switch (provider.reason) {
+    case "content_refused":
+      return line(
+        "Generation refused",
+        "The model refused this prompt (content policy). Try rewording it.",
+        false,
+      );
+    case "invalid_input":
+      return line(
+        "Generation failed",
+        provider.detail === undefined
+          ? "The provider rejected the input. Check the prompt and the reference image’s size and format."
+          : `The provider rejected the input: ${provider.detail}.`,
+        false,
+      );
+    case "rate_limited":
+      return line(
+        "Generation failed",
+        "The provider is overloaded. Retry in a minute.",
+        true,
+      );
+    case "provider_unavailable":
+      return line(
+        "Generation failed",
+        "The provider is having an outage. Retry in a minute.",
+        true,
+      );
+    case "timeout":
+      return line(
+        "Still waiting",
+        "The model took too long to answer. Retry to ask again.",
+        true,
+      );
+    case "spending_limit":
+      return line(
+        "Generation failed",
+        "The provider’s daily allowance is used up. Try another model, or retry tomorrow.",
+        false,
+      );
+    case "credits_exhausted":
+      return undefined;
+    case undefined:
+      return provider.detail === undefined
+        ? undefined
+        : line(
+            "Generation failed",
+            `The model stopped before it finished: ${provider.detail}. Retry, or pick another model.`,
+            false,
+          );
+  }
+}
+
 /** Prints owns recovery copy; the provider owns classification and F5 the typed action. */
 export function describeGenerationError(cause: unknown): ErrorDescription {
   if (cause instanceof GenerationLimitError)
@@ -113,6 +180,8 @@ export function describeGenerationError(cause: unknown): ErrorDescription {
       }`,
       retryable: false,
     };
+  const reasoned = providerReasonCopy(cause);
+  if (reasoned !== undefined) return reasoned;
   return describeAppError(cause, {
     INSUFFICIENT_CREDIT: {
       title: "Couldn’t create image",

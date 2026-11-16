@@ -117,7 +117,7 @@ export type CaptureOptions = {
   mediaGen?: boolean;
   /** False leaves the App without public links, as on a standalone host. */
   mediaShare?: boolean;
-  fail?: "error" | "timeout" | null;
+  fail?: "error" | "timeout" | "refused" | null;
   pending?: boolean;
   modelsError?: boolean;
   computerSelected?: boolean;
@@ -978,6 +978,22 @@ export function createPrintsFixture(
               code: "TIMEOUT" as const,
               message: "Fixture: no answer.",
               retryable: true,
+            },
+          };
+        if (opt.fail === "refused")
+          // The shape the host sends for a provider's content refusal.
+          return {
+            kind: "failed" as const,
+            failure: {
+              code: "SAFETY_FILTER_REFUSED" as const,
+              message: "The model refused this prompt.",
+              stage: "provider" as const,
+              provider: {
+                category: "Error" as const,
+                code: 3030,
+                reason: "content_refused" as const,
+              },
+              retryable: false,
             },
           };
         if (opt.fail === "error")

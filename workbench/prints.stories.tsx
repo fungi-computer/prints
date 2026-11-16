@@ -129,6 +129,14 @@ export const ParallelGenerating = () => (
 );
 /** A sound the host refuses, for the failure toast. */
 export const AudioFailed = () => <Workbench scenario="studio" fail="error" />;
+/** A prompt the provider refuses, so the card names the reason. */
+export const RefusedPrompt = () => (
+  <Workbench scenario="studio" fail="refused" />
+);
+/** Forty prints for the Library, to page with Load more images. */
+export const LongLibrary = () => (
+  <Workbench scenario="studio" imageCount={8} imageCopies={5} />
+);
 /** A platform that refuses to play audio, for the playback-failure toast. */
 export function AudioPlaybackBlocked() {
   useEffect(() => {

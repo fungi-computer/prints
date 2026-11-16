@@ -117,6 +117,10 @@ import {
   mentionedReferenceNumbers,
   referenceLabel,
 } from "./reference-mentions.js";
+import {
+  ReferenceLightbox,
+  type ReferenceSlide,
+} from "./reference-lightbox.js";
 import { quoteSettingsFor, useGenerationQuote } from "./generation-quote.js";
 import { usePromptCharacters } from "./use-prompt-characters.js";
 import { PromptCharactersDialog } from "./prompt-character-controls.js";
@@ -753,6 +757,8 @@ function GenerationComposer({
       form.setFieldValue("steps", nextDraft.steps);
   };
   const isAudio = selected?.kind === "audio";
+  const [lightboxKey, setLightboxKey] = useState<string | null>(null);
+  const referenceTray = useRef<HTMLDivElement>(null);
   const referenceCount = isAudio ? 0 : values.references.length;
   const audioChoices = audioOptionsOf(audioModelsOf(models));
   // The picture model to return to when the Audio key is pressed again.
@@ -818,6 +824,37 @@ function GenerationComposer({
         )}
       </>
     );
+  const referenceKey = (reference: (typeof values.references)[number]) =>
+    JSON.stringify([reference.computerId ?? computerId, reference.path]);
+  const referenceThumbnail = (reference: (typeof values.references)[number]) =>
+    computerId !== null && isReferenceOnComputer(reference, computerId)
+      ? referenceImages.find((image) => image.path === reference.path)
+      : undefined;
+  // The slot a reference fills: its video role, else the name `@imageN` gives it.
+  const slotLabel = (index: number) => {
+    const role = shownReferences[index]?.role;
+    return role === undefined
+      ? `@${referenceLabel(referenceLabels[index] ?? index + 1)}`
+      : REFERENCE_ROLE_LABELS[role];
+  };
+  const lightboxSlides = values.references.flatMap(
+    (reference, index): ReferenceSlide[] => {
+      const thumbnail = referenceThumbnail(reference);
+      return thumbnail === undefined
+        ? []
+        : [
+            {
+              key: referenceKey(reference),
+              label: slotLabel(index),
+              name: reference.path.split("/").at(-1) ?? reference.path,
+              url: thumbnail.url,
+            },
+          ];
+    },
+  );
+  const lightboxIndex = lightboxSlides.findIndex(
+    (slide) => slide.key === lightboxKey,
+  );
   return (
     <ComposerShell
       aria-label={isAudio ? "Audio generation" : "Image generation"}
@@ -826,94 +863,120 @@ function GenerationComposer({
       data-composer-fullscreen={layout.fullscreen ? "" : undefined}
       attachments={
         !isAudio && values.references.length > 0 ? (
-          <div
-            className="prints-reference-tray"
-            aria-label="Image references"
-            data-over-limit={referencesOver ? "" : undefined}
-            title={`${String(values.references.length)} / ${String(referenceLimit)} references`}
-          >
-            {values.references.map((reference, index) => {
-              const thumbnail =
-                computerId !== null &&
-                isReferenceOnComputer(reference, computerId)
-                  ? referenceImages.find(
-                      (image) => image.path === reference.path,
-                    )
-                  : undefined;
-              const role = shownReferences[index]?.role;
-              const next = nextReferenceRole(roles, shownReferences, index);
-              return (
-                <div
-                  className="prints-reference-tile"
-                  data-reference-chip
-                  key={JSON.stringify([
-                    reference.computerId ?? computerId,
-                    reference.path,
-                  ])}
-                  title={
-                    reference.computerId === undefined
-                      ? reference.path
-                      : `${reference.computerId}:${reference.path}`
-                  }
-                >
-                  <div className="prints-reference-face mask mask-squircle">
+          <>
+            <div
+              ref={referenceTray}
+              className="prints-reference-tray"
+              aria-label="Image references"
+              data-over-limit={referencesOver ? "" : undefined}
+              title={`${String(values.references.length)} / ${String(referenceLimit)} references`}
+            >
+              {values.references.map((reference, index) => {
+                const thumbnail = referenceThumbnail(reference);
+                const role = shownReferences[index]?.role;
+                const next = nextReferenceRole(roles, shownReferences, index);
+                return (
+                  <div
+                    className="prints-reference-tile"
+                    data-reference-chip
+                    key={referenceKey(reference)}
+                    title={
+                      reference.computerId === undefined
+                        ? reference.path
+                        : `${reference.computerId}:${reference.path}`
+                    }
+                  >
                     {thumbnail ? (
-                      <img
-                        src={thumbnail.url}
-                        alt={reference.path.split("/").at(-1)}
-                      />
+                      <button
+                        type="button"
+                        className="prints-reference-face prints-reference-open mask mask-squircle"
+                        aria-label={`Enlarge ${slotLabel(index)}: ${reference.path.split("/").at(-1) ?? reference.path}`}
+                        aria-haspopup="dialog"
+                        data-reference-key={referenceKey(reference)}
+                        onClick={() => {
+                          setLightboxKey(referenceKey(reference));
+                        }}
+                      >
+                        <img
+                          src={thumbnail.url}
+                          alt={reference.path.split("/").at(-1)}
+                        />
+                      </button>
                     ) : (
-                      <span>
-                        {referenceLabel(referenceLabels[index] ?? index + 1)}
-                      </span>
+                      <div className="prints-reference-face mask mask-squircle">
+                        <span>
+                          {referenceLabel(referenceLabels[index] ?? index + 1)}
+                        </span>
+                      </div>
                     )}
-                  </div>
-                  <span className="prints-reference-label" data-reference-label>
-                    {referenceLabel(referenceLabels[index] ?? index + 1)}
-                  </span>
-                  {role === undefined ? null : next === undefined ? (
                     <span
-                      className="prints-reference-role"
-                      data-reference-role={role}
+                      className="prints-reference-label"
+                      data-reference-label
                     >
-                      {REFERENCE_ROLE_LABELS[role]}
+                      {referenceLabel(referenceLabels[index] ?? index + 1)}
                     </span>
-                  ) : (
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      type="button"
-                      className="prints-reference-role"
-                      data-reference-role={role}
-                      aria-label={`Reference ${String(index + 1)}: ${REFERENCE_ROLE_LABELS[role]}. Use as ${REFERENCE_ROLE_LABELS[next]}`}
-                      title={`Use as ${REFERENCE_ROLE_LABELS[next]}`}
+                    {role === undefined ? null : next === undefined ? (
+                      <span
+                        className="prints-reference-role"
+                        data-reference-role={role}
+                      >
+                        {REFERENCE_ROLE_LABELS[role]}
+                      </span>
+                    ) : (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        type="button"
+                        className="prints-reference-role"
+                        data-reference-role={role}
+                        aria-label={`Reference ${String(index + 1)}: ${REFERENCE_ROLE_LABELS[role]}. Use as ${REFERENCE_ROLE_LABELS[next]}`}
+                        title={`Use as ${REFERENCE_ROLE_LABELS[next]}`}
+                        onClick={() => {
+                          form.setFieldValue(
+                            "references",
+                            shownReferences.map((item, at) =>
+                              at === index ? { ...item, role: next } : item,
+                            ),
+                          );
+                        }}
+                      >
+                        {REFERENCE_ROLE_LABELS[role]}
+                      </Button>
+                    )}
+                    <IconButton
+                      icon={<X />}
+                      className="prints-reference-remove"
+                      aria-label={`Remove reference ${String(index + 1)}`}
                       onClick={() => {
                         form.setFieldValue(
                           "references",
-                          shownReferences.map((item, at) =>
-                            at === index ? { ...item, role: next } : item,
-                          ),
+                          values.references.filter((_item, at) => at !== index),
                         );
                       }}
-                    >
-                      {REFERENCE_ROLE_LABELS[role]}
-                    </Button>
-                  )}
-                  <IconButton
-                    icon={<X />}
-                    className="prints-reference-remove"
-                    aria-label={`Remove reference ${String(index + 1)}`}
-                    onClick={() => {
-                      form.setFieldValue(
-                        "references",
-                        values.references.filter((_item, at) => at !== index),
-                      );
-                    }}
-                  />
-                </div>
-              );
-            })}
-          </div>
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <ReferenceLightbox
+              slides={lightboxSlides}
+              index={lightboxIndex < 0 ? null : lightboxIndex}
+              onIndexChange={(next) => {
+                setLightboxKey(lightboxSlides[next]?.key ?? null);
+              }}
+              onClose={() => {
+                setLightboxKey(null);
+              }}
+              returnFocusTo={(key) =>
+                [
+                  ...(referenceTray.current?.querySelectorAll<HTMLElement>(
+                    "[data-reference-key]",
+                  ) ?? []),
+                ].find((thumbnail) => thumbnail.dataset.referenceKey === key) ??
+                null
+              }
+            />
+          </>
         ) : undefined
       }
       input={
@@ -1689,9 +1752,7 @@ export function MediaPane({
     const computerId = folder.computerId;
     if (!computerId) return items;
     const ready = new Map(items.map((item) => [item.key, item]));
-    const listed = [...gallery.entries].sort(
-      (a, b) => b.modifiedAt - a.modifiedAt || a.name.localeCompare(b.name),
-    );
+    const listed = gallery.entries;
     const rows = listed.map((entry) => {
       const key = `${computerId}:${entry.path}`;
       const row = ready.get(key) ?? {

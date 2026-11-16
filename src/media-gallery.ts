@@ -13,7 +13,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { decodeLocalMedia, type LocalImage } from "./local-images.js";
 import type { GallerySlot } from "./gallery-slots.js";
 import type { useMediaFolder } from "./media-folder.js";
-import { useMediaGallery } from "./media-gallery-query.js";
+import {
+  compareLibraryEntries,
+  useMediaGallery,
+} from "./media-gallery-query.js";
 import { useComputerUploads } from "./use-computer-uploads.js";
 import { listTakenPaths } from "./upload-path.js";
 import { reportCatchFailure } from "./log-event.js";
@@ -285,9 +288,16 @@ export function useGalleryMedia(
 
   const ownedUrls = useRef(new Set<string>());
   const displayedUrls = useRef(new Set<string>());
+  // One object URL per File for as long as it is shown. A new URL for the same
+  // File would make an open viewer reload its video every time the list changes.
+  const urlByFile = useRef(new Map<File, string>());
+  const fileByUrl = useRef(new Map<string, File>());
   const revokeUrl = useCallback((url: string) => {
     URL.revokeObjectURL(url);
     ownedUrls.current.delete(url);
+    const file = fileByUrl.current.get(url);
+    if (file) urlByFile.current.delete(file);
+    fileByUrl.current.delete(url);
   }, []);
   useEffect(() => {
     let active = true;
@@ -295,13 +305,24 @@ export function useGalleryMedia(
     const decoded = new Map<number, GalleryImage>();
     const failures = new Set<string>();
     const selected = [...galleryFiles]
-      .sort(
-        (a, b) =>
-          b.file.lastModified - a.file.lastModified ||
-          a.file.name.localeCompare(b.file.name),
+      .sort((a, b) =>
+        compareLibraryEntries(
+          {
+            modifiedAt: a.file.lastModified,
+            path: a.kind === "computer" ? a.path : a.file.name,
+          },
+          {
+            modifiedAt: b.file.lastModified,
+            path: b.kind === "computer" ? b.path : b.file.name,
+          },
+        ),
       )
       .map((source) => {
-        const url = URL.createObjectURL(source.file);
+        const url =
+          urlByFile.current.get(source.file) ??
+          URL.createObjectURL(source.file);
+        urlByFile.current.set(source.file, url);
+        fileByUrl.current.set(url, source.file);
         ownedUrls.current.add(url);
         return { source, file: source.file, url };
       });
@@ -377,7 +398,9 @@ export function useGalleryMedia(
     });
     return () => {
       active = false;
-      for (const { url } of selected) if (!published.has(url)) revokeUrl(url);
+      for (const { url } of selected)
+        if (!published.has(url) && !displayedUrls.current.has(url))
+          revokeUrl(url);
     };
   }, [galleryFiles, galleryReadFailures, revokeUrl]);
   // Partial updates retain their displayed URLs; only displaced images retire.

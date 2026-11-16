@@ -19,7 +19,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { folderOf } from "./library-view.js";
 import { listFavorites } from "./library-methods.js";
 
+/** Files shown per reveal. */
 const pageSize = 24;
+/** Directory entries read per request; names and times only. */
+const listingPageSize = 256;
 /** What a gallery lists: one folder, every folder beneath the library, or the Team's favorites. */
 export type ListingSource =
   | Readonly<{ kind: "folder"; path: string }>
@@ -57,6 +60,33 @@ export type GalleryEntry = {
   /** The library folder the file sits in, for All prints; absent at the root. */
   folder?: string;
 };
+/**
+ * The Library's one order: newest first, the path (a file's identity) as the
+ * tiebreaker, compared by code unit so no locale can reorder two files with the
+ * same time. The print index pages on the same pair (created time, id).
+ */
+export function compareLibraryEntries(
+  a: Readonly<{ modifiedAt: number; path: string }>,
+  b: Readonly<{ modifiedAt: number; path: string }>,
+): number {
+  return (
+    b.modifiedAt - a.modifiedAt ||
+    (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
+  );
+}
+
+/**
+ * Merge listing pages into one ordered list. A file written while the pages
+ * were read shifts the directory's offsets and is listed twice; it counts once.
+ */
+export function orderLibraryEntries(
+  pages: readonly Readonly<{ entries: readonly GalleryEntry[] }>[],
+): GalleryEntry[] {
+  const byPath = new Map<string, GalleryEntry>();
+  for (const page of pages)
+    for (const entry of page.entries) byPath.set(entry.path, entry);
+  return [...byPath.values()].sort(compareLibraryEntries);
+}
 const mediaName = /\.(avif|gif|jpe?g|png|svg|webp|mp4|mp3)$/i;
 /** Where a listing stands: folders still to read, the offset into the first, and a favorites cursor. */
 type ListingCursor = Readonly<{
@@ -103,7 +133,7 @@ export function galleryListingQuery(
       if (source.kind === "favorites") {
         const noFolders: string[] = [];
         stillSelected();
-        const page = await listFavorites(app, pageParam.after, pageSize);
+        const page = await listFavorites(app, pageParam.after, listingPageSize);
         stillSelected();
         const entries: GalleryEntry[] = page.paths
           .filter((path) => mediaName.test(path))
@@ -127,12 +157,12 @@ export function galleryListingQuery(
       const folders: string[] = [];
       let queue = [...pageParam.queue];
       let offset = pageParam.offset;
-      while (entries.length < pageSize && queue.length > 0) {
+      while (entries.length < listingPageSize && queue.length > 0) {
         stillSelected();
         const directory = queue[0];
         const page = await listComputerFiles(app.capabilities, {
           path: directory,
-          limit: pageSize - entries.length,
+          limit: listingPageSize - entries.length,
           offset,
         });
         stillSelected();
@@ -240,13 +270,43 @@ export function useMediaGallery(
   );
   const listingOptions = galleryListingQuery(app, source);
   const listing = useInfiniteQuery(listingOptions);
-  const entries = useMemo(
+  // The directory pages by offset in its own order, so a page can hold files
+  // that belong above ones already shown. Read the whole listing (names and
+  // times only, no bytes), order it once, and reveal it a page at a time.
+  const fetchNextListingPage = listing.fetchNextPage;
+  useEffect(() => {
+    if (
+      listingOptions.enabled &&
+      listing.hasNextPage &&
+      !listing.isFetching &&
+      !listing.error
+    )
+      void fetchNextListingPage({ cancelRefetch: false });
+  }, [
+    listingOptions.enabled,
+    listing.hasNextPage,
+    listing.isFetching,
+    listing.error,
+    fetchNextListingPage,
+  ]);
+  // Nothing is shown until the listing is whole (or has failed), so a late
+  // page cannot slide files in above ones already on screen.
+  const listingWhole = !listing.hasNextPage || listing.error !== null;
+  const ordered = useMemo(
     () =>
-      listingOptions.enabled
-        ? (listing.data?.pages.flatMap((page) => page.entries) ?? [])
+      listingOptions.enabled && listing.data && listingWhole
+        ? orderLibraryEntries(listing.data.pages)
         : [],
-    [listing.data, listingOptions.enabled],
+    [listing.data, listingOptions.enabled, listingWhole],
   );
+  const revealKey = `${computerId ?? ""}|${sourceKey(source) ?? ""}`;
+  const [revealed, setRevealed] = useState({ key: revealKey, count: pageSize });
+  const revealedCount = revealed.key === revealKey ? revealed.count : pageSize;
+  const entries = useMemo(
+    () => ordered.slice(0, revealedCount),
+    [ordered, revealedCount],
+  );
+  const hasHidden = ordered.length > revealedCount;
   const combine = useCallback(
     (results: readonly UseQueryResult<File, AppError>[]) => ({
       files: results.flatMap((query, index) =>
@@ -318,15 +378,15 @@ export function useMediaGallery(
     files: files.files,
     failures: files.failures,
     error: listing.error,
-    loading: listing.isFetching || files.loading,
-    hasNextPage: listing.hasNextPage,
-    nextPageReady: listing.hasNextPage && !listing.isFetching && !listing.error,
+    loading: listing.isFetching || !listingWhole || files.loading,
+    hasNextPage: hasHidden,
+    nextPageReady: hasHidden,
     refresh: () => {
       void listing.refetch({ cancelRefetch: false });
     },
     loadMore: () => {
-      if (!listing.isFetching)
-        void listing.fetchNextPage({ cancelRefetch: false });
+      if (hasHidden)
+        setRevealed({ key: revealKey, count: revealedCount + pageSize });
     },
   };
 }

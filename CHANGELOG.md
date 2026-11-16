@@ -1,5 +1,25 @@
 # @fungi.computer/prints
 
+## 0.18.0
+
+### Minor Changes
+
+- Changes since 0.17.5:
+
+  - feat(prints): click a composer reference to enlarge it
+  - fix(prints): say why a generation failed and keep the library order stable
+  - fix(prints): build the download proof into its own directory
+  - fix(prints): keep one object URL per file so an open video does not reload
+  - fix(prints): build Prints before the nightly download proof
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.18.1
+  - @fungi.computer/darkroom@0.11.1
+  - @fungi.computer/parakeet@0.12.1
+
 ## 0.17.5
 
 ### Patch Changes
