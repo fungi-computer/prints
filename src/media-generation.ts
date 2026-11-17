@@ -420,7 +420,8 @@ export function useMediaGeneration({
         runFailure,
       ]);
       folder.recheck();
-      // The tile and Activity say it once; a toast would say it a third time.
+      // Every refused or failed run also says why in the on-screen toast.
+      callbacks.current.notifyFailure(described.message);
       callbacks.current.failed(
         `${run.reference.computerId}:${run.input.destination.path}`,
         failure.message,

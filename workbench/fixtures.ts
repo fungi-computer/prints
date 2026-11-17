@@ -117,7 +117,13 @@ export type CaptureOptions = {
   mediaGen?: boolean;
   /** False leaves the App without public links, as on a standalone host. */
   mediaShare?: boolean;
-  fail?: "error" | "timeout" | "refused" | null;
+  fail?:
+    | "error"
+    | "timeout"
+    | "refused"
+    | "daily-limit"
+    | "daily-meter-error"
+    | null;
   pending?: boolean;
   modelsError?: boolean;
   computerSelected?: boolean;
@@ -968,6 +974,22 @@ export function createPrintsFixture(
               code: "INSUFFICIENT_CREDIT",
               message:
                 "Media generation needs Team credits. Add credits in Billing, then retry.",
+              retryable: false,
+            },
+          } satisfies MediaGenerationOutcome;
+        if (opt.fail === "daily-limit" || opt.fail === "daily-meter-error")
+          return {
+            kind: "failed",
+            failure: {
+              code:
+                opt.fail === "daily-limit"
+                  ? "DAILY_LIMIT_REACHED"
+                  : "HOST_FAILURE",
+              message:
+                opt.fail === "daily-limit"
+                  ? "Today's spending limit for this Oyster is used up. It resets at 00:00 UTC."
+                  : "Couldn't check today's spending limit. Try again.",
+              stage: "billing",
               retryable: false,
             },
           } satisfies MediaGenerationOutcome;

@@ -182,6 +182,11 @@ export function describeGenerationError(cause: unknown): ErrorDescription {
     };
   const reasoned = providerReasonCopy(cause);
   if (reasoned !== undefined) return reasoned;
+  // MediaGenerationError carries the host's bounded public copy, not its private
+  // cause. Keep that reason instead of replacing it with a code-only fallback.
+  if (cause instanceof MediaGenerationError && cause.stage !== "provider")
+    return { ...describeAppError(cause), message: cause.message };
+
   return describeAppError(cause, {
     INSUFFICIENT_CREDIT: {
       title: "Couldn’t create image",
@@ -224,7 +229,7 @@ export function describeGenerationError(cause: unknown): ErrorDescription {
     },
     HOST_FAILURE: {
       title: "Couldn’t create image",
-      message: "The service couldn’t finish this just now. Retry in a moment.",
+      message: "Couldn't generate this media. Try again.",
     },
   });
 }
