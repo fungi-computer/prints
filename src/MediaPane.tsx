@@ -1,5 +1,4 @@
 import { usePrintNavigation } from "./print-navigation.js";
-import { PrintViewer } from "./print-viewer.js";
 import {
   galleryImageKey,
   useGalleryMedia,
@@ -41,7 +40,6 @@ import {
   ComposerResizeHandle,
   useComposerLayout,
 } from "./media-composer-size.js";
-import { LibraryRail } from "./library-rail.js";
 import {
   LibraryBar,
   MoveDialog,
@@ -71,7 +69,6 @@ import {
 import { GenerationModelKey } from "./generation-model-key.js";
 import { useMediaFolder } from "./media-folder.js";
 import {
-  PrintsFolderDialog,
   PrintsActivityTray,
   activityStatusItem,
   type PrintsNotice,
@@ -165,6 +162,21 @@ import {
   PromptStyleSelect,
   PromptStylesDialog,
 } from "./prompt-style-controls.js";
+
+const LibraryRail = lazy(async () => {
+  const module = await import("./library-rail.js");
+  return { default: module.LibraryRail };
+});
+
+const PrintViewer = lazy(async () => {
+  const module = await import("./print-viewer.js");
+  return { default: module.PrintViewer };
+});
+
+const PrintsFolderDialog = lazy(async () => {
+  const module = await import("./prints-folder-dialog.js");
+  return { default: module.PrintsFolderDialog };
+});
 
 const PrintInfoDrawer = lazy(async () => {
   const module = await import("./print-info-drawer.js");
@@ -2299,28 +2311,38 @@ export function MediaPane({
         data-library={libraryVisible || undefined}
       >
         {libraryVisible && folder.destination ? (
-          <LibraryRail
-            app={connection.app}
-            root={folder.destination}
-            view={folder.view}
-            onView={library.history.open}
-            canWrite={canWrite}
-            version={library.version}
-            onNewFolder={(parent) => {
-              library.setNewFolder({ parent });
-            }}
-            onDrop={(paths, target) => {
-              void library.move(paths, target);
-            }}
-            onRename={(path, name) => {
-              void library.move(
-                [path],
-                library.folderOf(folder.destination ?? "", path),
-                { name },
-              );
-            }}
-            onMoveRows={library.setMoving}
-          />
+          <Suspense
+            fallback={
+              <nav
+                className="prints-rail"
+                aria-label="Library"
+                aria-busy="true"
+              />
+            }
+          >
+            <LibraryRail
+              app={connection.app}
+              root={folder.destination}
+              view={folder.view}
+              onView={library.history.open}
+              canWrite={canWrite}
+              version={library.version}
+              onNewFolder={(parent) => {
+                library.setNewFolder({ parent });
+              }}
+              onDrop={(paths, target) => {
+                void library.move(paths, target);
+              }}
+              onRename={(path, name) => {
+                void library.move(
+                  [path],
+                  library.folderOf(folder.destination ?? "", path),
+                  { name },
+                );
+              }}
+              onMoveRows={library.setMoving}
+            />
+          </Suspense>
         ) : null}
         <div
           className="prints-library-main"
@@ -2554,35 +2576,43 @@ export function MediaPane({
               <DialogHeader>
                 <DialogTitle>Folders</DialogTitle>
               </DialogHeader>
-              <LibraryRail
-                app={connection.app}
-                root={folder.destination}
-                view={folder.view}
-                onView={(next) => {
-                  library.history.open(next);
-                  setFoldersOpen(false);
-                }}
-                canWrite={canWrite}
-                version={library.version}
-                onNewFolder={(parent) => {
-                  setFoldersOpen(false);
-                  library.setNewFolder({ parent });
-                }}
-                onMoveRows={library.setMoving}
-              />
+              <Suspense fallback={null}>
+                <LibraryRail
+                  app={connection.app}
+                  root={folder.destination}
+                  view={folder.view}
+                  onView={(next) => {
+                    library.history.open(next);
+                    setFoldersOpen(false);
+                  }}
+                  canWrite={canWrite}
+                  version={library.version}
+                  onNewFolder={(parent) => {
+                    setFoldersOpen(false);
+                    library.setNewFolder({ parent });
+                  }}
+                  onMoveRows={library.setMoving}
+                />
+              </Suspense>
             </DialogContent>
           </Dialog>
         </>
       ) : null}
-      <PrintViewer
-        items={wallItems}
-        images={images}
-        viewerKey={viewerKey}
-        app={connection?.app ?? null}
-        onNavigate={setViewerKey}
-        onClose={closeViewer}
-        renderInfo={(image, onClose) => renderPrintInfo(image, onClose, null)}
-      />
+      {viewerKey !== null ? (
+        <Suspense fallback={null}>
+          <PrintViewer
+            items={wallItems}
+            images={images}
+            viewerKey={viewerKey}
+            app={connection?.app ?? null}
+            onNavigate={setViewerKey}
+            onClose={closeViewer}
+            renderInfo={(image, onClose) =>
+              renderPrintInfo(image, onClose, null)
+            }
+          />
+        </Suspense>
+      ) : null}
       {mediaSetupMissing && wallItems.length > 0 ? (
         <div className="prints-library-actions">
           <Button
@@ -2751,7 +2781,11 @@ export function MediaPane({
           />
         )}
       </div>
-      <PrintsFolderDialog folder={folder} />
+      {folder.editing ? (
+        <Suspense fallback={null}>
+          <PrintsFolderDialog folder={folder} />
+        </Suspense>
+      ) : null}
     </main>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { AppRoot } from "@fungi.computer/agar";
 import { Button } from "@fungi.computer/caps/components/button";
 import {
@@ -20,7 +20,6 @@ import {
   TabsTrigger,
 } from "@fungi.computer/caps/components/tabs";
 import type { LibraryView } from "./media-folder.js";
-import { LibraryTree } from "./library-rail.js";
 import { moveFiles, type MoveOutcome } from "./library-methods.js";
 import {
   folderOf,
@@ -28,6 +27,11 @@ import {
   type RelativeFolder,
 } from "./library-view.js";
 import { reportCatchFailure } from "./log-event.js";
+
+const LibraryTree = lazy(async () => {
+  const module = await import("./library-rail.js");
+  return { default: module.LibraryTree };
+});
 
 const TOASTER = "prints-generation-notices";
 
@@ -226,15 +230,17 @@ export function MoveDialog({
           </DialogTitle>
         </DialogHeader>
         <div className="prints-move-tree">
-          <LibraryTree
-            app={app}
-            root={root}
-            activeFolder={folder}
-            mode="pick"
-            canWrite={canWrite}
-            version={version}
-            onSelectFolder={setFolder}
-          />
+          <Suspense fallback={null}>
+            <LibraryTree
+              app={app}
+              root={root}
+              activeFolder={folder}
+              mode="pick"
+              canWrite={canWrite}
+              version={version}
+              onSelectFolder={setFolder}
+            />
+          </Suspense>
         </div>
         <label className="prints-move-new" htmlFor="prints-move-new-folder">
           <span>New folder inside {folder ?? "the library"}</span>

@@ -1,5 +1,24 @@
 # @fungi.computer/prints
 
+## 0.18.1
+
+### Patch Changes
+
+- Changes since 0.18.0:
+
+  - fix(media): preserve public failure reasons in Prints toasts
+  - fix(prints): toast every generation refusal and failure
+  - perf(prints): defer closed tools and the library tree
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.18.2
+  - @fungi.computer/caps@0.12.0
+  - @fungi.computer/darkroom@0.11.2
+  - @fungi.computer/parakeet@0.12.2
+
 ## 0.18.0
 
 ### Minor Changes

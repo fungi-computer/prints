@@ -133,6 +133,14 @@ export const AudioFailed = () => <Workbench scenario="studio" fail="error" />;
 export const RefusedPrompt = () => (
   <Workbench scenario="studio" fail="refused" />
 );
+/** Oyster's HTTP-200 failed outcome must say why in a toast. */
+export const DailyLimit = () => (
+  <Workbench scenario="studio" fail="daily-limit" generationDelayMs={0} />
+);
+/** A failed meter RPC says which check failed rather than showing a generic error. */
+export const DailyMeterUnavailable = () => (
+  <Workbench scenario="studio" fail="daily-meter-error" generationDelayMs={0} />
+);
 /** Forty prints for the Library, to page with Load more images. */
 export const LongLibrary = () => (
   <Workbench scenario="studio" imageCount={8} imageCopies={5} />
