@@ -1,5 +1,23 @@
 # @fungi.computer/prints
 
+## 0.20.0
+
+### Minor Changes
+
+- Changes since 0.19.0:
+
+  - feat(gills): declare surface Gills beside row Gills
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.21.0
+  - @fungi.computer/gills@0.4.0
+  - @fungi.computer/parakeet@0.13.0
+  - @fungi.computer/darkroom@0.11.5
+
 ## 0.19.0
 
 ### Minor Changes

@@ -5,6 +5,7 @@ import { outputPageInputSchema, outputPageSchema } from "./output-page.js";
 
 /** Saved output records only; opening the App validates the live file. */
 export const recentOutputsGill = defineAppGill({
+  view: "rows",
   id: "recent-outputs",
   title: "Recent Outputs",
   source: "listOutputs",
