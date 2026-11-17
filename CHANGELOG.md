@@ -1,5 +1,20 @@
 # @fungi.computer/prints
 
+## 0.19.0
+
+### Minor Changes
+
+- Changes since 0.18.3:
+
+  - feat(apps): require one host-derived caller scope
+
+### Patch Changes
+
+- Updated dependencies
+  - @fungi.computer/agar@0.20.0
+  - @fungi.computer/darkroom@0.11.4
+  - @fungi.computer/parakeet@0.12.5
+
 ## 0.18.3
 
 ### Patch Changes

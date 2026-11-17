@@ -34,4 +34,5 @@ allowBuilds:
   utf-8-validate: false
   workerd: true
 patchedDependencies:
+  "@earendil-works/pi-ai@1.5.2": patches/@earendil-works__pi-ai@1.5.2.patch
   just-bash@3.4.2: patches/just-bash@3.4.2.patch
