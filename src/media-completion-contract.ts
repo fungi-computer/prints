@@ -33,7 +33,6 @@ const completedResultSchema = Schema.Struct({
 });
 
 export const completeGenerationRequestSchema = Schema.Struct({
-  operation: Schema.Literal("complete-generation"),
   reference: mediaGenerationReferenceSchema,
   result: completedResultSchema,
   /** The parent print this is a variation of; Prints' own lineage, never a

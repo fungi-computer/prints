@@ -1,10 +1,10 @@
 import type { AppRoot } from "@fungi.computer/agar";
 import { AppError } from "@fungi.computer/agar/errors";
 import { mediaGeneration } from "@fungi.computer/agar";
-import { appBackend } from "@fungi.computer/agar/backend";
+import { appMethods } from "@fungi.computer/agar/backend";
 import { openMediaGeneration } from "@fungi.computer/agar/media";
 import { capabilityQuery, queryKeys } from "@fungi.computer/agar/query";
-import { mediaNotices, mediaSettings } from "./media-settings.js";
+import { readFolder, readNotices } from "./media-settings.js";
 import { listStyles, readPrintStyle } from "./prompt-styles.js";
 import { listCharacters } from "./prompt-characters.js";
 
@@ -46,14 +46,11 @@ export function mediaFolderQuery(app: AppRoot | null) {
   return {
     ...capabilityQuery(
       app,
-      appBackend,
+      appMethods,
       printsKeys.folder(app),
       async (_handle, signal) => {
         if (!app || !computerId) throw new Error("No Computer selected");
-        const folder = await mediaSettings(app.capabilities, {
-          operation: "read-folder",
-          computerId,
-        });
+        const folder = await readFolder(app.capabilities, computerId);
         signal.throwIfAborted();
         if (app.context.get().computerId !== computerId)
           throw new AppError("Computer selection changed", {
@@ -63,7 +60,7 @@ export function mediaFolderQuery(app: AppRoot | null) {
         return folder;
       },
     ),
-    enabled: Boolean(computerId && app.capabilities.has(appBackend)),
+    enabled: Boolean(computerId && app.capabilities.has(appMethods)),
   };
 }
 
@@ -72,19 +69,16 @@ export function noticeDismissalsQuery(app: AppRoot | null) {
   return {
     ...capabilityQuery(
       app,
-      appBackend,
+      appMethods,
       printsKeys.dismissals(app),
       async (_handle, signal) => {
         if (!app || !computerId) throw new Error("No Computer selected");
-        const notices = await mediaNotices(app.capabilities, {
-          operation: "read-notices",
-          computerId,
-        });
+        const notices = await readNotices(app.capabilities, computerId);
         signal.throwIfAborted();
         return notices;
       },
     ),
-    enabled: Boolean(computerId && app.capabilities.has(appBackend)),
+    enabled: Boolean(computerId && app.capabilities.has(appMethods)),
   };
 }
 
@@ -94,7 +88,7 @@ export function promptStylesQuery(app: AppRoot | null) {
   return {
     ...capabilityQuery(
       app,
-      appBackend,
+      appMethods,
       printsKeys.styles(app),
       async (_handle, signal) => {
         if (!app || !computerId) throw new Error("No Computer selected");
@@ -103,7 +97,7 @@ export function promptStylesQuery(app: AppRoot | null) {
         return styles;
       },
     ),
-    enabled: Boolean(computerId && app.capabilities.has(appBackend)),
+    enabled: Boolean(computerId && app.capabilities.has(appMethods)),
   };
 }
 
@@ -113,7 +107,7 @@ export function printStyleQuery(app: AppRoot | null, path: string | null) {
   return {
     ...capabilityQuery(
       app,
-      appBackend,
+      appMethods,
       printsKeys.printStyle(app, path ?? ""),
       async (_handle, signal) => {
         if (!app || !computerId || path === null)
@@ -128,7 +122,7 @@ export function printStyleQuery(app: AppRoot | null, path: string | null) {
       },
     ),
     enabled: Boolean(
-      computerId && path !== null && app.capabilities.has(appBackend),
+      computerId && path !== null && app.capabilities.has(appMethods),
     ),
   };
 }
@@ -139,7 +133,7 @@ export function promptCharactersQuery(app: AppRoot | null) {
   return {
     ...capabilityQuery(
       app,
-      appBackend,
+      appMethods,
       printsKeys.characters(app),
       async (_handle, signal) => {
         if (!app || !computerId) throw new Error("No Computer selected");
@@ -148,6 +142,6 @@ export function promptCharactersQuery(app: AppRoot | null) {
         return characters;
       },
     ),
-    enabled: Boolean(computerId && app.capabilities.has(appBackend)),
+    enabled: Boolean(computerId && app.capabilities.has(appMethods)),
   };
 }

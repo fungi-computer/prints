@@ -1,5 +1,21 @@
 # @fungi.computer/prints
 
+## 0.20.2
+
+### Patch Changes
+
+- Changes since 0.20.1:
+
+  - fix(prints): serve every operation through declared App methods
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.22.0
+  - @fungi.computer/caps@0.12.1
+  - @fungi.computer/parakeet@0.13.2
+  - @fungi.computer/darkroom@0.11.6
+
 ## 0.20.1
 
 ### Patch Changes

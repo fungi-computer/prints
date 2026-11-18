@@ -53,25 +53,19 @@ export type PendingGeneration = Readonly<{
   failure?: GenerationFailure | undefined;
 }>;
 
-export const mediaRecoveryRequestSchema = Schema.Union([
-  Schema.Struct({
-    operation: Schema.Literal("remember-generation"),
-    record: pendingGenerationSchema,
-  }),
-  Schema.Struct({
-    operation: Schema.Literal("fail-generation"),
-    reference: mediaGenerationReferenceSchema,
-    failure: generationFailureSchema,
-  }),
-  Schema.Struct({
-    operation: Schema.Literal("forget-generation"),
-    reference: mediaGenerationReferenceSchema,
-  }),
-  Schema.Struct({
-    operation: Schema.Literal("list-generations"),
-    after: Schema.NullOr(Schema.String),
-  }),
-]);
+export const rememberGenerationInputSchema = Schema.Struct({
+  record: pendingGenerationSchema,
+});
+export const failGenerationInputSchema = Schema.Struct({
+  reference: mediaGenerationReferenceSchema,
+  failure: generationFailureSchema,
+});
+export const forgetGenerationInputSchema = Schema.Struct({
+  reference: mediaGenerationReferenceSchema,
+});
+export const listGenerationsInputSchema = Schema.Struct({
+  after: Schema.NullOr(Schema.String),
+});
 
 export function normalizePendingGeneration(
   record: PendingGenerationWire,

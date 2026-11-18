@@ -2,6 +2,7 @@ import { resultRows } from "@fungi.computer/agar/method-presentation";
 import { formatMoney } from "@fungi.computer/caps/lib/format-money";
 import { mediaCatalogModelSchema } from "@fungi.computer/darkroom/app-media-contracts";
 import { recentOutputsGill } from "./gills.js";
+import { memberBackendMethods } from "./member-methods.js";
 import {
   outputAtPathInputSchema,
   outputItemSchema,
@@ -370,6 +371,7 @@ function moveFailure(reply: WhistleJsonValue): (typeof moveRefusals)[number] {
 export const appBackend = defineAppBackend<PrintsMethodContext>({
   gills: [recentOutputsGill],
   methods: {
+    ...memberBackendMethods,
     listModels: defineAppMethod({
       description:
         "List image, video and audio models available through this App's admitted Media access. A model with a non-null transform edits one source image (remove background, upscale) and is not a generator; do not use it with generateImage.",

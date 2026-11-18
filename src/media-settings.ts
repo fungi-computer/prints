@@ -1,7 +1,7 @@
 import { mediaLibraryPathSchema } from "@fungi.computer/agar/media";
-import { appBackend } from "@fungi.computer/agar/backend";
 import type { CapabilityDirectory } from "@fungi.computer/agar";
 import * as Schema from "effect/Schema";
+import { callMemberMethod, memberMethods } from "./member-methods.js";
 
 const computerId = Schema.NonEmptyString;
 const noticeKey = Schema.NonEmptyString.pipe(
@@ -10,46 +10,84 @@ const noticeKey = Schema.NonEmptyString.pipe(
 const noticeKeys = Schema.Array(noticeKey).pipe(
   Schema.check(Schema.isMaxLength(200)),
 );
-export const mediaNoticeRequestSchema = Schema.Union([
-  Schema.Struct({ operation: Schema.Literal("read-notices"), computerId }),
-  Schema.Struct({
-    operation: Schema.Literal("dismiss-notices"),
-    computerId,
-    keys: noticeKeys,
-  }),
-]);
+/** Every settings method names the Computer it acts on; the host must agree. */
+export const computerInputSchema = Schema.Struct({ computerId });
+export const dismissNoticesInputSchema = Schema.Struct({
+  computerId,
+  keys: noticeKeys,
+});
 export const mediaNoticesSchema = Schema.Struct({ keys: noticeKeys });
-export async function mediaNotices(
+const decodeNotices = Schema.decodeUnknownSync(mediaNoticesSchema);
+
+export async function readNotices(
   capabilities: CapabilityDirectory,
-  input: Schema.Schema.Type<typeof mediaNoticeRequestSchema>,
+  id: string,
 ) {
-  return Schema.decodeUnknownSync(mediaNoticesSchema)(
-    await capabilities.require(appBackend).request(JSON.stringify(input)),
+  return decodeNotices(
+    await callMemberMethod(
+      capabilities,
+      memberMethods.readNotices,
+      JSON.stringify({
+        computerId: id,
+      }),
+    ),
   );
 }
+export async function dismissNotices(
+  capabilities: CapabilityDirectory,
+  id: string,
+  keys: readonly string[],
+) {
+  return decodeNotices(
+    await callMemberMethod(
+      capabilities,
+      memberMethods.dismissNotices,
+      JSON.stringify({
+        computerId: id,
+        keys,
+      }),
+    ),
+  );
+}
+
 /** Prints settings are App state; a Computer ID only identifies the file owner. */
-export const mediaSettingsRequestSchema = Schema.Union([
-  Schema.Struct({ operation: Schema.Literal("read-folder"), computerId }),
-  Schema.Struct({
-    operation: Schema.Literal("select-folder"),
-    computerId,
-    path: mediaLibraryPathSchema,
-  }),
-]);
+export const selectFolderInputSchema = Schema.Struct({
+  computerId,
+  path: mediaLibraryPathSchema,
+});
 export const mediaFolderSchema = Schema.Struct({
   path: mediaLibraryPathSchema,
   configured: Schema.Boolean,
 });
+const decodeFolder = Schema.decodeUnknownSync(mediaFolderSchema);
 
-export type MediaSettingsRequest = Schema.Schema.Type<
-  typeof mediaSettingsRequestSchema
->;
-
-export async function mediaSettings(
+export async function readFolder(
   capabilities: CapabilityDirectory,
-  input: MediaSettingsRequest,
+  id: string,
 ) {
-  return Schema.decodeUnknownSync(mediaFolderSchema)(
-    await capabilities.require(appBackend).request(JSON.stringify(input)),
+  return decodeFolder(
+    await callMemberMethod(
+      capabilities,
+      memberMethods.readFolder,
+      JSON.stringify({
+        computerId: id,
+      }),
+    ),
+  );
+}
+export async function selectFolder(
+  capabilities: CapabilityDirectory,
+  id: string,
+  path: string,
+) {
+  return decodeFolder(
+    await callMemberMethod(
+      capabilities,
+      memberMethods.selectFolder,
+      JSON.stringify({
+        computerId: id,
+        path,
+      }),
+    ),
   );
 }

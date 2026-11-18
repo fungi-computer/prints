@@ -1,7 +1,7 @@
 import type { AppRoot } from "@fungi.computer/agar";
 import { optimisticMutation } from "@fungi.computer/agar/query";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { mediaNotices } from "./media-settings.js";
+import { dismissNotices } from "./media-settings.js";
 import { noticeDismissalsQuery, printsKeys } from "./media-queries.js";
 import type { PrintsNotice } from "./prints-activity.js";
 
@@ -22,12 +22,7 @@ export function useNoticeDismissals(
         owner: AppRoot;
         id: string;
         keys: readonly string[];
-      }) =>
-        mediaNotices(owner.capabilities, {
-          operation: "dismiss-notices",
-          computerId: id,
-          keys,
-        }),
+      }) => dismissNotices(owner.capabilities, id, keys),
       apply: (previous: { readonly keys: readonly string[] }, variables) => ({
         keys: [...new Set([...previous.keys, ...variables.keys])].slice(-200),
       }),

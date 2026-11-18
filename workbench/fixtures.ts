@@ -6,26 +6,34 @@ import type {
   MediaGenerationOutcome,
 } from "@fungi.computer/agar/media";
 import { appsOpen } from "@fungi.computer/agar/apps";
-import { appBackend, appMethods } from "@fungi.computer/agar/backend";
+import { appMethods } from "@fungi.computer/agar/backend";
 import * as Schema from "effect/Schema";
 import type { MediaGenerationSelection } from "@fungi.computer/agar";
 import * as z from "zod";
 import {
-  mediaRecoveryRequestSchema,
+  failGenerationInputSchema,
+  forgetGenerationInputSchema,
+  listGenerationsInputSchema,
   normalizePendingGeneration,
+  rememberGenerationInputSchema,
   type PendingGeneration,
 } from "../src/media-recovery-contract.js";
 import {
-  mediaNoticeRequestSchema,
-  mediaSettingsRequestSchema,
+  computerInputSchema,
+  dismissNoticesInputSchema,
+  selectFolderInputSchema,
 } from "../src/media-settings.js";
+import { memberMethods } from "../src/member-methods.js";
 import {
   BUILT_IN_STYLES,
-  promptStyleRequestSchema,
+  deleteStyleInputSchema,
+  readPrintStyleInputSchema,
+  saveStyleInputSchema,
   type PromptStyle,
 } from "../src/prompt-styles.js";
 import {
-  promptCharacterRequestSchema,
+  deleteCharacterInputSchema,
+  saveCharacterInputSchema,
   type PromptCharacter,
 } from "../src/prompt-characters.js";
 import {
@@ -43,6 +51,7 @@ import { listMediaModels } from "@fungi.computer/darkroom";
 import { synthClipBlob } from "./audio-fixtures.js";
 import { mediaShare, type MediaShareStatus } from "@fungi.computer/agar/media";
 import { RpcStub, RpcTarget } from "@fungi.computer/capnweb";
+import type { WhistleJsonValue } from "@fungi.computer/whistle";
 
 // Locally painted samples. Workbench-only; never a product gallery or generated output claim.
 const samples = [
@@ -675,175 +684,188 @@ export function createPrintsFixture(
     }
     return undefined;
   };
+  /** The member methods Prints' own window calls, answered from fixture state. */
+  const memberMethod = (
+    method: string,
+    raw: string,
+  ): Promise<WhistleJsonValue> => {
+    const body: unknown = JSON.parse(raw);
+    const input = <S extends Schema.Decoder<unknown>>(schema: S): S["Type"] =>
+      Schema.decodeUnknownSync(schema, { onExcessProperty: "error" })(body);
+    switch (method) {
+      case memberMethods.readNotices:
+        return noticeStore(input(computerInputSchema).computerId);
+      case memberMethods.dismissNotices: {
+        const command = input(dismissNoticesInputSchema);
+        return noticeStore(command.computerId, command.keys);
+      }
+      case memberMethods.listStyles:
+        input(computerInputSchema);
+        return Promise.resolve(styleList());
+      case memberMethods.saveStyle: {
+        const command = input(saveStyleInputSchema);
+        const index = savedStyles.findIndex((style) => style.id === command.id);
+        const style = {
+          id:
+            command.id ??
+            Math.max(0, ...savedStyles.map((saved) => saved.id)) + 1,
+          name: command.name,
+          text: command.text,
+          builtIn: false,
+        };
+        if (index === -1) savedStyles.push(style);
+        else savedStyles[index] = style;
+        return Promise.resolve(styleList());
+      }
+      case memberMethods.deleteStyle: {
+        const command = input(deleteStyleInputSchema);
+        const index = savedStyles.findIndex((style) => style.id === command.id);
+        if (index !== -1) savedStyles.splice(index, 1);
+        return Promise.resolve(styleList());
+      }
+      case memberMethods.readPrintStyle:
+        return Promise.resolve({
+          // A style is for pictures; a recorded sound never has one.
+          style:
+            scenario === "studio" &&
+            !input(readPrintStyleInputSchema).path.endsWith(".mp3")
+              ? "Storybook gouache"
+              : null,
+        });
+      case memberMethods.listCharacters:
+        input(computerInputSchema);
+        return Promise.resolve(characterList());
+      case memberMethods.saveCharacter: {
+        const command = input(saveCharacterInputSchema);
+        const index = savedCharacters.findIndex(
+          (character) => character.id === command.id,
+        );
+        const character = {
+          id:
+            command.id ??
+            Math.max(0, ...savedCharacters.map((saved) => saved.id)) + 1,
+          name: command.name,
+          description: command.description,
+          references: command.references,
+        };
+        if (index === -1) savedCharacters.push(character);
+        else savedCharacters[index] = character;
+        return Promise.resolve(characterList());
+      }
+      case memberMethods.deleteCharacter: {
+        const command = input(deleteCharacterInputSchema);
+        const index = savedCharacters.findIndex(
+          (character) => character.id === command.id,
+        );
+        if (index !== -1) savedCharacters.splice(index, 1);
+        return Promise.resolve(characterList());
+      }
+      case memberMethods.rememberGeneration: {
+        const record = normalizePendingGeneration(
+          input(rememberGenerationInputSchema).record,
+        );
+        const previous = pendingGenerations.get(record.reference.requestId);
+        // A retry re-remembers the same command, which clears a recorded failure.
+        if (
+          previous &&
+          JSON.stringify({ ...previous, failure: undefined }) !==
+            JSON.stringify(record)
+        )
+          return Promise.reject(
+            new Error("Generation reference already has another input"),
+          );
+        pendingGenerations.set(record.reference.requestId, record);
+        return Promise.resolve(record);
+      }
+      case memberMethods.failGeneration: {
+        const command = input(failGenerationInputSchema);
+        const previous = pendingGenerations.get(command.reference.requestId);
+        if (!previous)
+          return Promise.reject(
+            new Error("No remembered generation matches this reference"),
+          );
+        const failed = { ...previous, failure: command.failure };
+        pendingGenerations.set(command.reference.requestId, failed);
+        return Promise.resolve(failed);
+      }
+      case memberMethods.completeGeneration: {
+        const command = input(completeGenerationRequestSchema);
+        pendingGenerations.delete(command.reference.requestId);
+        return Promise.resolve({
+          printId: command.reference.requestId,
+          computerId: command.reference.computerId,
+        });
+      }
+      case memberMethods.forgetGeneration: {
+        const command = input(forgetGenerationInputSchema);
+        const previous = pendingGenerations.get(command.reference.requestId);
+        if (previous?.reference.computerId === command.reference.computerId)
+          pendingGenerations.delete(command.reference.requestId);
+        return Promise.resolve({ removed: true });
+      }
+      case memberMethods.listGenerations: {
+        const command = input(listGenerationsInputSchema);
+        const records = [...pendingGenerations.values()]
+          .filter(
+            (record) => record.reference.requestId > (command.after ?? ""),
+          )
+          .sort((a, b) =>
+            a.reference.requestId.localeCompare(b.reference.requestId),
+          );
+        return Promise.resolve({ records, next: null });
+      }
+      case memberMethods.selectFolder:
+        mediaFolder = input(selectFolderInputSchema).path;
+        break;
+      case memberMethods.readFolder:
+        input(computerInputSchema);
+        if (scenario === "folder-loading")
+          return new Promise<{ path: string; configured: boolean }>(
+            () => undefined,
+          );
+        break;
+      default:
+        return Promise.reject(new Error("No matching fixture member method"));
+    }
+    return Promise.resolve({
+      path: mediaFolder ?? defaultMediaLibraryPath,
+      configured: mediaFolder !== null,
+    });
+  };
+  const isMemberMethod = (method: string): boolean =>
+    Object.values<string>(memberMethods).includes(method);
   register(appMethods, {
     call: (method, input) =>
-      scenario === "library" &&
-      ["describeFiles", "setFavorite", "listFavorites", "moveFiles"].includes(
-        method,
-      )
-        ? Promise.resolve(libraryMethod(method, input) ?? {})
-        : method === "getOutput" &&
-            (scenario === "studio" ||
-              scenario === "viewer-images" ||
-              scenario === "library")
-          ? Promise.resolve(
-              (() => {
-                const { path } = outputPathRequest.parse(JSON.parse(input));
-                return fixtureOutput(path, edits.get(path));
-              })(),
-            )
-          : method === "openOutput" && scenario === "gill-navigate"
-            ? Promise.resolve({
-                printId: "fixture-last-output",
-                path: "/media/print-47.svg",
-                byteOffset: 0,
-                content: "PA==",
-                encoding: "base64",
-                truncated: true,
-              })
-            : Promise.reject(new Error("No matching fixture output")),
-  });
-  register(appBackend, {
-    request: (input) => {
-      const command = Schema.decodeUnknownSync(
-        Schema.fromJsonString(
-          Schema.Union([
-            mediaNoticeRequestSchema,
-            promptStyleRequestSchema,
-            promptCharacterRequestSchema,
-            mediaSettingsRequestSchema,
-            mediaRecoveryRequestSchema,
-            completeGenerationRequestSchema,
-          ]),
-        ),
-        { onExcessProperty: "error" },
-      )(input);
-      switch (command.operation) {
-        case "read-notices":
-          return noticeStore(command.computerId);
-        case "dismiss-notices":
-          return noticeStore(command.computerId, command.keys);
-        case "list-styles":
-          return Promise.resolve(styleList());
-        case "save-style": {
-          const index = savedStyles.findIndex(
-            (style) => style.id === command.id,
-          );
-          const style = {
-            id:
-              command.id ??
-              Math.max(0, ...savedStyles.map((saved) => saved.id)) + 1,
-            name: command.name,
-            text: command.text,
-            builtIn: false,
-          };
-          if (index === -1) savedStyles.push(style);
-          else savedStyles[index] = style;
-          return Promise.resolve(styleList());
-        }
-        case "delete-style": {
-          const index = savedStyles.findIndex(
-            (style) => style.id === command.id,
-          );
-          if (index !== -1) savedStyles.splice(index, 1);
-          return Promise.resolve(styleList());
-        }
-        case "read-print-style":
-          return Promise.resolve({
-            // A style is for pictures; a recorded sound never has one.
-            style:
-              scenario === "studio" && !command.path.endsWith(".mp3")
-                ? "Storybook gouache"
-                : null,
-          });
-        case "list-characters":
-          return Promise.resolve(characterList());
-        case "save-character": {
-          const index = savedCharacters.findIndex(
-            (character) => character.id === command.id,
-          );
-          const character = {
-            id:
-              command.id ??
-              Math.max(0, ...savedCharacters.map((saved) => saved.id)) + 1,
-            name: command.name,
-            description: command.description,
-            references: command.references,
-          };
-          if (index === -1) savedCharacters.push(character);
-          else savedCharacters[index] = character;
-          return Promise.resolve(characterList());
-        }
-        case "delete-character": {
-          const index = savedCharacters.findIndex(
-            (character) => character.id === command.id,
-          );
-          if (index !== -1) savedCharacters.splice(index, 1);
-          return Promise.resolve(characterList());
-        }
-        case "remember-generation": {
-          const record = normalizePendingGeneration(command.record);
-          const previous = pendingGenerations.get(record.reference.requestId);
-          // A retry re-remembers the same command, which clears a recorded failure.
-          if (
-            previous &&
-            JSON.stringify({ ...previous, failure: undefined }) !==
-              JSON.stringify(record)
-          )
-            return Promise.reject(
-              new Error("Generation reference already has another input"),
-            );
-          pendingGenerations.set(record.reference.requestId, record);
-          return Promise.resolve(record);
-        }
-        case "fail-generation": {
-          const previous = pendingGenerations.get(command.reference.requestId);
-          if (!previous)
-            return Promise.reject(
-              new Error("No remembered generation matches this reference"),
-            );
-          const failed = { ...previous, failure: command.failure };
-          pendingGenerations.set(command.reference.requestId, failed);
-          return Promise.resolve(failed);
-        }
-        case "complete-generation": {
-          pendingGenerations.delete(command.reference.requestId);
-          return Promise.resolve({
-            printId: command.reference.requestId,
-            computerId: command.reference.computerId,
-          });
-        }
-        case "forget-generation": {
-          const previous = pendingGenerations.get(command.reference.requestId);
-          if (previous?.reference.computerId === command.reference.computerId)
-            pendingGenerations.delete(command.reference.requestId);
-          return Promise.resolve({ removed: true });
-        }
-        case "list-generations": {
-          const records = [...pendingGenerations.values()]
-            .filter(
-              (record) => record.reference.requestId > (command.after ?? ""),
-            )
-            .sort((a, b) =>
-              a.reference.requestId.localeCompare(b.reference.requestId),
-            );
-          return Promise.resolve({ records, next: null });
-        }
-        case "select-folder":
-          mediaFolder = command.path;
-          break;
-        case "read-folder":
-          if (scenario === "folder-loading")
-            return new Promise<{ path: string; configured: boolean }>(
-              () => undefined,
-            );
-          break;
-      }
-      return Promise.resolve({
-        path: mediaFolder ?? defaultMediaLibraryPath,
-        configured: mediaFolder !== null,
-      });
-    },
+      isMemberMethod(method)
+        ? memberMethod(method, input)
+        : scenario === "library" &&
+            [
+              "describeFiles",
+              "setFavorite",
+              "listFavorites",
+              "moveFiles",
+            ].includes(method)
+          ? Promise.resolve(libraryMethod(method, input) ?? {})
+          : method === "getOutput" &&
+              (scenario === "studio" ||
+                scenario === "viewer-images" ||
+                scenario === "library")
+            ? Promise.resolve(
+                (() => {
+                  const { path } = outputPathRequest.parse(JSON.parse(input));
+                  return fixtureOutput(path, edits.get(path));
+                })(),
+              )
+            : method === "openOutput" && scenario === "gill-navigate"
+              ? Promise.resolve({
+                  printId: "fixture-last-output",
+                  path: "/media/print-47.svg",
+                  byteOffset: 0,
+                  content: "PA==",
+                  encoding: "base64",
+                  truncated: true,
+                })
+              : Promise.reject(new Error("No matching fixture output")),
   });
   if (opt.computerSelected !== false) {
     register(computerList, {

@@ -1,9 +1,9 @@
-import { appBackend } from "@fungi.computer/agar/backend";
 import type {
   CapabilityDirectory,
   MediaGenerationInput,
 } from "@fungi.computer/agar";
 import * as Schema from "effect/Schema";
+import { callMemberMethod, memberMethods } from "./member-methods.js";
 import { composePrompt } from "./prompt-styles.js";
 import {
   expandReferenceMentions,
@@ -49,26 +49,18 @@ const characterSchema = Schema.Struct({
 export type PromptCharacter = Schema.Schema.Type<typeof characterSchema>;
 
 /** Characters belong to this Prints installation; a Computer id only admits the call. */
-export const promptCharacterRequestSchema = Schema.Union([
-  Schema.Struct({ operation: Schema.Literal("list-characters"), computerId }),
-  Schema.Struct({
-    operation: Schema.Literal("save-character"),
-    computerId,
-    /** Omitted to create; present to rename or rewrite that character. */
-    id: Schema.optional(Schema.Int),
-    name: characterName,
-    description: characterDescription,
-    references: characterReferences,
-  }),
-  Schema.Struct({
-    operation: Schema.Literal("delete-character"),
-    computerId,
-    id: Schema.Int,
-  }),
-]);
-type PromptCharacterRequest = Schema.Schema.Type<
-  typeof promptCharacterRequestSchema
->;
+export const saveCharacterInputSchema = Schema.Struct({
+  computerId,
+  /** Omitted to create; present to rename or rewrite that character. */
+  id: Schema.optional(Schema.Int),
+  name: characterName,
+  description: characterDescription,
+  references: characterReferences,
+});
+export const deleteCharacterInputSchema = Schema.Struct({
+  computerId,
+  id: Schema.Int,
+});
 const promptCharactersSchema = Schema.Struct({
   characters: Schema.Array(characterSchema).pipe(
     Schema.check(Schema.isMaxLength(MAX_CHARACTERS)),
@@ -308,10 +300,6 @@ export function suggestCharacters(
   ].slice(0, MAX_SUGGESTIONS);
 }
 
-const asking = (capabilities: CapabilityDirectory) =>
-  capabilities.require(appBackend);
-const body = (request: PromptCharacterRequest): string =>
-  JSON.stringify(request);
 const decodeCharacters = Schema.decodeUnknownSync(promptCharactersSchema);
 
 export async function listCharacters(
@@ -319,8 +307,12 @@ export async function listCharacters(
   id: string,
 ) {
   return decodeCharacters(
-    await asking(capabilities).request(
-      body({ operation: "list-characters", computerId: id }),
+    await callMemberMethod(
+      capabilities,
+      memberMethods.listCharacters,
+      JSON.stringify({
+        computerId: id,
+      }),
     ),
   );
 }
@@ -335,9 +327,10 @@ export async function saveCharacter(
   }>,
 ) {
   return decodeCharacters(
-    await asking(capabilities).request(
-      body({
-        operation: "save-character",
+    await callMemberMethod(
+      capabilities,
+      memberMethods.saveCharacter,
+      JSON.stringify({
         computerId: id,
         id: character.id,
         name: character.name,
@@ -353,9 +346,10 @@ export async function deleteCharacter(
   characterId: number,
 ) {
   return decodeCharacters(
-    await asking(capabilities).request(
-      body({
-        operation: "delete-character",
+    await callMemberMethod(
+      capabilities,
+      memberMethods.deleteCharacter,
+      JSON.stringify({
         computerId: id,
         id: characterId,
       }),

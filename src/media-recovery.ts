@@ -2,7 +2,7 @@ import {
   completeGenerationRequestSchema,
   type CompleteGenerationRequest,
 } from "./media-completion-contract.js";
-import { appBackend } from "@fungi.computer/agar/backend";
+import { callMemberMethod, memberMethods } from "./member-methods.js";
 import { AppError, type CapabilityDirectory } from "@fungi.computer/agar";
 import type { MediaGenerationReference } from "@fungi.computer/agar/media";
 import * as Schema from "effect/Schema";
@@ -29,9 +29,10 @@ export async function rememberGeneration(
     Schema.Union([pendingGenerationSchema, generationLimitRefusalSchema]),
     { onExcessProperty: "error" },
   )(
-    await capabilities.require(appBackend).request(
+    await callMemberMethod(
+      capabilities,
+      memberMethods.rememberGeneration,
       JSON.stringify({
-        operation: "remember-generation",
         record: expected,
       }),
     ),
@@ -56,11 +57,14 @@ export async function failGeneration(
   Schema.decodeUnknownSync(pendingGenerationSchema, {
     onExcessProperty: "error",
   })(
-    await capabilities
-      .require(appBackend)
-      .request(
-        JSON.stringify({ operation: "fail-generation", reference, failure }),
-      ),
+    await callMemberMethod(
+      capabilities,
+      memberMethods.failGeneration,
+      JSON.stringify({
+        reference,
+        failure,
+      }),
+    ),
   );
 }
 
@@ -69,9 +73,13 @@ export async function forgetGeneration(
   reference: MediaGenerationReference,
 ) {
   Schema.decodeUnknownSync(Schema.Struct({ removed: Schema.Boolean }))(
-    await capabilities
-      .require(appBackend)
-      .request(JSON.stringify({ operation: "forget-generation", reference })),
+    await callMemberMethod(
+      capabilities,
+      memberMethods.forgetGeneration,
+      JSON.stringify({
+        reference,
+      }),
+    ),
   );
 }
 
@@ -86,9 +94,13 @@ export async function listGenerations(
     }),
     { onExcessProperty: "error" },
   )(
-    await capabilities
-      .require(appBackend)
-      .request(JSON.stringify({ operation: "list-generations", after })),
+    await callMemberMethod(
+      capabilities,
+      memberMethods.listGenerations,
+      JSON.stringify({
+        after,
+      }),
+    ),
   );
   return {
     records: page.records.map(normalizePendingGeneration),
@@ -103,14 +115,20 @@ export async function completeGeneration(
 ) {
   const request = Schema.decodeUnknownSync(completeGenerationRequestSchema, {
     onExcessProperty: "error",
-  })({ operation: "complete-generation", reference, result });
+  })({ reference, result });
   // The backend returns a PrintRecord; completion only consumes its identity.
   const confirmed = Schema.decodeUnknownSync(
     Schema.Struct({
       printId: Schema.String,
       computerId: Schema.String,
     }),
-  )(await capabilities.require(appBackend).request(JSON.stringify(request)));
+  )(
+    await callMemberMethod(
+      capabilities,
+      memberMethods.completeGeneration,
+      JSON.stringify(request),
+    ),
+  );
   if (
     confirmed.printId !== reference.requestId ||
     confirmed.computerId !== reference.computerId

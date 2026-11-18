@@ -1,6 +1,6 @@
-import { appBackend } from "@fungi.computer/agar/backend";
 import type { CapabilityDirectory } from "@fungi.computer/agar";
 import * as Schema from "effect/Schema";
+import { callMemberMethod, memberMethods } from "./member-methods.js";
 
 /** The provider-wide prompt limit when a model names none of its own. */
 const DEFAULT_PROMPT_LIMIT = 2_048;
@@ -57,28 +57,21 @@ const promptStyleSchema = Schema.Struct({
 export type PromptStyle = Schema.Schema.Type<typeof promptStyleSchema>;
 
 /** Styles belong to this Prints installation; a Computer id only admits the call. */
-export const promptStyleRequestSchema = Schema.Union([
-  Schema.Struct({ operation: Schema.Literal("list-styles"), computerId }),
-  Schema.Struct({
-    operation: Schema.Literal("save-style"),
-    computerId,
-    /** Omitted to create; present to rename or rewrite that style. */
-    id: Schema.optional(Schema.Int),
-    name: styleName,
-    text: styleText,
-  }),
-  Schema.Struct({
-    operation: Schema.Literal("delete-style"),
-    computerId,
-    id: Schema.Int,
-  }),
-  Schema.Struct({
-    operation: Schema.Literal("read-print-style"),
-    computerId,
-    path: Schema.NonEmptyString,
-  }),
-]);
-type PromptStyleRequest = Schema.Schema.Type<typeof promptStyleRequestSchema>;
+export const saveStyleInputSchema = Schema.Struct({
+  computerId,
+  /** Omitted to create; present to rename or rewrite that style. */
+  id: Schema.optional(Schema.Int),
+  name: styleName,
+  text: styleText,
+});
+export const deleteStyleInputSchema = Schema.Struct({
+  computerId,
+  id: Schema.Int,
+});
+export const readPrintStyleInputSchema = Schema.Struct({
+  computerId,
+  path: Schema.NonEmptyString,
+});
 const promptStylesSchema = Schema.Struct({
   styles: Schema.Array(promptStyleSchema).pipe(
     Schema.check(Schema.isMaxLength(MAX_STYLES + BUILT_IN_STYLES.length)),
@@ -126,9 +119,6 @@ export function promptLengthMessage(
   return `The prompt is ${total}`;
 }
 
-const asking = (capabilities: CapabilityDirectory) =>
-  capabilities.require(appBackend);
-const body = (request: PromptStyleRequest): string => JSON.stringify(request);
 const decodeStyles = Schema.decodeUnknownSync(promptStylesSchema);
 
 export async function listStyles(
@@ -136,8 +126,12 @@ export async function listStyles(
   id: string,
 ) {
   return decodeStyles(
-    await asking(capabilities).request(
-      body({ operation: "list-styles", computerId: id }),
+    await callMemberMethod(
+      capabilities,
+      memberMethods.listStyles,
+      JSON.stringify({
+        computerId: id,
+      }),
     ),
   );
 }
@@ -147,9 +141,10 @@ export async function saveStyle(
   style: Readonly<{ id?: number | undefined; name: string; text: string }>,
 ) {
   return decodeStyles(
-    await asking(capabilities).request(
-      body({
-        operation: "save-style",
+    await callMemberMethod(
+      capabilities,
+      memberMethods.saveStyle,
+      JSON.stringify({
         computerId: id,
         id: style.id,
         name: style.name,
@@ -164,25 +159,27 @@ export async function deleteStyle(
   styleId: number,
 ) {
   return decodeStyles(
-    await asking(capabilities).request(
-      body({
-        operation: "delete-style",
+    await callMemberMethod(
+      capabilities,
+      memberMethods.deleteStyle,
+      JSON.stringify({
         computerId: id,
         id: styleId,
       }),
     ),
   );
 }
-/** The style name recorded when this print was made, if any. */
+
 export async function readPrintStyle(
   capabilities: CapabilityDirectory,
   id: string,
   path: string,
 ) {
   return Schema.decodeUnknownSync(printStyleSchema)(
-    await asking(capabilities).request(
-      body({
-        operation: "read-print-style",
+    await callMemberMethod(
+      capabilities,
+      memberMethods.readPrintStyle,
+      JSON.stringify({
         computerId: id,
         path,
       }),

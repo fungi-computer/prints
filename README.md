@@ -11,7 +11,22 @@ on your own Cloudflare account. On Oyster, Prints generates with Workers AI and
 saves every file to a folder on the Computer, a Linux workspace in a Cloudflare
 Container.
 
-## What you can do
+## Quick start
+
+In a Fungi monorepo checkout with dependencies installed, run the component
+workbench from the root:
+
+```sh
+pnpm workbench:prepare
+pnpm exec ladle serve --port 61983
+```
+
+Open <http://localhost:61983/?story=prints--studio&mode=preview&theme=light>.
+This is Prints's real UI with local fixture data (a sample gallery; nothing is
+generated), not a live Oyster. To run Prints on a real Oyster, see
+[Get it](#get-it).
+
+## Common tasks
 
 - Type a prompt, pick a model and a size, and generate an image or a video. Each
   file keeps its model's native format: PNG where the model supports it, JPEG
@@ -61,7 +76,9 @@ Container.
 
 <img alt="Prints on a phone in the light theme: the Folders button, the Folder, All and Favorites switch, folder tiles and a two-column wall above the prompt bar" src="docs/media/gallery-phone.png" width="300">
 
-## Get it
+## Reference
+
+### Get it
 
 Prints installs with the other starter Apps. On a deployed Oyster (see the
 [Oyster quick start](https://github.com/fungi-computer/oyster#deploy-to-cloudflare)),
@@ -79,7 +96,7 @@ at `$OYSTER_URL/login` with the owner key and open Prints from the Tourtois
 desktop. Run `install-apps` again to update; each App keeps its data. Generation
 uses Workers AI on your Cloudflare account.
 
-## Change it
+### Change it
 
 Every installed App is also a template you can fork on your own Oyster. Fork
 Prints into a Bonsai repository and clone it with ordinary `git`:
@@ -102,7 +119,7 @@ your forks with `--repositories <base URL>` and `--ref <branch or tag>`. The
 installer reads all seven starter Apps from that base, so fork them under one
 account.
 
-## Agent tools
+### Agent tools
 
 Agents call Prints through Oyster's MCP endpoint, or at
 `POST $OYSTER_URL/apps/prints/methods/<name>` with a key; see
@@ -153,7 +170,7 @@ fund the request, not a Team credit refusal. Check the account's credits and
 billing in the Cloudflare dashboard under AI Gateway or choose a Workers AI
 model; do not retry a `retryable: false` result.
 
-## Build and check
+### Build and check
 
 Prints is a React App built with Vite, with controls from
 [Caps](https://github.com/fungi-computer/caps). Its backend keeps folder
@@ -175,7 +192,7 @@ records each finished print. The agent tools are in
 [backend/methods.ts](backend/methods.ts), and [package.json](package.json)
 declares the permissions the App asks for.
 
-## License
+### License
 
 MIT. See [LICENSE](LICENSE).
 

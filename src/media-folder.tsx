@@ -1,9 +1,9 @@
 import * as Schema from "effect/Schema";
 import { mediaLibraryPathSchema } from "@fungi.computer/agar/media";
 import { useComputerId } from "@fungi.computer/agar/react";
-import { appBackend } from "@fungi.computer/agar/backend";
+import { appMethods } from "@fungi.computer/agar/backend";
 import { AppError } from "@fungi.computer/agar/errors";
-import { mediaSettings } from "./media-settings.js";
+import { selectFolder } from "./media-settings.js";
 import type { AppRoot } from "@fungi.computer/agar";
 import {
   computerWriteFile,
@@ -96,11 +96,7 @@ export function useMediaFolder(app: AppRoot | null) {
         offset: 0,
       });
       requireSelection();
-      return mediaSettings(owner.capabilities, {
-        operation: "select-folder",
-        computerId: id,
-        path,
-      });
+      return selectFolder(owner.capabilities, id, path);
     },
     onSuccess: (_folder, variables) => {
       if (
@@ -169,7 +165,7 @@ export function useMediaFolder(app: AppRoot | null) {
     source,
     path: unavailable ? null : (query.data?.path ?? null),
     computerId,
-    available: app?.capabilities.has(appBackend) === true,
+    available: app?.capabilities.has(appMethods) === true,
     writable: app?.capabilities.has(computerWriteFile) === true,
     busy,
     error: unavailable
