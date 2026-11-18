@@ -942,13 +942,29 @@ span.prints-reference-role {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  min-height: 2.25rem;
   padding-inline: var(--spacing-xs);
 }
+/* Rows stay at 32px: the library bar and the selection bar that replaces it. */
 .prints-library-bar,
 .prints-select-bar {
-  min-height: 2.75rem;
+  min-height: 2rem;
   flex-wrap: nowrap;
+}
+/* The views sit flat in the row: no well, the selected one shows by its fill. */
+.prints-library-bar .prints-view-switch [role="tablist"] {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.prints-library-bar .prints-view-switch [role="tab"] {
+  min-height: 2rem;
+  box-shadow: none;
+}
+.prints-library-bar .prints-folders-button,
+.prints-library-bar .prints-folder-chip {
+  --caps-keycap-height: 2rem;
+  min-height: 2rem;
+  padding-block: 0;
 }
 .prints-view-switch.prints-view-switch,
 .prints-view-switch [role="tablist"] {
@@ -984,9 +1000,13 @@ span.prints-reference-role {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: 0 var(--spacing-sm);
   border-radius: var(--radius-box);
   background: var(--color-base-100);
+}
+.prints-select-bar .caps-button,
+.prints-select-bar .prints-select-done {
+  min-height: 2rem;
 }
 .prints-select-all {
   color: var(--color-base-content);
@@ -1246,7 +1266,7 @@ span.prints-reference-role {
   }
 }
 
-/* Narrow: one 44px row holds Folders, the views and the folders in view. */
+/* Narrow: one 32px row holds Folders, the views and the folders in view. */
 @container (max-width: 640px) {
   .prints-library-bar {
     gap: var(--spacing-xs);
@@ -1258,8 +1278,7 @@ span.prints-reference-role {
   }
   .prints-library-bar .prints-view-switch [role="tab"] {
     flex: none;
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    min-width: 2rem;
     padding-inline: var(--spacing-sm);
   }
   .prints-library-bar {
@@ -1267,8 +1286,7 @@ span.prints-reference-role {
   }
   .prints-library-bar .prints-folders-button {
     flex: none;
-    min-width: 2.75rem;
-    --caps-keycap-height: 2.75rem;
+    min-width: 2rem;
   }
   .prints-library-bar .prints-folder-chips {
     min-width: 6rem;
@@ -1333,28 +1351,34 @@ span.prints-reference-role {
 }
 
 /* A coarse pointer taps with a fingertip: every Prints control outside the
-   composer reaches the 44px touch target. */
+   composer reaches the 44px touch target. The library and selection rows are
+   32px with a mouse and grow to it here. */
 @media (pointer: coarse) {
-  .prints-info-close,
-  .prints-select-done,
-  .prints-folders-button {
+  .prints-library-bar,
+  .prints-select-bar {
+    min-height: var(--caps-touch-target, 2.75rem);
+  }
+  .prints-library-bar .prints-folders-button,
+  .prints-library-bar .prints-folder-chip {
+    --caps-keycap-height: var(--caps-touch-target, 2.75rem);
     min-width: var(--caps-touch-target, 2.75rem);
     min-height: var(--caps-touch-target, 2.75rem);
   }
+  .prints-library-bar .prints-view-switch [role="tab"],
+  .prints-select-bar .caps-button,
+  .prints-select-bar .prints-select-done {
+    min-width: var(--caps-touch-target, 2.75rem);
+    min-height: var(--caps-touch-target, 2.75rem);
+  }
+  .prints-info-close,
   .prints-info-actions {
     --caps-keycap-height: var(--caps-touch-target, 2.75rem);
   }
   .prints-info-link {
     min-height: var(--caps-touch-target, 2.75rem);
   }
-  .prints-select-bar .caps-button {
-    min-height: var(--caps-touch-target, 2.75rem);
-  }
   .prints-view-option,
   .prints-rail-view {
-    min-height: var(--caps-touch-target, 2.75rem);
-  }
-  .prints-library-bar [role="tab"] {
     min-height: var(--caps-touch-target, 2.75rem);
   }
 }

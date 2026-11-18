@@ -1,5 +1,14 @@
 # @fungi.computer/prints
 
+## 0.20.10
+
+### Patch Changes
+
+- Changes since 0.20.9:
+
+  - fix(prints): let the library and selection rows grow to 44px on touch
+  - fix(prints): hold the library and selection rows to 32px
+
 ## 0.20.9
 
 ### Patch Changes
