@@ -31,8 +31,10 @@ import {
   generationInputFor,
   generationPendingLabel,
   modelFor,
+  modelName,
   resolveReferenceRoles,
   validationMessage,
+  GENERATION_FAILED_TILE,
   GENERATION_UNAVAILABLE_REASON,
   type GenerationDraft,
   type GenerationRecord,
@@ -351,7 +353,9 @@ export function useMediaGeneration({
       callbacks.current.saved(record, run.connection);
     },
     onError: (cause, run) => {
-      reportCatchFailure("generate-media", cause);
+      reportCatchFailure("generate-media", cause, {
+        requestId: run.reference.requestId,
+      });
       if (run.controller.signal.aborted) {
         // Only the person's Stop is a result worth keeping; closing Prints is not.
         if (stopping.current.delete(run.reference.requestId)) {
@@ -394,7 +398,12 @@ export function useMediaGeneration({
         if (selected(run)) callbacks.current.notifyFailure(cause.message);
         return;
       }
-      const failure = generationFailureOf(cause);
+      const model = modelFor(run.session.models, run.input.settings.model);
+      const context = {
+        model: model === undefined ? undefined : modelName(model),
+        requestId: run.reference.requestId,
+      };
+      const failure = generationFailureOf(cause, context);
       // The reason is remembered with the run, so it outlives a reload.
       void failGeneration(
         run.connection.app.capabilities,
@@ -405,12 +414,11 @@ export function useMediaGeneration({
       });
       if (!selected(run)) return;
       markFailure(run.recoveryKey, run.reference.requestId, failure);
-      const described = describeGenerationError(cause);
+      const described = describeGenerationError(cause, context);
       const runFailure: RunFailure = {
         requestId: run.reference.requestId,
         path: run.input.destination.path,
-        mediaKind:
-          modelFor(run.session.models, run.input.settings.model)?.kind ?? null,
+        mediaKind: model?.kind ?? null,
         message: described.message,
         action: described.action,
         prompt: run.typed.prompt,
@@ -420,11 +428,12 @@ export function useMediaGeneration({
         runFailure,
       ]);
       folder.recheck();
-      // Every refused or failed run also says why in the on-screen toast.
+      // The toast says why, once; the tile keeps a quiet failed state with
+      // Retry and Dismiss, and Activity keeps the reason after the toast goes.
       callbacks.current.notifyFailure(described.message);
       callbacks.current.failed(
         `${run.reference.computerId}:${run.input.destination.path}`,
-        failure.message,
+        GENERATION_FAILED_TILE,
       );
     },
     onSettled: (_result, _cause, run) => {

@@ -1,5 +1,26 @@
 # @fungi.computer/prints
 
+## 0.20.16
+
+### Patch Changes
+
+- Changes since 0.20.15:
+
+  - fix(prints): log the request id behind a failure's ref
+  - fix(prints): name the model and a ref for an unexpected failure
+  - fix(prints): keep the composer size quietly in a sandboxed app frame
+  - fix(prints): keep the shared page prompt switch on one row
+  - fix(prints): name media service failures and say what the share prompt
+    switch does
+  - fix(prints): name the real cause when a generation fails
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.23.1
+  - @fungi.computer/darkroom@0.11.9
+  - @fungi.computer/parakeet@0.16.0
+
 ## 0.20.15
 
 ### Patch Changes

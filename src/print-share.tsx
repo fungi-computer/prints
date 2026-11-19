@@ -116,11 +116,11 @@ export function PrintShareRows({
       <DataRow>
         <span className="prints-info-label">
           <Sigil name="sendPrompts" size={16} />
-          On page
+          Shared page
         </span>
         <span className="prints-info-value prints-share-value">
           <Switch
-            aria-label="Show the prompt on the public page"
+            aria-label="Show prompt on shared page"
             checked={prompted}
             disabled={busy || status.isError}
             onCheckedChange={(on) => {
@@ -129,8 +129,8 @@ export function PrintShareRows({
                 update.mutate({ kind: "reshare", showPrompt: on });
             }}
           />
-          <span className="prints-share-note">
-            {prompted ? "Print and prompt" : "Print only"}
+          <span className="prints-share-note" aria-hidden="true">
+            Show prompt
           </span>
         </span>
       </DataRow>

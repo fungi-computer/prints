@@ -153,6 +153,7 @@ import {
   type SizeChoice,
   sizeForModel,
   SIZE_PRESETS,
+  GENERATION_FAILED_TILE,
 } from "./generation-model.js";
 import { registerGenerationCommands } from "./generation-commands.js";
 import { usePromptCommands } from "./prompt-commands.js";
@@ -1854,9 +1855,11 @@ export function MediaPane({
           height: 1280,
           url: "",
           pending: true,
+          // The remembered reason stays in Activity; the tile keeps it quiet.
           error:
-            record.failure?.message ??
-            "Stopped when Prints closed. Retry to run it again.",
+            record.failure === undefined
+              ? "Stopped when Prints closed. Retry to run it again."
+              : GENERATION_FAILED_TILE,
           prompt: record.typed.prompt,
           onOpen: () => undefined,
           onRetry: () => {

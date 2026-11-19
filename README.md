@@ -67,9 +67,9 @@ generated), not a live Oyster. To run Prints on a real Oyster, see
   Computer stays as it is.
 - **Share** a generated print from Image info, where the host offers it (the
   Fungi Hub does): a public, read-only page shows the picture or video, with its
-  prompt only if you leave **On page** on. Prints are private until you turn
-  sharing on, and turning it off stops the link at once. Changing **On page**
-  while shared makes a new link.
+  prompt only if **Shared page: Show prompt** is on. Prints are private until
+  you turn sharing on, and turning it off stops the link at once. Changing that
+  switch while shared makes a new link.
 - Retry a failed attempt from its tile or from **Activity**, the key in the
   window's status bar. A retry resumes the same attempt instead of generating
   again, and **Resume** picks up an unfinished image after a reload.

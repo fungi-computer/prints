@@ -92,6 +92,12 @@ export const ModelsError = () => (
 export const GenerateError = () => (
   <ActivityWorkbench opt={{ fail: "error" }} />
 );
+export const GenerateProviderTimeout = () => (
+  <ActivityWorkbench opt={{ fail: "provider-timeout" }} />
+);
+export const GenerateUnreported = () => (
+  <ActivityWorkbench opt={{ fail: "provider-unreported" }} />
+);
 export const GenerateTimeout = () => (
   <ActivityWorkbench opt={{ fail: "timeout" }} />
 );

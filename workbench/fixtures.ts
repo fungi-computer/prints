@@ -128,6 +128,8 @@ export type CaptureOptions = {
   mediaShare?: boolean;
   fail?:
     | "error"
+    | "provider-timeout"
+    | "provider-unreported"
     | "timeout"
     | "refused"
     | "daily-limit"
@@ -1037,6 +1039,29 @@ export function createPrintsFixture(
                 code: 3030,
                 reason: "content_refused" as const,
               },
+              retryable: false,
+            },
+          };
+        if (
+          opt.fail === "provider-timeout" ||
+          opt.fail === "provider-unreported"
+        )
+          // The host's shape for an uncharged provider failure, with and
+          // without the provider's allowlisted facts.
+          return {
+            kind: "failed" as const,
+            failure: {
+              code: "MEDIA_PROVIDER_FAILURE_UNCHARGED" as const,
+              message:
+                "The model couldn't complete this generation. You weren't charged. Change the prompt or model and send again.",
+              stage: "provider" as const,
+              ...(opt.fail === "provider-timeout" && {
+                provider: {
+                  category: "Error" as const,
+                  code: 3007,
+                  reason: "timeout" as const,
+                },
+              }),
               retryable: false,
             },
           };

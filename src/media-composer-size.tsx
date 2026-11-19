@@ -47,12 +47,30 @@ const storedSizeSchema = Schema.fromJsonString(
 );
 const decodeStoredSize = Schema.decodeUnknownOption(storedSizeSchema);
 
-/** The stored size, or the defaults when it is missing, blocked or malformed. */
-export function readComposerSize(): ComposerSize {
+/**
+ * The page's storage, or null where the host forbids it. Oyster opens an App
+ * in an opaque sandbox (no `allow-same-origin`), so reading
+ * `window.localStorage` there throws a SecurityError on every load. That is the
+ * host's normal shape, not a failure: the composer then keeps its size for
+ * this visit only.
+ */
+function composerStorage(): Storage | null {
   try {
-    const decoded = decodeStoredSize(
-      window.localStorage.getItem(COMPOSER_STORAGE_KEY),
-    );
+    return window.localStorage;
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === "SecurityError")
+      return null;
+    reportCatchFailure("composer-storage-open", cause);
+    return null;
+  }
+}
+
+/** The stored size, or the defaults on first use or when it is blocked or malformed. */
+export function readComposerSize(): ComposerSize {
+  const storage = composerStorage();
+  if (storage === null) return DEFAULT_SIZE;
+  try {
+    const decoded = decodeStoredSize(storage.getItem(COMPOSER_STORAGE_KEY));
     return Option.isSome(decoded)
       ? {
           maxHeight: Math.max(decoded.value.maxHeight, COMPOSER_MIN_MAX),
@@ -66,10 +84,12 @@ export function readComposerSize(): ComposerSize {
 }
 
 function writeComposerSize(size: ComposerSize) {
+  const storage = composerStorage();
+  if (storage === null) return;
   try {
-    window.localStorage.setItem(COMPOSER_STORAGE_KEY, JSON.stringify(size));
+    storage.setItem(COMPOSER_STORAGE_KEY, JSON.stringify(size));
   } catch (cause) {
-    // Storage can be blocked; the size then lasts for this visit only.
+    // A full or blocked store keeps the size for this visit only.
     reportCatchFailure("composer-size-write", cause);
   }
 }

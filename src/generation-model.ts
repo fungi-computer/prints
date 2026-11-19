@@ -4,6 +4,7 @@ import {
   appErrorCodes,
   describeAppError,
   type ErrorDescription,
+  type MediaServiceFailure,
 } from "@fungi.computer/agar/errors";
 import type { GenerationFailure } from "./media-recovery-contract.js";
 import { MediaGenerationError } from "@fungi.computer/agar/media";
@@ -12,7 +13,7 @@ import type {
   MediaGenerationResult,
   MediaGenerationSession,
 } from "@fungi.computer/agar";
-import { Result, Schema, SchemaIssue } from "effect";
+import { Option, Result, Schema, SchemaIssue } from "effect";
 import { words } from "@fungi.computer/cairn";
 
 export type MediaModel = MediaGenerationSession["models"][number];
@@ -31,6 +32,8 @@ export function isReferenceOnComputer(
 export const DEFAULT_MODEL_ID = "@cf/black-forest-labs/flux-2-klein-4b";
 export const GENERATION_UNAVAILABLE_REASON =
   "Image creation is unavailable for this Computer right now.";
+/** A failed run's tile line; the reason itself is said once, in the toast. */
+export const GENERATION_FAILED_TILE = "Didn’t finish";
 
 export const SIZE_PRESETS = {
   landscape: { height: 768, width: 1024 },
@@ -95,75 +98,207 @@ function needsGatewayCredits(cause: unknown): cause is MediaGenerationError {
   );
 }
 
-/** One plain line per provider failure class; the provider names the class. */
-function providerReasonCopy(cause: unknown): ErrorDescription | undefined {
+/** What a failure sentence may name: the model and the run's request id. */
+export type GenerationFailureContext = Readonly<{
+  /** The model's display name, such as "Flux 2 Klein 4b". */
+  model?: string | undefined;
+  /** The run's request id; its tail is the ref support looks up in Hub logs. */
+  requestId?: string | undefined;
+}>;
+
+/** A short ref for a cause nobody reported; the Hub logs the full request id. */
+function refOf(context: GenerationFailureContext): string {
+  return context.requestId === undefined
+    ? ""
+    : ` Ref ${context.requestId.slice(-8)}.`;
+}
+
+type ProviderCause = Readonly<{
+  /** Plain words after "<model> stopped: ". */
+  cause: string;
+  next: string;
+  title?: string;
+  retryable: boolean;
+  /** True when the cause is unknown or internal, so the sentence carries a ref. */
+  unexplained?: boolean;
+}>;
+
+/** Fungi's own media service failing, in plain words with its closed code. */
+const mediaServiceCause = {
+  invalid_request: "the media service rejected the request (invalid_request)",
+  unauthorized: "the media service refused Fungi’s credentials (unauthorized)",
+  unavailable: "the media service is unavailable (unavailable)",
+  rate_limited: "the media service is busy (rate_limited)",
+  too_large: "the request was too large for the media service (too_large)",
+  unreachable: "Fungi couldn’t reach the media service (unreachable)",
+  invalid_response:
+    "the media service sent an answer Fungi couldn’t read (invalid_response)",
+} as const satisfies Record<MediaServiceFailure, string>;
+
+/** The provider's own failure, named in plain words; never a bare "it failed". */
+function providerCause(
+  provider: MediaGenerationError["provider"],
+): ProviderCause {
+  if (provider === undefined)
+    return {
+      cause: "the media service didn’t report why (internal error)",
+      next: "Retry, or pick another model.",
+      retryable: false,
+      unexplained: true,
+    };
+  if (provider.category === "media_service")
+    return {
+      cause: mediaServiceCause[provider.failure],
+      next:
+        provider.failure === "rate_limited"
+          ? "Retry in a minute."
+          : "Retry, or pick another model.",
+      retryable: provider.failure === "rate_limited",
+      unexplained: true,
+    };
+  if (provider.category === "result_download")
+    return {
+      cause: `the finished file couldn’t be downloaded (HTTP ${String(provider.status)})`,
+      next: "Retry, or pick another model.",
+      retryable: false,
+    };
+  switch (provider.reason) {
+    case "content_refused":
+      return {
+        title: "Generation refused",
+        cause: "the provider refused the prompt (content policy)",
+        next: "Reword the prompt, then retry.",
+        retryable: false,
+      };
+    case "invalid_input":
+      return {
+        cause:
+          provider.detail === undefined
+            ? "the provider rejected the input"
+            : `the provider rejected the input (${provider.detail})`,
+        next: "Check the prompt and the reference image’s size and format.",
+        retryable: false,
+      };
+    case "rate_limited":
+      return {
+        cause: "the provider is overloaded",
+        next: "Retry in a minute.",
+        retryable: true,
+      };
+    case "provider_unavailable":
+      return {
+        cause: "the provider is down right now",
+        next: "Retry in a minute.",
+        retryable: true,
+      };
+    case "timeout":
+      return {
+        title: "Still waiting",
+        cause: "the provider timed out",
+        next: "Retry to ask again.",
+        retryable: true,
+      };
+    case "spending_limit":
+      return {
+        cause: "the provider’s daily allowance is used up",
+        next: "Try another model, or retry tomorrow.",
+        retryable: false,
+      };
+    case "credits_exhausted":
+      return {
+        cause: "Cloudflare AI Gateway credits are used up",
+        next: "Choose a Workers AI model such as Flux.",
+        retryable: false,
+      };
+    case undefined:
+      break;
+  }
+  if (provider.detail !== undefined)
+    return {
+      cause: `the provider said “${provider.detail}”`,
+      next: "Retry, or pick another model.",
+      retryable: false,
+    };
+  if (
+    provider.category === "TimeoutError" ||
+    provider.category === "AbortError"
+  )
+    return {
+      title: "Still waiting",
+      cause: "the provider timed out",
+      next: "Retry to ask again.",
+      retryable: true,
+    };
+  return {
+    cause:
+      provider.code === null
+        ? `the provider failed without a reason (${provider.category})`
+        : `the provider failed with error ${String(provider.code)} and gave no reason`,
+    next: "Retry, or pick another model.",
+    retryable: false,
+    unexplained: true,
+  };
+}
+
+/**
+ * A provider-stage failure the provider's facts explain: every provider
+ * failure code, and any code the provider classified. Other codes at that
+ * stage (setup, timeout, host) keep their own recovery copy.
+ */
+function explainsProviderFailure(
+  cause: unknown,
+): cause is MediaGenerationError {
   if (!(cause instanceof MediaGenerationError) || cause.stage !== "provider")
-    return undefined;
+    return false;
+  if (
+    cause.code === "MEDIA_PROVIDER_FAILURE" ||
+    cause.code === "MEDIA_PROVIDER_FAILURE_UNCHARGED" ||
+    cause.code === "SAFETY_FILTER_REFUSED"
+  )
+    return true;
   const provider = cause.provider;
-  if (provider === undefined || !("code" in provider)) return undefined;
+  return (
+    provider !== undefined &&
+    (provider.category === "result_download" ||
+      provider.category === "media_service" ||
+      provider.reason !== undefined ||
+      provider.detail !== undefined)
+  );
+}
+
+/** "<model> stopped: <cause>." then whether it was charged, what to do, and a ref when unexplained. */
+function providerFailureCopy(
+  cause: MediaGenerationError,
+  context: GenerationFailureContext,
+): ErrorDescription {
+  // A safety refusal is the refusal whatever facts the provider attached.
+  const named = providerCause(
+    cause.code === "SAFETY_FILTER_REFUSED"
+      ? { category: "Error", code: null, reason: "content_refused" }
+      : cause.provider,
+  );
   const uncharged =
     cause.code === "MEDIA_PROVIDER_FAILURE_UNCHARGED"
       ? " You weren’t charged."
       : "";
-  const line = (
-    title: string,
-    message: string,
-    retryable: boolean,
-  ): ErrorDescription => ({ title, message: message + uncharged, retryable });
-  switch (provider.reason) {
-    case "content_refused":
-      return line(
-        "Generation refused",
-        "The model refused this prompt (content policy). Try rewording it.",
-        false,
-      );
-    case "invalid_input":
-      return line(
-        "Generation failed",
-        provider.detail === undefined
-          ? "The provider rejected the input. Check the prompt and the reference image’s size and format."
-          : `The provider rejected the input: ${provider.detail}.`,
-        false,
-      );
-    case "rate_limited":
-      return line(
-        "Generation failed",
-        "The provider is overloaded. Retry in a minute.",
-        true,
-      );
-    case "provider_unavailable":
-      return line(
-        "Generation failed",
-        "The provider is having an outage. Retry in a minute.",
-        true,
-      );
-    case "timeout":
-      return line(
-        "Still waiting",
-        "The model took too long to answer. Retry to ask again.",
-        true,
-      );
-    case "spending_limit":
-      return line(
-        "Generation failed",
-        "The provider’s daily allowance is used up. Try another model, or retry tomorrow.",
-        false,
-      );
-    case "credits_exhausted":
-      return undefined;
-    case undefined:
-      return provider.detail === undefined
-        ? undefined
-        : line(
-            "Generation failed",
-            `The model stopped before it finished: ${provider.detail}. Retry, or pick another model.`,
-            false,
-          );
-  }
+  return {
+    title: named.title ?? "Generation failed",
+    message: `${context.model ?? "The model"} stopped: ${named.cause}.${uncharged} ${named.next}${
+      named.unexplained === true ? refOf(context) : ""
+    }`,
+    retryable: named.retryable,
+  };
 }
 
+const decodeAppErrorCode = Schema.decodeUnknownOption(
+  Schema.Struct({ code: Schema.Literals(appErrorCodes) }),
+);
+
 /** Prints owns recovery copy; the provider owns classification and F5 the typed action. */
-export function describeGenerationError(cause: unknown): ErrorDescription {
+export function describeGenerationError(
+  cause: unknown,
+  context: GenerationFailureContext = {},
+): ErrorDescription {
   if (cause instanceof GenerationLimitError)
     return {
       title: "Too many generations",
@@ -180,13 +315,26 @@ export function describeGenerationError(cause: unknown): ErrorDescription {
       }`,
       retryable: false,
     };
-  const reasoned = providerReasonCopy(cause);
-  if (reasoned !== undefined) return reasoned;
+  if (explainsProviderFailure(cause))
+    return providerFailureCopy(cause, context);
   // MediaGenerationError carries the host's bounded public copy, not its private
   // cause. Keep that reason instead of replacing it with a code-only fallback.
   if (cause instanceof MediaGenerationError && cause.stage !== "provider")
     return { ...describeAppError(cause), message: cause.message };
 
+  const model = context.model ?? "The model";
+  // Anything that is not a coded App error (a thrown TypeError, a broken
+  // bridge reply) still gets the model, what is known, and a ref.
+  const coded = decodeAppErrorCode(cause);
+  if (Option.isNone(coded))
+    return {
+      title: "Generation failed",
+      message: `${model} stopped: Prints hit an unexpected error (${
+        cause instanceof Error ? cause.name : "no error details"
+      }). Retry, or pick another model.${refOf(context)}`,
+      retryable: true,
+    };
+  const unexplained = `${model} stopped: the cause wasn’t reported (internal error).`;
   return describeAppError(cause, {
     INSUFFICIENT_CREDIT: {
       title: "Couldn’t create image",
@@ -201,13 +349,11 @@ export function describeGenerationError(cause: unknown): ErrorDescription {
     // Each cause says what happened and what Retry changes, never a bare "failed".
     MEDIA_PROVIDER_FAILURE: {
       title: "Generation failed",
-      message:
-        "The model stopped before it finished. Retry, or pick another model.",
+      message: `${unexplained} Retry, or pick another model.${refOf(context)}`,
     },
     MEDIA_PROVIDER_FAILURE_UNCHARGED: {
       title: "Generation failed",
-      message:
-        "The model stopped before it finished. You weren’t charged. Retry, or pick another model.",
+      message: `${unexplained} You weren’t charged. Retry, or pick another model.${refOf(context)}`,
     },
     SAFETY_FILTER_REFUSED: {
       title: "Generation refused",
@@ -229,16 +375,17 @@ export function describeGenerationError(cause: unknown): ErrorDescription {
     },
     HOST_FAILURE: {
       title: "Couldn’t create image",
-      message: "Couldn't generate this media. Try again.",
+      message: `Prints couldn’t reach the media service, and it didn’t say why. Try again.${refOf(context)}`,
     },
   });
 }
 
 /** The cause and sentence to remember for a failed generation. */
-export function generationFailureOf(cause: unknown): GenerationFailure {
-  const reason = Schema.decodeUnknownOption(
-    Schema.Struct({ code: Schema.Literals(appErrorCodes) }),
-  )(cause);
+export function generationFailureOf(
+  cause: unknown,
+  context: GenerationFailureContext = {},
+): GenerationFailure {
+  const reason = decodeAppErrorCode(cause);
   return {
     reason:
       reason._tag === "Some"
@@ -246,7 +393,7 @@ export function generationFailureOf(cause: unknown): GenerationFailure {
         : needsGatewayCredits(cause)
           ? "INSUFFICIENT_CREDIT"
           : "UNKNOWN",
-    message: describeGenerationError(cause).message,
+    message: describeGenerationError(cause, context).message,
   };
 }
 
