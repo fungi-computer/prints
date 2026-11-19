@@ -48,6 +48,7 @@ import {
   generateVideoCommandSchema,
   generationCommandSchema,
   generatedVideoSchema,
+  methodRefusalDetail,
   methodRefusalSchema,
 } from "./method-contracts.js";
 import {
@@ -812,7 +813,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             ? {
                 id: "refused",
                 title: "Prints could not make this clip",
-                detail: output.error,
+                detail: methodRefusalDetail(output),
                 tone: "error",
               }
             : {
@@ -924,7 +925,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             ? {
                 id: "refused",
                 title: "Prints could not make this sound",
-                detail: output.error,
+                detail: methodRefusalDetail(output),
                 tone: "error",
               }
             : {
@@ -1028,7 +1029,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
             ? {
                 id: "refused",
                 title: "Prints could not make this panel",
-                detail: output.error,
+                detail: methodRefusalDetail(output),
                 tone: "error",
               }
             : {

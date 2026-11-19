@@ -1,5 +1,19 @@
 # @fungi.computer/prints
 
+## 0.20.18
+
+### Patch Changes
+
+- Changes since 0.20.17:
+
+  - fix(apps): send named Computer refusals only to Apps that opt in
+  - fix(apps): name each Computer refusal in plain words
+
+- Updated dependencies
+  - @fungi.computer/agar@0.24.0
+  - @fungi.computer/darkroom@0.11.11
+  - @fungi.computer/parakeet@0.16.2
+
 ## 0.20.17
 
 ### Patch Changes

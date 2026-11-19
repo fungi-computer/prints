@@ -5,6 +5,7 @@ import {
   mediaResultSchema,
 } from "@fungi.computer/darkroom/media-binding";
 import * as z from "zod";
+import { computerRefusalMessage } from "@fungi.computer/agar/computer-contracts";
 import {
   validateMediaVideoSelection,
   MediaSettingsError,
@@ -150,3 +151,14 @@ export const methodRefusalSchema = z.union([
   }),
   appMediaBrokerFailureSchema,
 ]);
+
+/**
+ * The one sentence a refused Prints method shows: the library's or media
+ * broker's own message, or the plain words for a Computer refusal.
+ */
+export function methodRefusalDetail(
+  refusal: z.output<typeof methodRefusalSchema>,
+): string {
+  if ("message" in refusal) return refusal.message;
+  return computerRefusalMessage(refusal.error);
+}
