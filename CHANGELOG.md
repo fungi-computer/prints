@@ -1,5 +1,13 @@
 # @fungi.computer/prints
 
+## 0.20.26
+
+### Patch Changes
+
+- Updated dependencies
+  - @fungi.computer/caps@0.12.4
+  - @fungi.computer/parakeet@0.16.8
+
 ## 0.20.25
 
 ### Patch Changes
