@@ -1,5 +1,13 @@
 # @fungi.computer/prints
 
+## 0.20.22
+
+### Patch Changes
+
+- Changes since 0.20.21:
+
+  - perf(prints): defer closed panels and consolidate startup chunks
+
 ## 0.20.21
 
 ### Patch Changes

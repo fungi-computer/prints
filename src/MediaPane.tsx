@@ -40,20 +40,9 @@ import {
   ComposerResizeHandle,
   useComposerLayout,
 } from "./media-composer-size.js";
-import {
-  LibraryBar,
-  MoveDialog,
-  NewFolderDialog,
-  SelectBar,
-} from "./library-select.js";
+import { LibraryBar, SelectBar } from "./library-select.js";
 import { isBareLibrary } from "./library-view.js";
 import { useLibrary } from "./use-library.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@fungi.computer/caps/components/dialog";
 import { folderStatusItem } from "./folder-status.js";
 import { ComposerShell } from "@fungi.computer/parakeet";
 import {
@@ -68,11 +57,7 @@ import {
 } from "./audio-composer-mode.js";
 import { GenerationModelKey } from "./generation-model-key.js";
 import { useMediaFolder } from "./media-folder.js";
-import {
-  PrintsActivityTray,
-  activityStatusItem,
-  type PrintsNotice,
-} from "./prints-activity.js";
+import { activityStatusItem, type PrintsNotice } from "./prints-activity.js";
 import { noticesFor } from "./prints-notices.js";
 import { useNoticeDismissals } from "./notice-dismissals.js";
 import { generationLimitReason } from "./generation-limit.js";
@@ -114,13 +99,9 @@ import {
   mentionedReferenceNumbers,
   referenceLabel,
 } from "./reference-mentions.js";
-import {
-  ReferenceLightbox,
-  type ReferenceSlide,
-} from "./reference-lightbox.js";
+import type { ReferenceSlide } from "./reference-lightbox.js";
 import { quoteSettingsFor, useGenerationQuote } from "./generation-quote.js";
 import { usePromptCharacters } from "./use-prompt-characters.js";
-import { PromptCharactersDialog } from "./prompt-character-controls.js";
 import {
   addedPromptLength,
   expandCharacters,
@@ -159,10 +140,44 @@ import { registerGenerationCommands } from "./generation-commands.js";
 import { usePromptCommands } from "./prompt-commands.js";
 import { usePromptStyles } from "./use-prompt-styles.js";
 import { animateModelFor, iterationDraft } from "./print-iteration.js";
-import {
-  PromptStyleSelect,
-  PromptStylesDialog,
-} from "./prompt-style-controls.js";
+import { PromptStyleSelect } from "./prompt-style-controls.js";
+
+import { DeferredPanel } from "./deferred-panel.js";
+
+const PrintsActivityTray = lazy(async () => {
+  const module = await import("./prints-activity-tray.js");
+  return { default: module.PrintsActivityTray };
+});
+
+const PromptStylesDialog = lazy(async () => {
+  const module = await import("./prompt-styles-dialog.js");
+  return { default: module.PromptStylesDialog };
+});
+
+const PromptCharactersDialog = lazy(async () => {
+  const module = await import("./prompt-character-controls.js");
+  return { default: module.PromptCharactersDialog };
+});
+
+const ReferenceLightbox = lazy(async () => {
+  const module = await import("./reference-lightbox.js");
+  return { default: module.ReferenceLightbox };
+});
+
+const MoveDialog = lazy(async () => {
+  const module = await import("./library-dialogs.js");
+  return { default: module.MoveDialog };
+});
+
+const NewFolderDialog = lazy(async () => {
+  const module = await import("./library-dialogs.js");
+  return { default: module.NewFolderDialog };
+});
+
+const LibraryFoldersDialog = lazy(async () => {
+  const module = await import("./library-folders-dialog.js");
+  return { default: module.LibraryFoldersDialog };
+});
 
 const LibraryRail = lazy(async () => {
   const module = await import("./library-rail.js");
@@ -971,24 +986,27 @@ function GenerationComposer({
                 );
               })}
             </div>
-            <ReferenceLightbox
-              slides={lightboxSlides}
-              index={lightboxIndex < 0 ? null : lightboxIndex}
-              onIndexChange={(next) => {
-                setLightboxKey(lightboxSlides[next]?.key ?? null);
-              }}
-              onClose={() => {
-                setLightboxKey(null);
-              }}
-              returnFocusTo={(key) =>
-                [
-                  ...(referenceTray.current?.querySelectorAll<HTMLElement>(
-                    "[data-reference-key]",
-                  ) ?? []),
-                ].find((thumbnail) => thumbnail.dataset.referenceKey === key) ??
-                null
-              }
-            />
+            <DeferredPanel active={lightboxIndex >= 0}>
+              <ReferenceLightbox
+                slides={lightboxSlides}
+                index={lightboxIndex < 0 ? null : lightboxIndex}
+                onIndexChange={(next) => {
+                  setLightboxKey(lightboxSlides[next]?.key ?? null);
+                }}
+                onClose={() => {
+                  setLightboxKey(null);
+                }}
+                returnFocusTo={(key) =>
+                  [
+                    ...(referenceTray.current?.querySelectorAll<HTMLElement>(
+                      "[data-reference-key]",
+                    ) ?? []),
+                  ].find(
+                    (thumbnail) => thumbnail.dataset.referenceKey === key,
+                  ) ?? null
+                }
+              />
+            </DeferredPanel>
           </>
         ) : undefined
       }
@@ -2542,63 +2560,62 @@ export function MediaPane({
       </div>
       {libraryVisible && folder.destination ? (
         <>
-          <MoveDialog
-            app={connection.app}
-            root={folder.destination}
-            from={
-              folder.view.kind === "folder"
-                ? { folder: folder.view.folder }
-                : null
-            }
-            canWrite={canWrite}
-            count={library.moving?.length ?? 0}
-            open={library.moving !== null}
-            version={library.version}
-            onClose={() => {
-              library.setMoving(null);
-            }}
-            onMove={(target, create) => {
-              const paths = library.moving ?? [];
-              library.setMoving(null);
-              library.setSelecting(false);
-              void library.move(paths, target, { create });
-            }}
-          />
-          <NewFolderDialog
-            parent={library.newFolder?.parent}
-            open={library.newFolder !== null}
-            onClose={() => {
-              library.setNewFolder(null);
-            }}
-            onCreate={(name) =>
-              library.createFolder(library.newFolder?.parent, name)
-            }
-          />
-          <Dialog open={foldersOpen} onOpenChange={setFoldersOpen}>
-            <DialogContent className="prints-folders-dialog">
-              <DialogHeader>
-                <DialogTitle>Folders</DialogTitle>
-              </DialogHeader>
-              <Suspense fallback={null}>
-                <LibraryRail
-                  app={connection.app}
-                  root={folder.destination}
-                  view={folder.view}
-                  onView={(next) => {
-                    library.history.open(next);
-                    setFoldersOpen(false);
-                  }}
-                  canWrite={canWrite}
-                  version={library.version}
-                  onNewFolder={(parent) => {
-                    setFoldersOpen(false);
-                    library.setNewFolder({ parent });
-                  }}
-                  onMoveRows={library.setMoving}
-                />
-              </Suspense>
-            </DialogContent>
-          </Dialog>
+          <DeferredPanel active={library.moving !== null}>
+            <MoveDialog
+              app={connection.app}
+              root={folder.destination}
+              from={
+                folder.view.kind === "folder"
+                  ? { folder: folder.view.folder }
+                  : null
+              }
+              canWrite={canWrite}
+              count={library.moving?.length ?? 0}
+              open={library.moving !== null}
+              version={library.version}
+              onClose={() => {
+                library.setMoving(null);
+              }}
+              onMove={(target, create) => {
+                const paths = library.moving ?? [];
+                library.setMoving(null);
+                library.setSelecting(false);
+                void library.move(paths, target, { create });
+              }}
+            />
+          </DeferredPanel>
+          <DeferredPanel active={library.newFolder !== null}>
+            <NewFolderDialog
+              parent={library.newFolder?.parent}
+              open={library.newFolder !== null}
+              onClose={() => {
+                library.setNewFolder(null);
+              }}
+              onCreate={(name) =>
+                library.createFolder(library.newFolder?.parent, name)
+              }
+            />
+          </DeferredPanel>
+          <DeferredPanel active={foldersOpen}>
+            <LibraryFoldersDialog
+              open={foldersOpen}
+              onOpenChange={setFoldersOpen}
+              app={connection.app}
+              root={folder.destination}
+              view={folder.view}
+              onView={(next) => {
+                library.history.open(next);
+                setFoldersOpen(false);
+              }}
+              canWrite={canWrite}
+              version={library.version}
+              onNewFolder={(parent) => {
+                setFoldersOpen(false);
+                library.setNewFolder({ parent });
+              }}
+              onMoveRows={library.setMoving}
+            />
+          </DeferredPanel>
         </>
       ) : null}
       {viewerKey !== null ? (
@@ -2672,39 +2689,43 @@ export function MediaPane({
                 />
               ),
               dialog: (
-                <PromptStylesDialog
-                  open={dialog.open}
-                  onOpenChange={dialog.onOpenChange}
-                  styles={promptStyles.styles}
-                  selected={values.style}
-                  busy={promptStyles.busy}
-                  error={promptStyles.error}
-                  onSelect={(name) => {
-                    form.setFieldValue("style", name);
-                  }}
-                  onSave={promptStyles.save}
-                  onDelete={(style, done) => {
-                    promptStyles.remove(style.id, done);
-                  }}
-                />
+                <DeferredPanel active={dialog.open}>
+                  <PromptStylesDialog
+                    open={dialog.open}
+                    onOpenChange={dialog.onOpenChange}
+                    styles={promptStyles.styles}
+                    selected={values.style}
+                    busy={promptStyles.busy}
+                    error={promptStyles.error}
+                    onSelect={(name) => {
+                      form.setFieldValue("style", name);
+                    }}
+                    onSave={promptStyles.save}
+                    onDelete={(style, done) => {
+                      promptStyles.remove(style.id, done);
+                    }}
+                  />
+                </DeferredPanel>
               ),
             })}
             characters={promptCharacters.characters}
             characterDialog={(dialog) => (
-              <PromptCharactersDialog
-                open={dialog.open}
-                onOpenChange={dialog.onOpenChange}
-                characters={promptCharacters.characters}
-                images={composerImages}
-                busy={promptCharacters.busy}
-                error={promptCharacters.error}
-                canUpload={canWrite && mediaDirectory !== null}
-                onUpload={() => uploadInput.current?.click()}
-                onSave={promptCharacters.save}
-                onDelete={(character, done) => {
-                  promptCharacters.remove(character.id, done);
-                }}
-              />
+              <DeferredPanel active={dialog.open}>
+                <PromptCharactersDialog
+                  open={dialog.open}
+                  onOpenChange={dialog.onOpenChange}
+                  characters={promptCharacters.characters}
+                  images={composerImages}
+                  busy={promptCharacters.busy}
+                  error={promptCharacters.error}
+                  canUpload={canWrite && mediaDirectory !== null}
+                  onUpload={() => uploadInput.current?.click()}
+                  onSave={promptCharacters.save}
+                  onDelete={(character, done) => {
+                    promptCharacters.remove(character.id, done);
+                  }}
+                />
+              </DeferredPanel>
             )}
             guidance={
               visibleNotices.find(
@@ -2770,18 +2791,20 @@ export function MediaPane({
         )}
         {/* The host tray has no footer row; its anchor must not add a pane gap. */}
         {activityItem === null ? null : (
-          <PrintsActivityTray
-            notices={visibleNotices}
-            uploads={uploadQueueProps}
-            open={noticesOpen}
-            inset={activityInset}
-            onOpenChange={setNoticesOpen}
-            onDismiss={dismissed.dismiss}
-            onDismissAll={() => {
-              dismissed.dismissAll(notices);
-            }}
-            onLoadMore={generation.hasMore ? generation.loadMore : undefined}
-          />
+          <DeferredPanel active={noticesOpen}>
+            <PrintsActivityTray
+              notices={visibleNotices}
+              uploads={uploadQueueProps}
+              open={noticesOpen}
+              inset={activityInset}
+              onOpenChange={setNoticesOpen}
+              onDismiss={dismissed.dismiss}
+              onDismissAll={() => {
+                dismissed.dismissAll(notices);
+              }}
+              onLoadMore={generation.hasMore ? generation.loadMore : undefined}
+            />
+          </DeferredPanel>
         )}
       </div>
       {folder.editing ? (

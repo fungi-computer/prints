@@ -8,5 +8,13 @@ export default defineConfig({
   plugins: [tailwindcss(), react()],
   build: {
     assetsInlineLimit: 0,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          // Share compression across eager code without pulling in lazy views.
+          groups: [{ name: "startup", tags: ["$initial"] }],
+        },
+      },
+    },
   },
 });
