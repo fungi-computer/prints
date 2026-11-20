@@ -1,5 +1,14 @@
 # @fungi.computer/prints
 
+## 0.20.24
+
+### Patch Changes
+
+- Updated dependencies
+  - @fungi.computer/agar@0.25.0
+  - @fungi.computer/darkroom@0.11.13
+  - @fungi.computer/parakeet@0.16.6
+
 ## 0.20.23
 
 ### Patch Changes
