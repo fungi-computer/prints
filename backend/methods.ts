@@ -527,6 +527,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
       description:
         "Move files or folders into a folder inside the selected library on the admitted Computer, keeping each one's name. Use this, not a shell mv: it keeps each print's prompt, references, favorite and saved-character links with the file. paths are absolute paths inside the library (as listOutputs returns them); folder is relative to the library (like Characters/Mira), omitted for the library folder itself; createFolder: true makes a missing folder. Pass name with exactly one path to rename it. Nothing is overwritten: a name already in the folder is a conflict, and a folder cannot move into itself. Returns what moved and, per path, why anything did not.",
       effect: "write",
+      label: "Move files in your library",
       requires: ["computer.writeFile"],
       input: z.strictObject({
         paths: z.array(pathArgument).min(1).max(100),
@@ -650,6 +651,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
       description:
         "Favorite or unfavorite files in the selected library for the whole Team. paths are absolute paths inside the library. Repeating a call is harmless.",
       effect: "write",
+      label: "Favorite files in your library",
       requires: [],
       input: z.strictObject({
         paths: z.array(pathArgument).min(1).max(100),
@@ -798,6 +800,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
       description:
         "Generate one short MP4 in this App's library with a video model from listModels. Resolution, aspect, duration, audio and path-only frame references follow that model's catalog. @imageN in the prompt names the Nth reference sent; frames read as first or last frame. The host chooses the Computer path. Workflows may omit requestId to derive it from the trusted caller key; otherwise use media_request_ followed by 21 random lowercase letters or digits. Pending means retry the same inputs and key after retryAfterMs. Existing billing and attachment budgets apply; the Workflow owns human review.",
       effect: "write",
+      label: "Generate a video",
       requires: ["media.generation", "computer.writeFile"],
       pending: true,
       input: generateVideoInputSchema,
@@ -910,6 +913,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
       description:
         "Generate one MP3 in this App's library: speech or music, with an audio model from listModels (kind audio). A speech model reads the prompt aloud in settings.voiceId (default: the model's defaultVoiceId); a music model composes the prompt as a track of settings.durationSeconds (its audio.seconds bounds). Audio takes no references, styles or characters. The host chooses the Computer path. Workflows may omit requestId to derive it from the trusted caller key; otherwise use media_request_ followed by 21 random lowercase letters or digits. Pending means retry the same inputs and key after retryAfterMs. Existing billing and attachment budgets apply.",
       effect: "write",
+      label: "Generate a sound",
       requires: ["media.generation", "computer.writeFile"],
       pending: true,
       input: generateSoundInputSchema,
@@ -1006,6 +1010,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
       description:
         "One image. Call listModels, listCharacters and listStyles first; prefer default. Input {requestId,characters,style,settings:{model,prompt,width,height,steps?,references?}}. steps: omit for fixed models; obey input.maxSteps. References {computerId?,path}: ANY attached Computer with its own read grant; omit computerId for selected. @imageN = Nth ref. characters/style compose the prompt. priceEstimate is an estimate for stated settings, not the charge. requestId: media_request_ + 21 random [a-z0-9]; reuse for recovery. For up to 8 panels, await one call per panel in ONE execute, distinct ids, same characters/style. On attachment_budget_exceeded wait retryAfterMs, reuse id. Never retry retryable:false (AI Gateway credits). Return results in panel order, printId, receipt, summed costMilliunits; if env.computers exists, files.read destination.path first. Never fetch image bytes.",
       effect: "write",
+      label: "Generate an image",
       requires: ["media.generation", "computer.writeFile"],
       input: generateImageInputSchema,
       output: z.union([

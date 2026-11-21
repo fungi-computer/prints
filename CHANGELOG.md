@@ -1,5 +1,21 @@
 # @fungi.computer/prints
 
+## 0.21.0
+
+### Minor Changes
+
+- Changes since 0.20.30:
+
+  - feat(agar): approval cards read a method's own short label
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.27.0
+  - @fungi.computer/parakeet@0.17.0
+  - @fungi.computer/darkroom@0.11.16
+
 ## 0.20.30
 
 ### Patch Changes
