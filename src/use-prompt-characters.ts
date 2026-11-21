@@ -1,5 +1,5 @@
 import type { AppRoot } from "@fungi.computer/agar";
-import { describeAppError } from "@fungi.computer/agar/errors";
+import { describeAppError, failureMessage } from "@fungi.computer/agar/errors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notifyPrintsError } from "./prints-error-toast.js";
 import { printsKeys, promptCharactersQuery } from "./media-queries.js";
@@ -52,9 +52,9 @@ export function usePromptCharacters(app: AppRoot | null) {
     busy: save.isPending || remove.isPending,
     save: (character: Edited, done: () => void) => {
       save.mutate(character, {
-        onError: () => {
+        onError: (cause) => {
           notifyPrintsError(
-            "The character could not be saved. Try again.",
+            failureMessage("The character could not be saved", cause),
             "prints-character-save",
           );
         },
@@ -64,9 +64,9 @@ export function usePromptCharacters(app: AppRoot | null) {
     remove: (id: number, done: () => void) => {
       remove.mutate(id, {
         onSuccess: done,
-        onError: () => {
+        onError: (cause) => {
           notifyPrintsError(
-            "The character could not be deleted. Try again.",
+            failureMessage("The character could not be deleted", cause),
             "prints-character-delete",
           );
         },
