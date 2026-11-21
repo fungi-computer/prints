@@ -185,6 +185,12 @@ function providerCause(
         next: "Retry in a minute.",
         retryable: true,
       };
+    case "remote_binding_disabled":
+      return {
+        cause: "Workers AI is disabled in this local runtime",
+        next: "Ask the operator to enable the remote AI binding, then retry.",
+        retryable: false,
+      };
     case "provider_unavailable":
       return {
         cause: "the provider is down right now",

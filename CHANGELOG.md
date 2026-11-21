@@ -1,5 +1,23 @@
 # @fungi.computer/prints
 
+## 0.21.2
+
+### Patch Changes
+
+- Changes since 0.21.1:
+
+  - fix(prints): explain model-specific video settings refusals
+  - fix(prints): enable proof bindings and explain generation refusals
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.27.2
+  - @fungi.computer/caps@0.12.9
+  - @fungi.computer/darkroom@0.11.18
+  - @fungi.computer/parakeet@0.17.2
+
 ## 0.21.1
 
 ### Patch Changes

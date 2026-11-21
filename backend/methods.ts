@@ -28,6 +28,7 @@ import {
   MediaSettingsError,
   listMediaModels,
   validateMediaGenerationSelection,
+  validateMediaVideoSelection,
 } from "@fungi.computer/darkroom";
 import { mediaRequestIdSchema } from "@fungi.computer/agar/media-request-id";
 import { mediaLibraryPathSchema } from "@fungi.computer/agar/media-library";
@@ -131,6 +132,13 @@ async function requestIdForCaller(
   ).join("");
   const suffix = BigInt(`0x${hex}`).toString(36).padStart(21, "0").slice(0, 21);
   return mediaRequestIdSchema.parse(`media_request_${suffix}`);
+}
+
+/** A missing identity cannot be retried safely until the caller supplies one. */
+function missingGenerationIdentity() {
+  return refuseArgument(
+    "Supply requestId as media_request_ followed by 21 random lowercase letters or digits. Reuse it when retrying the same generation.",
+  );
 }
 
 /** Only the reviewed scoped bindings and App-local durable state reach handlers. */
@@ -835,8 +843,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
           (caller.idempotencyKey === undefined
             ? undefined
             : await requestIdForCaller("generateVideo", caller.idempotencyKey));
-        if (requestId === undefined)
-          return methodRefusalSchema.parse({ error: "invalid" });
+        if (requestId === undefined) return missingGenerationIdentity();
         const {
           folder,
           style,
@@ -853,6 +860,12 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
           videoInput.settings,
         );
         if ("refusal" in composed) return composed.refusal;
+        try {
+          validateMediaVideoSelection(composed.settings);
+        } catch (cause) {
+          if (!(cause instanceof MediaSettingsError)) throw cause;
+          return refuseArgument(cause.message);
+        }
         const command = mediaVideoBindingInputSchema.parse({
           kind: "video",
           ...generateVideoCommandSchema.parse({
@@ -947,8 +960,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
           (caller.idempotencyKey === undefined
             ? undefined
             : await requestIdForCaller("generateSound", caller.idempotencyKey));
-        if (requestId === undefined)
-          return methodRefusalSchema.parse({ error: "invalid" });
+        if (requestId === undefined) return missingGenerationIdentity();
         const command = mediaAudioBindingInputSchema.parse({
           kind: "audio",
           ...generateSoundCommandSchema.parse({ ...input, requestId }),
@@ -1053,8 +1065,7 @@ export const appBackend = defineAppBackend<PrintsMethodContext>({
           (caller.idempotencyKey === undefined
             ? undefined
             : await requestIdForCaller("generateImage", caller.idempotencyKey));
-        if (requestId === undefined)
-          return methodRefusalSchema.parse({ error: "invalid" });
+        if (requestId === undefined) return missingGenerationIdentity();
         const {
           folder,
           style,

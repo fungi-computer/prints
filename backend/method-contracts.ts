@@ -70,14 +70,12 @@ function validateVideoCommand(
 }
 export const generateVideoCommandSchema =
   videoCommandSchema.superRefine(validateVideoCommand);
-export const generateVideoInputSchema = videoCommandSchema
-  .extend({
-    folder: folderArgumentSchema.optional(),
-    requestId: mediaRequestIdSchema.optional(),
-    style: styleArgumentSchema.optional(),
-    characters: charactersArgumentSchema.optional(),
-  })
-  .superRefine(validateVideoCommand);
+export const generateVideoInputSchema = videoCommandSchema.extend({
+  folder: folderArgumentSchema.optional(),
+  requestId: mediaRequestIdSchema.optional(),
+  style: styleArgumentSchema.optional(),
+  characters: charactersArgumentSchema.optional(),
+});
 /**
  * Speech or music. Audio takes only a prompt, plus a voice for speech or a
  * length for music, so a style, characters and references do not apply.
