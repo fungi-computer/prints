@@ -1,3 +1,4 @@
+import { failureMessage } from "@fungi.computer/agar/errors";
 import type { AppRoot } from "@fungi.computer/agar";
 import { describeAppError } from "@fungi.computer/agar/errors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -52,9 +53,9 @@ export function usePromptStyles(app: AppRoot | null) {
       done: (saved: PromptStyle | undefined) => void,
     ) => {
       save.mutate(style, {
-        onError: () => {
+        onError: (cause) => {
           notifyPrintsError(
-            "The style could not be saved. Try again.",
+            failureMessage("The style could not be saved", cause),
             "prints-style-save",
           );
         },
@@ -66,9 +67,9 @@ export function usePromptStyles(app: AppRoot | null) {
     remove: (id: number, done: () => void) => {
       remove.mutate(id, {
         onSuccess: done,
-        onError: () => {
+        onError: (cause) => {
           notifyPrintsError(
-            "The style could not be deleted. Try again.",
+            failureMessage("The style could not be deleted", cause),
             "prints-style-delete",
           );
         },

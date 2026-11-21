@@ -1,5 +1,20 @@
 # @fungi.computer/prints
 
+## 0.21.1
+
+### Patch Changes
+
+- Changes since 0.21.0:
+
+  - fix(agar): end a failure message with a period
+  - fix(grove): every launch App failure toast names its real cause
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/agar@0.27.1
+  - @fungi.computer/parakeet@0.17.1
+  - @fungi.computer/darkroom@0.11.17
+
 ## 0.21.0
 
 ### Minor Changes
