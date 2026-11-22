@@ -168,6 +168,8 @@ export function useMediaFolder(app: AppRoot | null) {
     available: app?.capabilities.has(appMethods) === true,
     writable: app?.capabilities.has(computerWriteFile) === true,
     busy,
+    /** The stored folder is still being read: neither a first run nor a failure yet. */
+    pending: query.isLoading,
     /** What the failed folder read said, for the gallery to name; never shown as an empty library. */
     failure: unavailable ? (query.error ?? listing.error) : null,
     error: unavailable

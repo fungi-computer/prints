@@ -1,5 +1,13 @@
 # @fungi.computer/prints
 
+## 0.21.9
+
+### Patch Changes
+
+- Changes since 0.21.8:
+
+  - fix(prints): hold the first-print screen until the folder read finishes
+
 ## 0.21.8
 
 ### Patch Changes

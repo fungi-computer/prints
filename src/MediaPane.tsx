@@ -1431,7 +1431,7 @@ export function MediaPane({
   const bareLibrary = isBareLibrary({
     selectable,
     atFolderRoot: folder.view.kind === "folder" && !library.up,
-    loading: loading || gallery.loading,
+    loading: loading || gallery.loading || folder.pending,
     failed: Boolean(gallery.error),
   });
   useHostNavigation(libraryVisible ? connection.app.window.navigation : null, {
@@ -2285,20 +2285,6 @@ export function MediaPane({
     disabled: !canWrite || mediaDirectory === null,
     disabledReason: "Choose a writable Computer and folder to upload images.",
   };
-  // First run with no folder yet: the invitation itself opens the picker.
-  const chooseFolder =
-    !mediaSetupMissing &&
-    folder.failure === null &&
-    libraryEmpty === null &&
-    folder.computerId !== null &&
-    folder.available &&
-    mediaDirectory === null;
-  const chooseFolderAction = {
-    label: "Choose folder",
-    onSelect: () => {
-      folder.setEditing(true);
-    },
-  };
   const imageSetupAction = (
     <Button variant="ghost" loading={setupWaiting} onClick={openMediaSetup}>
       Set up image generation
@@ -2428,7 +2414,7 @@ export function MediaPane({
               ref={scrollRef}
               className="prints-gallery-scroll flex-1 min-h-0"
               data-media-scroll
-              aria-busy={loading || gallery.loading}
+              aria-busy={loading || gallery.loading || folder.pending}
               onDragOver={(event) => {
                 event.preventDefault();
               }}
@@ -2463,7 +2449,8 @@ export function MediaPane({
                             : undefined))
                     }
                   />
-                ) : !(loading || gallery.loading) && folder.failure !== null ? (
+                ) : !(loading || gallery.loading || folder.pending) &&
+                  folder.failure !== null ? (
                   // A failed folder read is not an empty library: say why and
                   // offer the retry in place, never the first-print invitation.
                   <EmptyState
@@ -2493,7 +2480,7 @@ export function MediaPane({
                       ) : undefined
                     }
                   />
-                ) : !(loading || gallery.loading) ? (
+                ) : !(loading || gallery.loading || folder.pending) ? (
                   <EmptyState
                     aria-live="polite"
                     data-absence
@@ -2514,19 +2501,11 @@ export function MediaPane({
                           ? libraryEmpty.description
                           : folder.computerId === null
                             ? "Your images will appear here."
-                            : chooseFolder
-                              ? "Choose where Prints saves, then describe something."
-                              : "Describe something and it lands here, or drop in images from your Computer."
+                            : "Describe something and it lands here, or drop in images from your Computer."
                     }
-                    primaryAction={
-                      mediaSetupMissing
-                        ? uploadAction
-                        : chooseFolder
-                          ? chooseFolderAction
-                          : undefined
-                    }
+                    primaryAction={mediaSetupMissing ? uploadAction : undefined}
                     actions={
-                      chooseFolder ? undefined : mediaSetupMissing ? (
+                      mediaSetupMissing ? (
                         <div className="prints-image-setup">
                           <span>{setupCause}</span>
                           {imageSetupAction}
@@ -2543,7 +2522,7 @@ export function MediaPane({
                       )
                     }
                     suggestions={
-                      mediaSetupMissing || chooseFolder
+                      mediaSetupMissing
                         ? undefined
                         : promptSuggestions.map((prompt) => ({
                             label: prompt,
