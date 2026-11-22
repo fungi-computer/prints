@@ -290,6 +290,8 @@ export const Unavailable = () => <Workbench scenario="unavailable" />;
 export const Disconnected = () => <Workbench scenario="disconnected" />;
 
 export const CheckingFolder = () => <Workbench scenario="folder-loading" />;
+export const RestoringFolder = () => <Workbench scenario="folder-restoring" />;
+export const FailedFolder = () => <Workbench scenario="folder-failed" />;
 export const MissingFolder = () => <Workbench scenario="folder-missing" />;
 export const ChooseFolder = () => <Workbench scenario="folder-unselected" />;
 export const FolderNotWritable = () => <Workbench scenario="folder-readonly" />;

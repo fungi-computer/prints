@@ -1,5 +1,18 @@
 # @fungi.computer/prints
 
+## 0.21.8
+
+### Patch Changes
+
+- Changes since 0.21.7:
+
+  - fix(prints): say a Team's Apps are being restored
+
+- Updated dependencies
+  - @fungi.computer/agar@0.28.3
+  - @fungi.computer/darkroom@0.11.22
+  - @fungi.computer/parakeet@0.17.8
+
 ## 0.21.7
 
 ### Patch Changes

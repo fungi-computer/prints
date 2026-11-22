@@ -36,6 +36,7 @@ import {
   useHostNavigation,
   useWindowStatus,
 } from "@fungi.computer/agar/react";
+import { describeAppError } from "@fungi.computer/agar/errors";
 import {
   ComposerResizeHandle,
   useComposerLayout,
@@ -2287,6 +2288,7 @@ export function MediaPane({
   // First run with no folder yet: the invitation itself opens the picker.
   const chooseFolder =
     !mediaSetupMissing &&
+    folder.failure === null &&
     libraryEmpty === null &&
     folder.computerId !== null &&
     folder.available &&
@@ -2459,6 +2461,36 @@ export function MediaPane({
                                 },
                               }
                             : undefined))
+                    }
+                  />
+                ) : !(loading || gallery.loading) && folder.failure !== null ? (
+                  // A failed folder read is not an empty library: say why and
+                  // offer the retry in place, never the first-print invitation.
+                  <EmptyState
+                    aria-live="polite"
+                    data-media-failure
+                    role="status"
+                    variant="speech"
+                    className="prints-invitation"
+                    visual="blobs"
+                    title={describeAppError(folder.failure).title}
+                    description={describeAppError(folder.failure).message}
+                    primaryAction={{
+                      label: "Retry",
+                      onSelect: folder.recheck,
+                    }}
+                    actions={
+                      folder.available ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            folder.setEditing(true);
+                          }}
+                        >
+                          Choose folder
+                        </Button>
+                      ) : undefined
                     }
                   />
                 ) : !(loading || gallery.loading) ? (

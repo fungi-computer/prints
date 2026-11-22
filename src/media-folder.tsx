@@ -168,6 +168,8 @@ export function useMediaFolder(app: AppRoot | null) {
     available: app?.capabilities.has(appMethods) === true,
     writable: app?.capabilities.has(computerWriteFile) === true,
     busy,
+    /** What the failed folder read said, for the gallery to name; never shown as an empty library. */
+    failure: unavailable ? (query.error ?? listing.error) : null,
     error: unavailable
       ? "Your media folder is unavailable. Choose or create a folder."
       : null,

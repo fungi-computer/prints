@@ -7,6 +7,7 @@ import type {
 } from "@fungi.computer/agar/media";
 import { appsOpen } from "@fungi.computer/agar/apps";
 import { appMethods } from "@fungi.computer/agar/backend";
+import { AppError } from "@fungi.computer/agar/errors";
 import * as Schema from "effect/Schema";
 import type { MediaGenerationSelection } from "@fungi.computer/agar";
 import * as z from "zod";
@@ -93,6 +94,8 @@ export type Scenario =
   | "unavailable"
   | "folder-loading"
   | "folder-missing"
+  | "folder-restoring"
+  | "folder-failed"
   | "folder-unselected"
   | "folder-readonly"
   | "gallery-loading"
@@ -824,6 +827,25 @@ export function createPrintsFixture(
         if (scenario === "folder-loading")
           return new Promise<{ path: string; configured: boolean }>(
             () => undefined,
+          );
+        // The host's own words for a read that failed: a Team coming back from
+        // storage, and a failure that is ours with its ref.
+        if (scenario === "folder-restoring")
+          return Promise.reject(
+            new AppError("App execution unavailable", {
+              code: "HOST_FAILURE",
+              retryable: true,
+              reason: "restoring",
+            }),
+          );
+        if (scenario === "folder-failed")
+          return Promise.reject(
+            new AppError("App execution unavailable", {
+              code: "HOST_FAILURE",
+              retryable: true,
+              reason: "internal",
+              ref: "ab12cd34",
+            }),
           );
         break;
       default:
