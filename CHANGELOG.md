@@ -1,5 +1,13 @@
 # @fungi.computer/prints
 
+## 0.21.17
+
+### Patch Changes
+
+- Changes since 0.21.16:
+
+  - fix(prints): show a print's failed export again when you come back to it
+
 ## 0.21.16
 
 ### Patch Changes

@@ -101,15 +101,18 @@ export function PrintDownloadButton({
       : null;
   // A failure is said once in the shared toast, never as text that reflows the panel.
   const failureText = failure ? `${failure.title}. ${failure.message}` : null;
+  // Every failed attempt is its own toast, closed when the failure clears or
+  // this print goes away. Sonner cannot re-show an id it is still closing: the
+  // Toaster merges the new toast into the leaving one and keeps its `delete`
+  // flag, so a failure shown again for a print returned to never appeared.
   useEffect(() => {
-    if (failureText === null) {
-      toast.dismiss("prints-download-error");
-      return;
-    }
-    toast.error(failureText, {
-      id: "prints-download-error",
+    if (failureText === null) return;
+    const id = toast.error(failureText, {
       toasterId: "prints-generation-notices",
     });
+    return () => {
+      toast.dismiss(id);
+    };
   }, [failureText]);
   const preparing = preparation.isIdle || preparation.isPending;
   const startDownload = () => {
