@@ -1,5 +1,15 @@
 # @fungi.computer/prints
 
+## 0.21.16
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/caps@0.14.2
+  - @fungi.computer/darkroom@0.11.26
+  - @fungi.computer/parakeet@0.17.15
+
 ## 0.21.15
 
 ### Patch Changes
