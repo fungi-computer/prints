@@ -1,5 +1,19 @@
 # @fungi.computer/prints
 
+## 0.21.34
+
+### Patch Changes
+
+- Changes since 0.21.33:
+
+  - fix(prints): let escape cancel a pending menu press
+  - fix(prints): one pending press across menu keys, cancelled by input
+    elsewhere
+  - fix(prints): keep a press and focus on a menu key that loads late
+  - fix(prints): preload the menus right after first paint without idle
+    callbacks
+  - perf(prints): load the model and tile menus after first paint
+
 ## 0.21.33
 
 ### Patch Changes

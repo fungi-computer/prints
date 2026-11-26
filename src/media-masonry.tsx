@@ -6,7 +6,9 @@ import {
 } from "masonic";
 import {
   type HTMLAttributes,
+  lazy,
   memo,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -23,22 +25,24 @@ import { AudioTileFace, AudioTilePlay, AudioTileScope } from "./audio-tile.js";
 import { isVideoPath } from "./local-images.js";
 import { Checkbox } from "@fungi.computer/caps/components/checkbox";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@fungi.computer/caps/components/dropdown-menu";
-import {
   Check,
   Clock,
-  Ellipsis,
-  FolderInput,
   Heart,
   ImagePlus,
   Info,
   Square,
   Upload,
 } from "lucide-react";
+import { usePendingPress } from "./pending-press.js";
+import { TileMenuButton } from "./tile-menu-button.js";
+
+let tileMenuModule: Promise<typeof import("./tile-menu.js")> | undefined;
+/** Loads the tile menu code once; called right after first paint and on the first touch of a tile's key. */
+function loadTileMenu() {
+  tileMenuModule ??= import("./tile-menu.js");
+  return tileMenuModule;
+}
+const LazyTileMenu = lazy(() => import("./tile-menu.js"));
 
 /** One decoded image in the retained wall. */
 export type MediaMasonryItem = {
@@ -432,48 +436,32 @@ function TileMenu({
 }: {
   item: MediaMasonryItem;
 }): React.JSX.Element | null {
-  if (!item.onMove || item.select?.active) return null;
+  const wanted = Boolean(item.onMove) && !item.select?.active;
+  const { key: pressKey, handlers } = usePendingPress(
+    () => void loadTileMenu(),
+  );
+  useEffect(() => {
+    if (!wanted) return;
+    const timer = setTimeout(() => void loadTileMenu(), 0);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [wanted]);
+  if (!wanted) return null;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <IconButton
-            aria-label={`More actions: ${item.path}`}
-            title="More actions"
-            icon={<Ellipsis />}
-          />
-        }
-      />
-      <DropdownMenuContent>
-        <DropdownMenuItem onSelect={item.onMove}>
-          <FolderInput aria-hidden size={16} /> Move to…
-        </DropdownMenuItem>
-        {item.onToggleFavorite ? (
-          <DropdownMenuItem onSelect={item.onToggleFavorite}>
-            <Heart aria-hidden size={16} />{" "}
-            {item.favorite ? "Remove from favorites" : "Favorite"}
-          </DropdownMenuItem>
-        ) : null}
-        {item.onInfo ? (
-          <DropdownMenuItem onSelect={item.onInfo}>
-            <Info aria-hidden size={16} /> Image info
-          </DropdownMenuItem>
-        ) : null}
-        {item.onToggleReference ? (
-          <DropdownMenuItem
-            disabled={item.referenceDisabled}
-            onSelect={item.onToggleReference}
-          >
-            {item.referenced ? (
-              <Check aria-hidden size={16} />
-            ) : (
-              <ImagePlus aria-hidden size={16} />
-            )}{" "}
-            {item.referenced ? "Remove reference" : "Add reference"}
-          </DropdownMenuItem>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Suspense
+      fallback={
+        <TileMenuButton
+          aria-haspopup="menu"
+          className="btn caps-dropdown-trigger"
+          aria-expanded="false"
+          {...handlers}
+          path={item.path}
+        />
+      }
+    >
+      <LazyTileMenu item={item} press={pressKey} />
+    </Suspense>
   );
 }
 
