@@ -41,16 +41,12 @@ import {
   ComposerResizeHandle,
   useComposerLayout,
 } from "./media-composer-size.js";
-import { LibraryBar, SelectBar } from "./library-select.js";
+import { LibraryBar } from "./library-select.js";
 import { isBareLibrary } from "./library-view.js";
 import { useLibrary } from "./use-library.js";
 import { folderStatusItem } from "./folder-status.js";
 import { ComposerShell } from "@fungi.computer/parakeet";
 import {
-  AudioLengthMenu,
-  AudioModeControl,
-  AudioModelMenu,
-  AudioVoiceMenu,
   audioModeOfModel,
   audioOptionsOf,
   availableAudioModes,
@@ -87,9 +83,7 @@ import { galleryWithSlots } from "./gallery-slots.js";
 import {
   MediaComposerTextarea,
   promptOverMessage,
-  MediaMentionSheet,
   MediaMentionTokens,
-  MediaSlashSheet,
   mentionTokens,
   usePromptMentions,
   useReferenceLabels,
@@ -144,6 +138,42 @@ import { animateModelFor, iterationDraft } from "./print-iteration.js";
 import { PromptStyleSelect } from "./prompt-style-controls.js";
 
 import { DeferredPanel } from "./deferred-panel.js";
+
+const AudioModeControl = lazy(async () => {
+  const module = await import("./audio-composer-controls.js");
+  return { default: module.AudioModeControl };
+});
+
+const AudioModelMenu = lazy(async () => {
+  const module = await import("./audio-composer-controls.js");
+  return { default: module.AudioModelMenu };
+});
+
+const AudioVoiceMenu = lazy(async () => {
+  const module = await import("./audio-composer-controls.js");
+  return { default: module.AudioVoiceMenu };
+});
+
+const AudioLengthMenu = lazy(async () => {
+  const module = await import("./audio-composer-controls.js");
+  return { default: module.AudioLengthMenu };
+});
+
+// Only a person choosing prints needs the selection bar.
+const SelectBar = lazy(async () => {
+  const module = await import("./select-bar.js");
+  return { default: module.SelectBar };
+});
+
+const MediaSlashSheet = lazy(async () => {
+  const module = await import("./media-completion-sheets.js");
+  return { default: module.MediaSlashSheet };
+});
+
+const MediaMentionSheet = lazy(async () => {
+  const module = await import("./media-completion-sheets.js");
+  return { default: module.MediaMentionSheet };
+});
 
 const PrintsActivityTray = lazy(async () => {
   const module = await import("./prints-activity-tray.js");
@@ -807,7 +837,7 @@ function GenerationComposer({
     audioMode === null ? [] : modelsForAudioMode(audioChoices, audioMode);
   const audioControls =
     selected?.audio == null || audioMode === null ? null : (
-      <>
+      <Suspense fallback={null}>
         <AudioModeControl
           disabled={submitting}
           modes={availableAudioModes(audioChoices)}
@@ -851,7 +881,7 @@ function GenerationComposer({
             }}
           />
         )}
-      </>
+      </Suspense>
     );
   const referenceKey = (reference: (typeof values.references)[number]) =>
     JSON.stringify([reference.computerId ?? computerId, reference.path]);
@@ -1029,28 +1059,36 @@ function GenerationComposer({
                   }
                   id={regionId}
                   ref={promptRef}
+                  // Load the "/" and "@" menus before the first key that needs them.
+                  onFocusCapture={() => {
+                    void import("./media-completion-sheets.js");
+                  }}
                 >
                   {slash.slashOpen ? (
-                    <MediaSlashSheet
-                      index={slash.slashIndex}
-                      listId={slashListId}
-                      matches={slash.slashMatches}
-                      onHighlight={slash.highlightSlash}
-                      onPick={pickSlash}
-                    />
+                    <Suspense fallback={null}>
+                      <MediaSlashSheet
+                        index={slash.slashIndex}
+                        listId={slashListId}
+                        matches={slash.slashMatches}
+                        onHighlight={slash.highlightSlash}
+                        onPick={pickSlash}
+                      />
+                    </Suspense>
                   ) : null}
                   {!slash.slashOpen && mentions.matches.length > 0 ? (
-                    <MediaMentionSheet
-                      images={referenceImages}
-                      index={mentions.index}
-                      listId={mentionListId}
-                      matches={mentions.matches}
-                      onHighlight={mentions.highlight}
-                      onPick={(at) => {
-                        const next = mentions.complete(at);
-                        if (next !== null) field.handleChange(next);
-                      }}
-                    />
+                    <Suspense fallback={null}>
+                      <MediaMentionSheet
+                        images={referenceImages}
+                        index={mentions.index}
+                        listId={mentionListId}
+                        matches={mentions.matches}
+                        onHighlight={mentions.highlight}
+                        onPick={(at) => {
+                          const next = mentions.complete(at);
+                          if (next !== null) field.handleChange(next);
+                        }}
+                      />
+                    </Suspense>
                   ) : null}
                   <MediaComposerTextarea
                     caretRequest={mentions.caretRequest}
@@ -1221,6 +1259,10 @@ function GenerationComposer({
               <form.Field name="model">
                 {(field) => (
                   <GenerationModelKey
+                    // An audio model is among the choices: have its controls ready.
+                    onOpen={() => {
+                      void import("./audio-composer-controls.js");
+                    }}
                     compact={layout.coarse}
                     models={pictureModels(models)}
                     emptyLabel={
@@ -2384,27 +2426,39 @@ export function MediaPane({
                 />
               )}
               {library.selecting ? (
-                <SelectBar
-                  count={library.selected.size}
-                  total={gallery.entries.length}
-                  canWrite={canWrite}
-                  onToggleAll={() => {
-                    library.selectAll(
-                      library.selected.size === gallery.entries.length
-                        ? []
-                        : gallery.entries.map((entry) => entry.path),
-                    );
-                  }}
-                  onMove={() => {
-                    library.setMoving([...library.selected]);
-                  }}
-                  onFavorite={() => {
-                    library.toggleFavorite([...library.selected], true);
-                  }}
-                  onDone={() => {
-                    library.setSelecting(false);
-                  }}
-                />
+                <Suspense
+                  fallback={
+                    // The bar's own shell keeps its height while it loads.
+                    <div
+                      className="prints-select-bar"
+                      role="toolbar"
+                      aria-label="Selection"
+                      aria-busy="true"
+                    />
+                  }
+                >
+                  <SelectBar
+                    count={library.selected.size}
+                    total={gallery.entries.length}
+                    canWrite={canWrite}
+                    onToggleAll={() => {
+                      library.selectAll(
+                        library.selected.size === gallery.entries.length
+                          ? []
+                          : gallery.entries.map((entry) => entry.path),
+                      );
+                    }}
+                    onMove={() => {
+                      library.setMoving([...library.selected]);
+                    }}
+                    onFavorite={() => {
+                      library.toggleFavorite([...library.selected], true);
+                    }}
+                    onDone={() => {
+                      library.setSelecting(false);
+                    }}
+                  />
+                </Suspense>
               ) : null}
             </>
           ) : null}

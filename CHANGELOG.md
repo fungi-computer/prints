@@ -1,5 +1,18 @@
 # @fungi.computer/prints
 
+## 0.21.33
+
+### Patch Changes
+
+- Changes since 0.21.32:
+
+  - fix(prints): lint the latency proof
+  - fix(prints): load the menus before the first key and record the budget rule
+  - perf(prints): cut the first view under its budget
+
+- Updated dependencies
+  - @fungi.computer/parakeet@0.19.6
+
 ## 0.21.32
 
 ### Patch Changes

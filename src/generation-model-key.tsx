@@ -70,6 +70,7 @@ export function GenerationModelKey({
   emptyLabel,
   models,
   onChange,
+  onOpen,
   value,
 }: {
   /** An icon-only key for phones; the name stays in its tooltip and the menu. */
@@ -78,6 +79,8 @@ export function GenerationModelKey({
   emptyLabel: string;
   models: readonly MediaModel[];
   onChange: (id: string) => void;
+  /** The menu opened; the host may load what choosing a model will need. */
+  onOpen?: () => void;
   value: string;
 }) {
   const selected = models.find((model) => model.id === value);
@@ -91,7 +94,11 @@ export function GenerationModelKey({
   );
   return (
     <span className="contents" ref={setMenuContainer}>
-      <DropdownMenu>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          if (open) onOpen?.();
+        }}
+      >
         <DropdownMenuTrigger
           aria-label="Generation model"
           data-generation-model={value}
