@@ -1,5 +1,13 @@
 # @fungi.computer/prints
 
+## 0.21.38
+
+### Patch Changes
+
+- @fungi.computer/agar@0.30.2
+  - @fungi.computer/darkroom@0.11.33
+  - @fungi.computer/parakeet@0.19.10
+
 ## 0.21.37
 
 ### Patch Changes
